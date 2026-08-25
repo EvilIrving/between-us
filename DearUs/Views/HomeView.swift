@@ -127,6 +127,9 @@ struct HomeView: View {
     }
 
     private var roomWhisper: String {
+        if store.viewModel.data.isLocalPreview {
+            return "这是本机预览房间。先随便看看，真正的共同空间以后再创建。"
+        }
         let waiting = ContainerKind.allCases.reduce(0) { $0 + unopenedCount($1) }
         switch waiting {
         case 0: return "今天这里很安静。想起什么，就放下一点。"

@@ -79,6 +79,8 @@ DearUs/
 └── Design/       场景色彩、材质与光影
 ```
 
+视觉与动效的长期标准见 [VISUAL_MOTION_DESIGN.md](VISUAL_MOTION_DESIGN.md)。核心物件必须先作为代码外的人工美术资产成立，SwiftUI Path、基础 Shape 和程序生成 SVG 只可用于占位或交互验证，不作为最终视觉。
+
 核心交互组件包括：
 
 - `RitualDepositControl`：向上推入容器的提交手势。

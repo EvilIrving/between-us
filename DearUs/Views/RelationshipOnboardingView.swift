@@ -37,6 +37,14 @@ struct RelationshipOnboardingView: View {
                     }
                     .padding(.horizontal, 28)
 
+                    if LocalPreview.isSimulator {
+                        LookAroundEntry(prominent: true) {
+                            Task { await store.enterLocalPreview() }
+                        }
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 4)
+                    }
+
                     HoldToOpenControl(
                         kind: .star,
                         title: "按住，放下第一个空瓶子",
@@ -49,6 +57,13 @@ struct RelationshipOnboardingView: View {
                         }
                     )
                     .padding(.horizontal, 36)
+
+                    if !LocalPreview.isSimulator {
+                        LookAroundEntry {
+                            Task { await store.enterLocalPreview() }
+                        }
+                        .padding(.top, 4)
+                    }
 
                     VStack(spacing: 8) {
                         Text("已经收到邀请？")
@@ -86,40 +101,79 @@ struct ICloudRequiredView: View {
         ZStack {
             AmbientRoomBackground()
 
-            VStack(spacing: 26) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.34))
-                        .frame(width: 132, height: 132)
-                    Image(systemName: "icloud.slash")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
-
-                VStack(spacing: 9) {
-                    Text("共同房间暂时没有打开")
-                        .font(.title2.bold())
-                        .foregroundStyle(AppTheme.primaryText)
-                    Text(message)
-                        .font(.body)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(5)
-                }
-
-                HStack(spacing: 22) {
-                    QuietSystemAction(systemName: "gear", title: "系统设置") {
-                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                        openURL(url)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 26) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.34))
+                            .frame(width: 132, height: 132)
+                        Image(systemName: "icloud.slash")
+                            .font(.system(size: 48, weight: .light))
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
 
-                    QuietSystemAction(systemName: "arrow.clockwise", title: "再试一次") {
-                        Task { await store.sceneBecameActive() }
+                    VStack(spacing: 9) {
+                        Text("共同房间暂时没有打开")
+                            .font(.title2.bold())
+                            .foregroundStyle(AppTheme.primaryText)
+                        Text(message)
+                            .font(.body)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(5)
+                    }
+
+                    LookAroundEntry(prominent: true) {
+                        Task { await store.enterLocalPreview() }
+                    }
+
+                    HStack(spacing: 22) {
+                        QuietSystemAction(systemName: "gear", title: "系统设置") {
+                            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                            openURL(url)
+                        }
+
+                        QuietSystemAction(systemName: "arrow.clockwise", title: "再试一次") {
+                            Task { await store.sceneBecameActive() }
+                        }
                     }
                 }
+                .padding(30)
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
             }
-            .padding(30)
         }
+    }
+}
+
+private struct LookAroundEntry: View {
+    var prominent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            RitualHaptics.selection()
+            action()
+        } label: {
+            VStack(spacing: prominent ? 8 : 6) {
+                if prominent {
+                    RitualObjectGlyph(kind: .star, size: 64, filled: false)
+                }
+                Text("先看看房间")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                Text("不创建 iCloud 共同空间。星星瓶、胶囊盒和纸团篓都可以先摸一遍。")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SoftScaleButtonStyle())
+        .accessibilityHint("进入本机预览房间")
     }
 }
 

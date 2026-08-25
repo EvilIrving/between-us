@@ -169,8 +169,10 @@ def main() -> int:
         path for path in ROOT.rglob("*")
         if path.is_file()
         and path != manifest
+        and ".git" not in path.parts
+        and "xcuserdata" not in path.parts
         and "__pycache__" not in path.parts
-        and path.suffix != ".pyc"
+        and path.suffix not in {".pyc", ".xcuserstate"}
         and path.name != ".DS_Store"
     )
     expected_paths = {str(path.relative_to(ROOT)) for path in package_files}

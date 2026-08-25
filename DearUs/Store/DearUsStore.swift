@@ -40,6 +40,10 @@ final actor DearUsStore: Sendable, ObservableObject {
         await publishData()
         await setPhase(.loading)
         await installSystemEventHandlers()
+        if appData.isLocalPreview {
+            await presentLocalPreview()
+            return
+        }
         guard await refreshAccountState() else { return }
 
         initializeSyncEnginesIfNeeded()
@@ -54,6 +58,10 @@ final actor DearUsStore: Sendable, ObservableObject {
             await start()
             return
         }
+        if appData.isLocalPreview {
+            await presentLocalPreview()
+            return
+        }
         guard await refreshAccountState() else { return }
         initializeSyncEnginesIfNeeded()
         queuePersistedDirtyRecords()
@@ -61,7 +69,33 @@ final actor DearUsStore: Sendable, ObservableObject {
         await refresh()
     }
 
+    func enterLocalPreview() async {
+        guard appData.relationship == nil || appData.isLocalPreview else { return }
+        appData = LocalPreview.makeAppData()
+        privateSyncEngine = nil
+        sharedSyncEngine = nil
+        try? persist()
+        await presentLocalPreview()
+    }
+
+    func leaveLocalPreview() async {
+        guard appData.isLocalPreview else { return }
+        appData = AppData()
+        privateSyncEngine = nil
+        sharedSyncEngine = nil
+        try? repository.reset()
+        try? mediaStore.removeAll()
+        try? persist()
+        await publishData()
+        await setSyncStatus(.idle)
+        _ = await refreshAccountState()
+    }
+
     func refresh() async {
+        guard !appData.isLocalPreview else {
+            await setSyncStatus(.localPreview)
+            return
+        }
         guard let relationship = appData.relationship,
               let engine = syncEngine(for: relationship.scope.databaseScope) else { return }
 
@@ -144,6 +178,13 @@ final actor DearUsStore: Sendable, ObservableObject {
     }
 
     func prepareShareSheet() async {
+        if appData.isLocalPreview {
+            await showNotice(
+                title: "预览房间",
+                message: "这里只是本机看看，还没有真正的共同空间，也不能邀请。"
+            )
+            return
+        }
         guard let relationship = appData.relationship else { return }
         await setPerformingAction(true)
         defer { Task { await self.setPerformingAction(false) } }
@@ -282,8 +323,10 @@ final actor DearUsStore: Sendable, ObservableObject {
         do {
             try persist()
             await publishData()
-            queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
-            try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+            if !appData.isLocalPreview {
+                queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
+                try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+            }
             cleanupTemporaryDraft(draft)
             return true
         } catch {
@@ -323,6 +366,10 @@ final actor DearUsStore: Sendable, ObservableObject {
     }
 
     func endRelationship() async {
+        if appData.isLocalPreview {
+            await leaveLocalPreview()
+            return
+        }
         guard let relationship = appData.relationship else { return }
         await setPerformingAction(true)
         defer { Task { await self.setPerformingAction(false) } }
@@ -417,8 +464,10 @@ final actor DearUsStore: Sendable, ObservableObject {
         do {
             try persist()
             await publishData()
-            queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
-            try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+            if !appData.isLocalPreview {
+                queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
+                try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+            }
             return item
         } catch {
             appData.items[original.recordName] = original
@@ -692,6 +741,7 @@ private extension DearUsStore {
     }
 
     func handleAccountChange(_ event: CKSyncEngine.Event.AccountChange) async {
+        guard !appData.isLocalPreview else { return }
         switch event.changeType {
         case .signIn:
             _ = await refreshAccountState()
@@ -725,7 +775,17 @@ private extension DearUsStore {
         }
     }
 
+    func presentLocalPreview() async {
+        await publishData()
+        await setPhase(.ready)
+        await setSyncStatus(.localPreview)
+    }
+
     func refreshAccountState() async -> Bool {
+        if appData.isLocalPreview {
+            await presentLocalPreview()
+            return true
+        }
         let status = await accountStatus()
         guard status == .available else {
             let message: String
@@ -832,6 +892,7 @@ private extension DearUsStore {
     }
 
     func initializeSyncEnginesIfNeeded() {
+        guard !appData.isLocalPreview else { return }
         initializePrivateSyncEngine()
         initializeSharedSyncEngine()
     }
@@ -881,7 +942,8 @@ private extension DearUsStore {
     }
 
     func queuePersistedDirtyRecords() {
-        guard let relationship = appData.relationship,
+        guard !appData.isLocalPreview,
+              let relationship = appData.relationship,
               let engine = syncEngine(for: relationship.scope.databaseScope) else { return }
         let changes = appData.dirtyRecordNames.compactMap { recordName -> CKSyncEngine.PendingRecordZoneChange? in
             let normalized = recordName.lowercased()

@@ -29,26 +29,39 @@ struct SettingsView: View {
                     }
 
                     SettingsSection(title: "共同空间") {
-                        SettingsFactRow(
-                            systemName: "person.2",
-                            title: "你在这里的身份",
-                            value: relationship?.isOwner == true ? "创建者" : "参与者"
-                        )
+                        if isLocalPreview {
+                            SettingsFactRow(
+                                systemName: "eye",
+                                title: "当前房间",
+                                value: "本机预览"
+                            )
 
-                        SettingsActionRow(
-                            systemName: "person.crop.circle.badge.plus",
-                            title: relationship?.isOwner == true ? "邀请或管理对方" : "查看共同空间",
-                            subtitle: "这一步会打开 Apple 的系统共享面板"
-                        ) {
-                            Task { await store.prepareShareSheet() }
-                        }
+                            Text("内容只留在这台设备，不会同步到 iCloud，也不能邀请对方。要开始真正的双人空间，先离开预览。")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
+                                .lineSpacing(4)
+                        } else {
+                            SettingsFactRow(
+                                systemName: "person.2",
+                                title: "你在这里的身份",
+                                value: relationship?.isOwner == true ? "创建者" : "参与者"
+                            )
 
-                        SettingsActionRow(
-                            systemName: "arrow.triangle.2.circlepath.icloud",
-                            title: "让房间现在对齐一次",
-                            subtitle: syncDetail
-                        ) {
-                            Task { await store.refresh() }
+                            SettingsActionRow(
+                                systemName: "person.crop.circle.badge.plus",
+                                title: relationship?.isOwner == true ? "邀请或管理对方" : "查看共同空间",
+                                subtitle: "这一步会打开 Apple 的系统共享面板"
+                            ) {
+                                Task { await store.prepareShareSheet() }
+                            }
+
+                            SettingsActionRow(
+                                systemName: "arrow.triangle.2.circlepath.icloud",
+                                title: "让房间现在对齐一次",
+                                subtitle: syncDetail
+                            ) {
+                                Task { await store.refresh() }
+                            }
                         }
                     }
 
@@ -94,7 +107,7 @@ struct SettingsView: View {
                     }
 
                     VStack(spacing: 13) {
-                        Text(relationship?.isOwner == true ? "结束并删除共同空间" : "退出共同空间")
+                        Text(endSpaceTitle)
                             .font(.headline)
                             .foregroundStyle(Color.red.opacity(0.76))
 
@@ -107,9 +120,9 @@ struct SettingsView: View {
 
                         HoldToOpenControl(
                             kind: .paper,
-                            title: relationship?.isOwner == true ? "持续按住，确认永久删除" : "持续按住，确认离开",
-                            inactiveTitle: "正在处理共同空间",
-                            duration: 2.0,
+                            title: endSpaceActionTitle,
+                            inactiveTitle: isLocalPreview ? "正在离开预览" : "正在处理共同空间",
+                            duration: isLocalPreview ? 1.1 : 2.0,
                             isEnabled: !store.viewModel.isPerformingAction,
                             isWorking: store.viewModel.isPerformingAction,
                             onComplete: {
@@ -136,6 +149,10 @@ struct SettingsView: View {
         store.viewModel.data.relationship
     }
 
+    private var isLocalPreview: Bool {
+        store.viewModel.data.isLocalPreview
+    }
+
     private var syncDetail: String {
         switch store.viewModel.syncStatus {
         case .idle: return "等待 iCloud"
@@ -144,6 +161,7 @@ struct SettingsView: View {
             guard let date else { return "已经同步" }
             return "上次对齐于 \(date.formatted(date: .omitted, time: .shortened))"
         case .attention(let message): return message
+        case .localPreview: return "本机预览，不会同步"
         }
     }
 
@@ -168,7 +186,20 @@ struct SettingsView: View {
         return "\(version) (\(build))"
     }
 
+    private var endSpaceTitle: String {
+        if isLocalPreview { return "离开预览房间" }
+        return relationship?.isOwner == true ? "结束并删除共同空间" : "退出共同空间"
+    }
+
+    private var endSpaceActionTitle: String {
+        if isLocalPreview { return "持续按住，离开预览" }
+        return relationship?.isOwner == true ? "持续按住，确认永久删除" : "持续按住，确认离开"
+    }
+
     private var endSpaceExplanation: String {
+        if isLocalPreview {
+            return "离开后会回到开始页。预览里放下的内容只在这台设备上，不会变成真正的共同空间。"
+        }
         if relationship?.isOwner == true {
             return "持续按住两秒后，CloudKit 中的星星、胶囊、纸团和媒体会一起删除，双方都无法恢复。"
         }
