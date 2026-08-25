@@ -1,0 +1,5 @@
+DesignAssets/** filter=lfs diff=lfs merge=lfs -text
+美术资产/** filter=lfs diff=lfs merge=lfs -text
+DesignAssets/**/*.md !text !filter !merge !diff
+美术资产/**/*.md !text !filter !merge !diff
+美术资产/**/*.json !text !filter !merge !diff

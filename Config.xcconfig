@@ -1,0 +1,5 @@
+// 绑定到个人开发者账号 TIANBAO DONG（QZZ878S3NS）。
+// 命名与 kitchen / daily-oracle / light-stats 保持一致：cain.com.<app>
+APP_BUNDLE_IDENTIFIER = cain.com.dear-us
+CLOUDKIT_CONTAINER_ID = iCloud.cain.com.dear-us
+DEVELOPMENT_TEAM_ID = QZZ878S3NS
