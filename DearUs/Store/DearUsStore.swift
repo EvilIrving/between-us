@@ -10,6 +10,7 @@ final actor DearUsStore: Sendable, ObservableObject {
     private let repository: LocalStateRepository
     private let mediaStore: MediaFileStore
     private let notificationManager: NotificationManager
+    private let composeDraftRepository: ComposeDraftRepository
     private var appData: AppData
     private var privateSyncEngine: CKSyncEngine?
     private var sharedSyncEngine: CKSyncEngine?
@@ -23,11 +24,13 @@ final actor DearUsStore: Sendable, ObservableObject {
     init(
         repository: LocalStateRepository = LocalStateRepository(),
         mediaStore: MediaFileStore = MediaFileStore(),
-        notificationManager: NotificationManager = NotificationManager()
+        notificationManager: NotificationManager = NotificationManager(),
+        composeDraftRepository: ComposeDraftRepository = ComposeDraftRepository()
     ) {
         self.repository = repository
         self.mediaStore = mediaStore
         self.notificationManager = notificationManager
+        self.composeDraftRepository = composeDraftRepository
         var loaded = repository.load()
         loaded.normalizeRecordKeys()
         self.appData = loaded
@@ -85,6 +88,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         sharedSyncEngine = nil
         try? repository.reset()
         try? mediaStore.removeAll()
+        composeDraftRepository.clearAll()
         try? persist()
         await publishData()
         await setSyncStatus(.idle)
@@ -102,6 +106,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         await setSyncStatus(.syncing)
         do {
             try await engine.fetchChanges()
+            await recoverMissingAttachments(in: relationship)
             try await engine.sendChanges()
             appData.lastSuccessfulSyncAt = Date()
             try persist()
@@ -123,6 +128,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         await setPerformingAction(true)
         defer { Task { await self.setPerformingAction(false) } }
 
+        let originalData = appData
         var createdZoneID: CKRecordZone.ID?
         do {
             let zone = CKRecordZone(zoneName: "DearUsRelationship-\(UUID().uuidString)")
@@ -169,9 +175,15 @@ final actor DearUsStore: Sendable, ObservableObject {
             await setSyncStatus(.upToDate(Date()))
             await presentShareSheet(share)
         } catch {
-            if appData.relationship == nil, let createdZoneID {
+            if let createdZoneID {
                 try? await Self.container.privateCloudDatabase.deleteRecordZone(withID: createdZoneID)
             }
+            appData = originalData
+            privateSyncEngine = nil
+            sharedSyncEngine = nil
+            try? persist()
+            await publishData()
+            await setPhase(.needsRelationship)
             logger.error("Failed to create relationship: \(error.localizedDescription, privacy: .public)")
             await showNotice(title: "创建失败", message: cloudFriendlyMessage(for: error))
         }
@@ -249,6 +261,7 @@ final actor DearUsStore: Sendable, ObservableObject {
 
         await setPerformingAction(true)
         defer { Task { await self.setPerformingAction(false) } }
+        var didAcceptShare = false
 
         do {
             guard await accountStatus() == .available else {
@@ -256,6 +269,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             }
 
             try await acceptShareMetadata(metadata)
+            didAcceptShare = true
             appData.relationship = RelationshipLocator(
                 zoneName: incomingZoneID.zoneName,
                 ownerName: incomingZoneID.ownerName,
@@ -286,7 +300,16 @@ final actor DearUsStore: Sendable, ObservableObject {
             }
         } catch {
             logger.error("Failed to accept share: \(error.localizedDescription, privacy: .public)")
-            await showNotice(title: "加入失败", message: cloudFriendlyMessage(for: error))
+            if didAcceptShare, appData.relationship != nil {
+                await publishData()
+                await setPhase(.ready)
+                await showNotice(
+                    title: "已经加入共同空间",
+                    message: "本机状态暂时没有保存完整；重新打开 App 后会从 iCloud 自动找回。"
+                )
+            } else {
+                await showNotice(title: "加入失败", message: cloudFriendlyMessage(for: error))
+            }
         }
     }
 
@@ -324,8 +347,9 @@ final actor DearUsStore: Sendable, ObservableObject {
             try persist()
             await publishData()
             if !appData.isLocalPreview {
-                queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
-                try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+                let scope = relationship.scope.databaseScope
+                queueSave(item.recordID(in: relationship), scope: scope)
+                Task { await self.sendQueuedChanges(scope: scope) }
             }
             cleanupTemporaryDraft(draft)
             return true
@@ -402,8 +426,14 @@ final actor DearUsStore: Sendable, ObservableObject {
             privateSyncEngine = nil
             sharedSyncEngine = nil
             try? mediaStore.removeAll()
+            composeDraftRepository.clearAll()
             initializeSyncEnginesIfNeeded()
-            try persist()
+            do {
+                try persist()
+            } catch {
+                try? repository.reset()
+                logger.error("Relationship ended remotely but local reset could not be persisted: \(error.localizedDescription, privacy: .public)")
+            }
             await publishData()
             await setPhase(.needsRelationship)
             await setSyncStatus(.idle)
@@ -440,6 +470,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         appData.sharedSyncState = nil
         sharedSyncEngine = nil
         try? mediaStore.removeAll()
+        composeDraftRepository.clearAll()
         initializeSharedSyncEngine()
         try? persist()
         await publishData()
@@ -465,8 +496,9 @@ final actor DearUsStore: Sendable, ObservableObject {
             try persist()
             await publishData()
             if !appData.isLocalPreview {
-                queueSave(item.recordID(in: relationship), scope: relationship.scope.databaseScope)
-                try? await syncEngine(for: relationship.scope.databaseScope)?.sendChanges()
+                let scope = relationship.scope.databaseScope
+                queueSave(item.recordID(in: relationship), scope: scope)
+                Task { await self.sendQueuedChanges(scope: scope) }
             }
             return item
         } catch {
@@ -606,7 +638,7 @@ private extension DearUsStore {
                 }
             } else if let item = SecretItem(record: record, mediaStore: mediaStore) {
                 appData.items[recordName] = item
-                if item.authorID != appData.currentUserID {
+                if item.authorID != appData.currentUserID, item.openedAt == nil {
                     newItemKinds.append(item.kind)
                 }
             }
@@ -615,6 +647,9 @@ private extension DearUsStore {
 
         for deletion in event.deletions where deletion.recordID.zoneID == relationship.zoneID {
             let key = deletion.recordID.recordName.lowercased()
+            if let attachment = appData.items[key]?.attachment {
+                try? mediaStore.remove(attachment)
+            }
             appData.items[key] = nil
             appData.dirtyRecordNames.remove(key)
             changed = true
@@ -646,10 +681,14 @@ private extension DearUsStore {
         guard relationshipWasRemoved else { return }
 
         appData.removeRelationshipData()
+        privateSyncEngine = nil
+        sharedSyncEngine = nil
         try? mediaStore.removeAll()
+        composeDraftRepository.clearAll()
         try? persist()
         await publishData()
         await setPhase(.needsRelationship)
+        await setSyncStatus(.idle)
         await showNotice(
             title: "共同空间已结束",
             message: relationship.isOwner
@@ -751,6 +790,7 @@ private extension DearUsStore {
             sharedSyncEngine = nil
             try? repository.reset()
             try? mediaStore.removeAll()
+            composeDraftRepository.clearAll()
             await publishData()
             await setPhase(.needsICloud(message: "iCloud 账号发生了变化，请确认系统账号后重新打开 App。"))
             await setSyncStatus(.idle)
@@ -811,6 +851,7 @@ private extension DearUsStore {
                 privateSyncEngine = nil
                 sharedSyncEngine = nil
                 try? mediaStore.removeAll()
+                composeDraftRepository.clearAll()
             } else {
                 appData.currentUserRecordName = recordID.recordName
             }
@@ -941,6 +982,16 @@ private extension DearUsStore {
         )
     }
 
+    func sendQueuedChanges(scope: CKDatabase.Scope) async {
+        guard let engine = syncEngine(for: scope) else { return }
+        do {
+            try await engine.sendChanges()
+        } catch {
+            logger.info("Background sync deferred: \(error.localizedDescription, privacy: .public)")
+            await setSyncStatus(.attention("等待网络同步"))
+        }
+    }
+
     func queuePersistedDirtyRecords() {
         guard !appData.isLocalPreview,
               let relationship = appData.relationship,
@@ -952,6 +1003,42 @@ private extension DearUsStore {
             return .saveRecord(recordID)
         }
         engine.state.add(pendingRecordZoneChanges: changes)
+    }
+
+    func recoverMissingAttachments(in relationship: RelationshipLocator) async {
+        let missingRecordNames = appData.items.values.compactMap { item -> String? in
+            guard let attachment = item.attachment,
+                  !mediaStore.fileExists(for: attachment) else { return nil }
+            return item.recordName
+        }
+        guard !missingRecordNames.isEmpty else { return }
+
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+        var changed = false
+
+        for recordName in missingRecordNames {
+            let recordID = CKRecord.ID(recordName: recordName, zoneID: relationship.zoneID)
+            do {
+                let record = try await database.record(for: recordID)
+                guard var local = appData.items[recordName] else { continue }
+                let hadLocalFile = local.attachment.map { mediaStore.fileExists(for: $0) } ?? false
+                let needsUpload = local.mergeFromServerRecord(record, mediaStore: mediaStore)
+                appData.items[recordName] = local
+                if needsUpload {
+                    appData.dirtyRecordNames.insert(recordName)
+                    queueSave(recordID, scope: relationship.scope.databaseScope)
+                }
+                let hasLocalFile = local.attachment.map { mediaStore.fileExists(for: $0) } ?? false
+                changed = changed || hadLocalFile != hasLocalFile || needsUpload
+            } catch {
+                logger.info("Attachment recovery deferred for \(recordName, privacy: .private): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        if changed {
+            try? persist()
+            await publishData()
+        }
     }
 
     func cleanupTemporaryDraft(_ draft: AttachmentDraft?) {

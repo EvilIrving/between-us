@@ -12,21 +12,15 @@ struct SettingsView: View {
             AmbientRoomBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 22) {
+                VStack(spacing: 16) {
                     HStack {
                         SceneCloseControl(label: "回到共同房间") { dismiss() }
                         Spacer()
-                        QuietSyncGlyph(status: store.viewModel.syncStatus)
                     }
 
-                    VStack(spacing: 6) {
-                        Text("房间设置")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text("这些是共同空间的门锁、提醒和离开方式")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-                    }
+                    Text("设置")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
 
                     SettingsSection(title: "共同空间") {
                         if isLocalPreview {
@@ -36,28 +30,24 @@ struct SettingsView: View {
                                 value: "本机预览"
                             )
 
-                            Text("内容只留在这台设备，不会同步到 iCloud，也不能邀请对方。要开始真正的双人空间，先离开预览。")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-                                .lineSpacing(4)
                         } else {
                             SettingsFactRow(
                                 systemName: "person.2",
-                                title: "你在这里的身份",
+                                title: "身份",
                                 value: relationship?.isOwner == true ? "创建者" : "参与者"
                             )
 
                             SettingsActionRow(
                                 systemName: "person.crop.circle.badge.plus",
-                                title: relationship?.isOwner == true ? "邀请或管理对方" : "查看共同空间",
-                                subtitle: "这一步会打开 Apple 的系统共享面板"
+                                title: relationship?.isOwner == true ? "管理成员" : "查看成员",
+                                subtitle: "打开 iCloud 共享"
                             ) {
                                 Task { await store.prepareShareSheet() }
                             }
 
                             SettingsActionRow(
                                 systemName: "arrow.triangle.2.circlepath.icloud",
-                                title: "让房间现在对齐一次",
+                                title: "立即同步",
                                 subtitle: syncDetail
                             ) {
                                 Task { await store.refresh() }
@@ -65,32 +55,22 @@ struct SettingsView: View {
                         }
                     }
 
-                    SettingsSection(title: "轻提醒") {
+                    SettingsSection(title: "通知") {
                         SettingsActionRow(
                             systemName: "bell.badge",
-                            title: "容器发生变化时提醒",
+                            title: "内容变化提醒",
                             subtitle: notificationDetail
                         ) {
                             handleNotificationAction()
                         }
-
-                        Text("通知只会说共同房间发生了变化，不会展示星星、胶囊或纸团里的具体内容。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
-                            .lineSpacing(4)
                     }
 
-                    SettingsSection(title: "本机与隐私") {
+                    SettingsSection(title: "存储与隐私") {
                         SettingsFactRow(
                             systemName: "internaldrive",
-                            title: "这台设备上的媒体副本",
+                            title: "本机媒体",
                             value: formattedStorage
                         )
-
-                        Text("共同内容保存在 Apple CloudKit 的共享记录区。App 没有自建业务服务器，也不要求额外注册账号；照片和语音会在本机保留受文件保护的副本。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.65))
-                            .lineSpacing(4)
                     }
 
                     SettingsSection(title: "关于") {
@@ -99,39 +79,29 @@ struct SettingsView: View {
                             title: "耳语 · Dear Us",
                             value: versionText
                         )
-
-                        Text("核心体验不是聊天时间线，而是共同养着三个会随关系慢慢变化的容器。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.65))
-                            .lineSpacing(4)
                     }
 
-                    VStack(spacing: 13) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(endSpaceTitle)
-                            .font(.headline)
-                            .foregroundStyle(Color.red.opacity(0.76))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.red.opacity(0.82))
 
                         Text(endSpaceExplanation)
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.66))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(4)
-                            .padding(.horizontal, 12)
 
-                        HoldToOpenControl(
-                            kind: .paper,
+                        CompactHoldAction(
                             title: endSpaceActionTitle,
-                            inactiveTitle: isLocalPreview ? "正在离开预览" : "正在处理共同空间",
+                            workingTitle: isLocalPreview ? "正在离开" : "正在处理",
                             duration: isLocalPreview ? 1.1 : 2.0,
                             isEnabled: !store.viewModel.isPerformingAction,
-                            isWorking: store.viewModel.isPerformingAction,
-                            onComplete: {
-                                Task { await store.endRelationship() }
-                            }
-                        )
+                            isWorking: store.viewModel.isPerformingAction
+                        ) {
+                            Task { await store.endRelationship() }
+                        }
                     }
-                    .padding(.top, 8)
-                    .padding(.bottom, 30)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 9)
@@ -156,10 +126,10 @@ struct SettingsView: View {
     private var syncDetail: String {
         switch store.viewModel.syncStatus {
         case .idle: return "等待 iCloud"
-        case .syncing: return "正在把两边的变化放回同一间房"
+        case .syncing: return "同步中"
         case .upToDate(let date):
             guard let date else { return "已经同步" }
-            return "上次对齐于 \(date.formatted(date: .omitted, time: .shortened))"
+            return "上次同步 \(date.formatted(date: .omitted, time: .shortened))"
         case .attention(let message): return message
         case .localPreview: return "本机预览，不会同步"
         }
@@ -167,8 +137,8 @@ struct SettingsView: View {
 
     private var notificationDetail: String {
         switch notificationState {
-        case .notDetermined: return "还没有决定"
-        case .enabled: return "已经开启"
+        case .notDetermined: return "未设置"
+        case .enabled: return "已开启"
         case .disabled: return "已在系统中关闭"
         }
     }
@@ -187,23 +157,23 @@ struct SettingsView: View {
     }
 
     private var endSpaceTitle: String {
-        if isLocalPreview { return "离开预览房间" }
-        return relationship?.isOwner == true ? "结束并删除共同空间" : "退出共同空间"
+        if isLocalPreview { return "离开预览" }
+        return relationship?.isOwner == true ? "删除共同空间" : "退出共同空间"
     }
 
     private var endSpaceActionTitle: String {
-        if isLocalPreview { return "持续按住，离开预览" }
-        return relationship?.isOwner == true ? "持续按住，确认永久删除" : "持续按住，确认离开"
+        if isLocalPreview { return "按住离开预览" }
+        return relationship?.isOwner == true ? "按住删除共同空间" : "按住退出共同空间"
     }
 
     private var endSpaceExplanation: String {
         if isLocalPreview {
-            return "离开后会回到开始页。预览里放下的内容只在这台设备上，不会变成真正的共同空间。"
+            return "本机预览内容将被删除。"
         }
         if relationship?.isOwner == true {
-            return "持续按住两秒后，CloudKit 中的星星、胶囊、纸团和媒体会一起删除，双方都无法恢复。"
+            return "所有内容和媒体将永久删除，双方都无法恢复。"
         }
-        return "持续按住两秒后，这台设备会离开共同空间；再次加入需要创建者重新邀请。"
+        return "退出后需要新的邀请才能再次加入。"
     }
 
     private func handleNotificationAction() {
@@ -220,6 +190,99 @@ struct SettingsView: View {
     }
 }
 
+private struct CompactHoldAction: View {
+    let title: String
+    let workingTitle: String
+    let duration: TimeInterval
+    let isEnabled: Bool
+    let isWorking: Bool
+    let action: () -> Void
+
+    @State private var isPressing = false
+    @State private var pressedAt: Date?
+    @State private var activationTask: Task<Void, Never>?
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.red.opacity(0.06))
+
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.red.opacity(0.14))
+                        .frame(width: proxy.size.width * progress(at: context.date))
+
+                    HStack(spacing: 8) {
+                        if isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.red)
+                        } else {
+                            Image(systemName: "hand.point.up.left.fill")
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        Text(isWorking ? workingTitle : title)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.red.opacity(isEnabled ? 0.82 : 0.42))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.red.opacity(0.16), lineWidth: 1)
+                }
+                .contentShape(Rectangle())
+                .highPriorityGesture(holdGesture, including: isEnabled && !isWorking ? .all : .none)
+            }
+        }
+        .frame(height: 52)
+        .onDisappear { cancel() }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityHint("持续按住完成，松开取消")
+    }
+
+    private var holdGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in beginIfNeeded() }
+            .onEnded { _ in cancel() }
+    }
+
+    private func progress(at date: Date) -> CGFloat {
+        guard isPressing, let pressedAt else { return 0 }
+        return min(max(date.timeIntervalSince(pressedAt) / duration, 0), 1)
+    }
+
+    private func beginIfNeeded() {
+        guard isEnabled, !isWorking, !isPressing else { return }
+        isPressing = true
+        pressedAt = Date()
+        RitualHaptics.soft()
+        activationTask?.cancel()
+        activationTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard isPressing, isEnabled, !isWorking else { return }
+            isPressing = false
+            pressedAt = nil
+            RitualHaptics.success()
+            action()
+        }
+    }
+
+    private func cancel() {
+        isPressing = false
+        pressedAt = nil
+        activationTask?.cancel()
+        activationTask = nil
+    }
+}
+
 private struct SettingsSection<Content: View>: View {
     let title: String
     let content: Content
@@ -230,7 +293,7 @@ private struct SettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
@@ -239,12 +302,12 @@ private struct SettingsSection<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 2)
             .background(Color.white.opacity(0.30))
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(Color.white.opacity(0.52), lineWidth: 1)
             }
         }
@@ -269,7 +332,7 @@ private struct SettingsFactRow: View {
             }
             Spacer()
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 }
 
@@ -300,7 +363,7 @@ private struct SettingsActionRow: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.32))
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
@@ -314,7 +377,7 @@ private struct SettingsRowGlyph: View {
         Image(systemName: systemName)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(AppTheme.primaryText.opacity(0.68))
-            .frame(width: 38, height: 38)
+            .frame(width: 34, height: 34)
             .background(Color.white.opacity(0.38))
             .clipShape(Circle())
     }

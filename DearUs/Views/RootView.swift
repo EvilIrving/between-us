@@ -60,28 +60,22 @@ struct RootView: View {
 }
 
 private struct LoadingView: View {
-    @State private var bottleBreathes = false
-
     var body: some View {
         ZStack {
             AmbientRoomBackground(kind: .star)
 
             VStack(spacing: 20) {
-                StarBottleIllustration(count: 5)
+                FunctionalContainerPlaceholder(kind: .star, count: 5, compact: true, isActive: true)
                     .frame(width: 142, height: 164)
-                    .scaleEffect(bottleBreathes ? 1.025 : 0.98)
-                    .shadow(color: ContainerKind.star.tint.opacity(0.16), radius: 22, y: 12)
 
                 VStack(spacing: 8) {
                     ProgressView()
                         .tint(AppTheme.secondaryText)
-                    Text("正在打开你们的共同房间")
+                    Text("正在载入")
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.secondaryText)
                 }
             }
-            .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: bottleBreathes)
-            .onAppear { bottleBreathes = true }
         }
     }
 }

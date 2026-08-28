@@ -33,9 +33,9 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var placeholder: String {
         switch self {
-        case .star: return "比如：今天你下意识帮我把杯子接过去的时候，我其实特别开心……"
-        case .capsule: return "比如：最近你已经很努力了，我希望你不要总觉得自己做得不够……"
-        case .paper: return "发生了什么？你当时是什么感觉？你希望对方知道什么？"
+        case .star: return "写下想分享的事"
+        case .capsule: return "写下想认真告诉对方的事"
+        case .paper: return "发生了什么？你有什么感受？"
         }
     }
 

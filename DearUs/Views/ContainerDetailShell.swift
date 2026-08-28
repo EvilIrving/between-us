@@ -31,8 +31,6 @@ struct ContainerDetailShell<Content: View>: View {
                             dismiss()
                         }
                         Spacer()
-                        RitualObjectGlyph(kind: kind, size: 44, filled: true)
-                            .opacity(0.66)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 9)

@@ -203,10 +203,11 @@ struct VoiceHoldRecorderView: View {
                 if started { recorder.discard() }
                 return
             }
-            if !started, let message = recorder.errorMessage {
-                fingerDown = false
-                currentSessionID = nil
-                onError(message)
+            if !started {
+                resetGestureState()
+                if let message = recorder.errorMessage {
+                    onError(message)
+                }
             }
         }
     }

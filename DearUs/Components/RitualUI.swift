@@ -25,7 +25,6 @@ enum RitualHaptics {
 
 struct AmbientRoomBackground: View {
     let kind: ContainerKind?
-    @State private var isFloating = false
 
     init(kind: ContainerKind? = nil) {
         self.kind = kind
@@ -37,34 +36,17 @@ struct AmbientRoomBackground: View {
                 AppTheme.backgroundGradient(for: kind)
 
                 Ellipse()
-                    .fill((kind?.tint ?? AppTheme.warmLight).opacity(0.10))
-                    .frame(width: proxy.size.width * 1.15, height: proxy.size.width * 0.82)
-                    .blur(radius: 26)
-                    .offset(x: -proxy.size.width * 0.28, y: -proxy.size.height * 0.28)
+                    .fill((kind?.tint ?? AppTheme.warmLight).opacity(0.07))
+                    .frame(width: proxy.size.width * 1.08, height: proxy.size.width * 0.74)
+                    .blur(radius: 32)
+                    .offset(x: -proxy.size.width * 0.28, y: -proxy.size.height * 0.30)
 
                 Ellipse()
-                    .fill(Color.white.opacity(0.30))
-                    .frame(width: proxy.size.width * 0.95, height: proxy.size.width * 0.70)
-                    .blur(radius: 34)
-                    .offset(x: proxy.size.width * 0.34, y: proxy.size.height * 0.28)
-
-                ForEach(0..<12, id: \.self) { index in
-                    Circle()
-                        .fill(Color.white.opacity(index.isMultiple(of: 3) ? 0.34 : 0.18))
-                        .frame(width: CGFloat(3 + index % 4), height: CGFloat(3 + index % 4))
-                        .position(
-                            x: proxy.size.width * CGFloat((index * 37) % 91 + 4) / 100,
-                            y: proxy.size.height * CGFloat((index * 53) % 86 + 7) / 100
-                        )
-                        .offset(y: isFloating ? CGFloat((index % 5) - 2) * 8 : CGFloat((index % 5) - 2) * -5)
-                        .opacity(isFloating ? 0.75 : 0.38)
-                }
+                    .fill(Color.white.opacity(0.22))
+                    .frame(width: proxy.size.width * 0.88, height: proxy.size.width * 0.62)
+                    .blur(radius: 38)
+                    .offset(x: proxy.size.width * 0.34, y: proxy.size.height * 0.30)
             }
-            .animation(
-                .easeInOut(duration: 4.8).repeatForever(autoreverses: true),
-                value: isFloating
-            )
-            .onAppear { isFloating = true }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
@@ -102,9 +84,9 @@ struct SceneCloseControl: View {
 struct SoftScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.93 : 1)
-            .opacity(configuration.isPressed ? 0.78 : 1)
-            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
     }
 }
 
@@ -148,17 +130,13 @@ struct RitualActionToken: View {
     var subtitle: String? = nil
     let action: () -> Void
 
-    @State private var isBreathing = false
-
     var body: some View {
         Button {
             RitualHaptics.selection()
             action()
         } label: {
             VStack(spacing: 8) {
-                RitualObjectGlyph(kind: kind, size: 68, filled: false)
-                    .scaleEffect(isBreathing ? 1.035 : 0.97)
-                    .shadow(color: kind.tint.opacity(0.18), radius: isBreathing ? 18 : 8)
+                RitualObjectGlyph(kind: kind, size: 62, filled: false)
 
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -175,8 +153,6 @@ struct RitualActionToken: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: isBreathing)
-        .onAppear { isBreathing = true }
     }
 }
 
@@ -411,7 +387,7 @@ struct HoldToOpenControl: View {
                     .multilineTextAlignment(.center)
 
                 if isEnabled, !isWorking {
-                    Text(kind == .paper ? "按住，直到你真的准备好" : "按住，让它慢慢把一件东西交给你")
+                    Text("持续按住 · 松开取消")
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                         .multilineTextAlignment(.center)
@@ -420,7 +396,7 @@ struct HoldToOpenControl: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .highPriorityGesture(pressGesture, including: isEnabled && !isWorking ? .all : .none)
-            .animation(.spring(response: 0.28, dampingFraction: 0.76), value: isPressing)
+            .animation(.easeOut(duration: 0.10), value: isPressing)
         }
         .onDisappear { cancelPress() }
         .accessibilityElement(children: .combine)

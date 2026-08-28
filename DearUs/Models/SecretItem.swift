@@ -91,11 +91,19 @@ extension SecretItem {
            let assetURL = asset.fileURL {
             let byteCount = (record[Field.byteCount] as? NSNumber)?.int64Value
             let duration = (record[Field.duration] as? NSNumber)?.doubleValue
-            attachmentMetadata = try? mediaStore.persistDownloadedAsset(
+            let originalFilename = record[Field.originalFilename] as? String
+            attachmentMetadata = (try? mediaStore.persistDownloadedAsset(
                 sourceURL: assetURL,
                 recordName: record.recordID.recordName,
                 kind: attachmentKind,
-                originalFilename: record[Field.originalFilename] as? String,
+                originalFilename: originalFilename,
+                duration: duration,
+                expectedByteCount: byteCount
+            )) ?? mediaStore.downloadedAssetMetadata(
+                sourceURL: assetURL,
+                recordName: record.recordID.recordName,
+                kind: attachmentKind,
+                originalFilename: originalFilename,
                 duration: duration,
                 expectedByteCount: byteCount
             )
@@ -159,6 +167,15 @@ extension SecretItem {
 
     mutating func mergeFromServerRecord(_ record: CKRecord, mediaStore: MediaFileStore) -> Bool {
         guard var remote = SecretItem(record: record, mediaStore: mediaStore) else { return false }
+
+        // Opening an item only changes its open metadata. If a transient CKAsset download
+        // fails during that merge, keep the valid local copy instead of accidentally
+        // uploading a record with its attachment fields cleared.
+        if let localAttachment = attachment,
+           mediaStore.fileExists(for: localAttachment),
+           remote.attachment.map({ !mediaStore.fileExists(for: $0) }) ?? true {
+            remote.attachment = localAttachment
+        }
 
         let localOpenNeedsUpload = openedAt != nil && remote.openedAt == nil
         if localOpenNeedsUpload {

@@ -13,6 +13,7 @@ final class AudioRecorder: NSObject, ObservableObject {
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var fileURL: URL?
+    private var recordingSessionID: UUID?
 
     @discardableResult
     func preparePermission() async -> Bool {
@@ -33,12 +34,18 @@ final class AudioRecorder: NSObject, ObservableObject {
         guard !isRecording, !isPreparing else { return isRecording }
         errorMessage = nil
         isPreparing = true
+        let sessionID = UUID()
+        recordingSessionID = sessionID
         defer { isPreparing = false }
 
         guard await requestPermission() else {
-            errorMessage = "需要麦克风权限，才能把这句话录下来。"
+            if recordingSessionID == sessionID {
+                recordingSessionID = nil
+                errorMessage = "需要麦克风权限，才能把这句话录下来。"
+            }
             return false
         }
+        guard recordingSessionID == sessionID else { return false }
 
         do {
             let session = AVAudioSession.sharedInstance()
@@ -83,6 +90,7 @@ final class AudioRecorder: NSObject, ObservableObject {
         stopTimer()
         self.recorder = nil
         self.fileURL = nil
+        recordingSessionID = nil
         isRecording = false
         duration = recordedDuration
         level = 0
@@ -97,6 +105,7 @@ final class AudioRecorder: NSObject, ObservableObject {
     }
 
     func discard() {
+        recordingSessionID = nil
         recorder?.stop()
         recorder = nil
         stopTimer()

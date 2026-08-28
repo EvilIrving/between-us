@@ -1,5 +1,54 @@
 import SwiftUI
 
+/// Demo 阶段的功能占位物件。只表达容器类型与积累数量，不承担最终美术。
+struct FunctionalContainerPlaceholder: View {
+    let kind: ContainerKind
+    let count: Int
+    var compact = false
+    var isActive = false
+
+    var body: some View {
+        VStack(spacing: compact ? 8 : 13) {
+            ZStack {
+                RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous)
+                    .fill(kind.tint.opacity(isActive ? 0.24 : 0.13))
+
+                RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous)
+                    .stroke(kind.tint.opacity(isActive ? 0.70 : 0.38), lineWidth: isActive ? 3 : 2)
+
+                VStack(spacing: compact ? 8 : 12) {
+                    Image(systemName: symbolName)
+                        .font(.system(size: compact ? 28 : 44, weight: .semibold))
+                        .foregroundStyle(kind.tint)
+
+                    Text("\(count)")
+                        .font(.system(size: compact ? 18 : 26, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(AppTheme.primaryText.opacity(0.82))
+
+                    Text("件内容")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
+                }
+                .padding(compact ? 12 : 20)
+            }
+            .aspectRatio(compact ? 1.08 : 0.92, contentMode: .fit)
+        }
+        .padding(compact ? 7 : 12)
+        .background(Color.white.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: compact ? 24 : 34, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(kind.title)，共有 \(count) 件内容")
+    }
+
+    private var symbolName: String {
+        switch kind {
+        case .star: return "star.fill"
+        case .capsule: return "capsule.fill"
+        case .paper: return "doc.fill"
+        }
+    }
+}
+
 struct StarBottleIllustration: View {
     let count: Int
 

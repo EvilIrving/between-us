@@ -42,9 +42,15 @@ struct MediaFileStore: Sendable {
         duration: TimeInterval?,
         expectedByteCount: Int64?
     ) throws -> AttachmentMetadata {
-        let fileExtension = resolvedExtension(kind: kind, sourceURL: sourceURL)
-        let safeRecordName = recordName.replacingOccurrences(of: "/", with: "-").lowercased()
-        let filename = "\(safeRecordName)-\(kind.rawValue).\(fileExtension)"
+        let metadata = downloadedAssetMetadata(
+            sourceURL: sourceURL,
+            recordName: recordName,
+            kind: kind,
+            originalFilename: originalFilename,
+            duration: duration,
+            expectedByteCount: expectedByteCount
+        )
+        let filename = metadata.localFilename
         let destination = directoryURL.appendingPathComponent(filename)
 
         let existingSize = fileSize(at: destination)
@@ -60,6 +66,25 @@ struct MediaFileStore: Sendable {
             originalFilename: originalFilename,
             duration: duration,
             byteCount: fileSize(at: destination)
+        )
+    }
+
+    func downloadedAssetMetadata(
+        sourceURL: URL,
+        recordName: String,
+        kind: AttachmentKind,
+        originalFilename: String?,
+        duration: TimeInterval?,
+        expectedByteCount: Int64?
+    ) -> AttachmentMetadata {
+        let fileExtension = resolvedExtension(kind: kind, sourceURL: sourceURL)
+        let safeRecordName = recordName.replacingOccurrences(of: "/", with: "-").lowercased()
+        return AttachmentMetadata(
+            kind: kind,
+            localFilename: "\(safeRecordName)-\(kind.rawValue).\(fileExtension)",
+            originalFilename: originalFilename,
+            duration: duration,
+            byteCount: expectedByteCount ?? 0
         )
     }
 

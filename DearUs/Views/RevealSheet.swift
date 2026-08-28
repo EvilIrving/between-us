@@ -36,10 +36,6 @@ struct RevealSheet: View {
 
                     if contentAppears {
                         VStack(spacing: 18) {
-                            Text(revealTitle)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(item.kind.tint.opacity(0.86))
-
                             if !item.text.isEmpty {
                                 Text(item.text)
                                     .font(.system(size: 21, weight: .medium, design: .rounded))
@@ -70,13 +66,13 @@ struct RevealSheet: View {
                         .shadow(color: Color.black.opacity(0.065), radius: 26, y: 14)
                         .transition(.scale(scale: 0.92).combined(with: .opacity))
 
-                        RitualDivider(text: "看完以后")
+                        RitualDivider(text: "回应")
                             .padding(.vertical, 3)
 
                         RitualActionToken(
                             kind: item.kind,
-                            title: responseTitle,
-                            subtitle: "不是在这条下面回复，而是重新留下一件属于你的东西"
+                            title: "留下一件",
+                            subtitle: "创建新的内容"
                         ) {
                             showResponseComposer = true
                         }
@@ -84,7 +80,7 @@ struct RevealSheet: View {
                         VStack(spacing: 5) {
                             Image(systemName: "chevron.down")
                                 .font(.caption.weight(.bold))
-                            Text("向下拉，也可以把它收好")
+                            Text("下拉收好")
                                 .font(.caption2)
                         }
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.46))
@@ -101,14 +97,9 @@ struct RevealSheet: View {
             .simultaneousGesture(dismissGesture)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.62, dampingFraction: 0.72)) {
+            withAnimation(.easeOut(duration: 0.16)) {
                 isUnsealed = true
-            }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 520_000_000)
-                withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
-                    contentAppears = true
-                }
+                contentAppears = true
             }
         }
         .fullScreenCover(isPresented: $showResponseComposer) {
@@ -136,21 +127,6 @@ struct RevealSheet: View {
             }
     }
 
-    private var revealTitle: String {
-        switch item.kind {
-        case .star: return "对方曾把这一点喜欢折起来"
-        case .capsule: return "对方把这件事认真封在这里"
-        case .paper: return "这是对方曾经没有当面说出的感受"
-        }
-    }
-
-    private var responseTitle: String {
-        switch item.kind {
-        case .star: return "也折一颗星星放回瓶子"
-        case .capsule: return "也封一颗胶囊留在盒子里"
-        case .paper: return "把自己的感受也诚实放下来"
-        }
-    }
 }
 
 private struct RevealObjectAnimation: View {

@@ -43,9 +43,13 @@ struct ComposeSheet: View {
     @State private var isSaving = false
     @State private var isPreparingVoicePermission = false
     @State private var localNotice: LocalNotice?
+    @State private var didRestoreDraft = false
+    @State private var didSave = false
+    @State private var draftSaveTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
 
     private let maxLength = 4_000
+    private let draftRepository = ComposeDraftRepository()
 
     var body: some View {
         ZStack {
@@ -85,7 +89,7 @@ struct ComposeSheet: View {
                             .padding(.horizontal, 28)
                             .padding(.bottom, 6)
                         } else {
-                            Text("语音松手后会直接放进去")
+                            Text("松手即保存")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
                                 .frame(height: 38)
@@ -119,7 +123,7 @@ struct ComposeSheet: View {
                 .zIndex(4)
             }
         }
-        .animation(.spring(response: 0.34, dampingFraction: 0.82), value: mode)
+        .animation(.easeOut(duration: 0.16), value: mode)
         .animation(.easeOut(duration: 0.22), value: localNotice?.id)
         .onChange(of: selectedMediaItem) { _, newValue in
             guard let newValue else { return }
@@ -128,7 +132,10 @@ struct ComposeSheet: View {
         .onChange(of: text) { _, newValue in
             if newValue.count > maxLength {
                 text = String(newValue.prefix(maxLength))
+                return
             }
+            guard didRestoreDraft, mode != .voice else { return }
+            scheduleDraftSave(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
             guard let rawValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -139,12 +146,14 @@ struct ComposeSheet: View {
             interruptActiveRecording()
         }
         .onAppear {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 260_000_000)
-                isFocused = true
-            }
+            restoreDraftIfNeeded()
+            isFocused = mode == .text
         }
         .onDisappear {
+            draftSaveTask?.cancel()
+            if !didSave, mode != .voice {
+                draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
+            }
             recorder.discard()
             cleanupTemporaryDraft(attachmentDraft)
         }
@@ -162,15 +171,9 @@ struct ComposeSheet: View {
 
             Spacer()
 
-            VStack(spacing: 3) {
-                Text(kind.composeTitle)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                Text(helperLine)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                    .multilineTextAlignment(.center)
-            }
+            Text(kind.composeTitle)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
 
             Spacer()
 
@@ -208,13 +211,13 @@ struct ComposeSheet: View {
                     isDisabled: isSaving || isPreparingVoicePermission,
                     onRecorded: voiceRecorded,
                     onCancelled: {
-                        localNotice = LocalNotice(title: "没有留下", message: "这段语音已经被揉掉了。")
+                        localNotice = LocalNotice(title: "已取消", message: "录音未保存。")
                     },
                     onTooShort: {
-                        localNotice = LocalNotice(title: "再多说一点点", message: "录音太短，没有放进容器。")
+                        localNotice = LocalNotice(title: "录音太短", message: "请按住并多说一点。")
                     },
                     onError: { message in
-                        localNotice = LocalNotice(title: "暂时听不见", message: message)
+                        localNotice = LocalNotice(title: "无法录音", message: message)
                     }
                 )
                 .frame(maxHeight: 440)
@@ -241,6 +244,10 @@ struct ComposeSheet: View {
         .overlay { Capsule().stroke(Color.white.opacity(0.45), lineWidth: 1) }
     }
 
+    private var draftSpaceID: String {
+        store.viewModel.data.relationship?.zoneName ?? "unassigned"
+    }
+
     private var isVoiceInteractionLocked: Bool {
         mode == .voice && (isPreparingVoicePermission || recorder.isPreparing || recorder.isRecording)
     }
@@ -259,22 +266,41 @@ struct ComposeSheet: View {
         }
     }
 
-    private var helperLine: String {
-        switch kind {
-        case .star: return "把喜欢折得小一点"
-        case .capsule: return "把想提醒的事轻轻封住"
-        case .paper: return "先把感受从心里拿出来"
+    private var depositInstruction: String {
+        if mode == .voice, attachmentDraft?.kind == .audio {
+            return "向上拖动重试"
+        }
+        if canSave { return "向上拖动放入" }
+        switch mode {
+        case .text: return "先写下内容"
+        case .photo: return "先选择照片"
+        case .voice: return "按住开始录音"
         }
     }
 
-    private var depositInstruction: String {
-        if mode == .voice, attachmentDraft?.kind == .audio {
-            return "把保留下来的语音向上推，再试一次"
+    private func restoreDraftIfNeeded() {
+        guard !didRestoreDraft else { return }
+        let snapshot = draftRepository.snapshot(spaceID: draftSpaceID, kind: kind)
+        text = snapshot.text
+        attachmentDraft = snapshot.attachment
+        if snapshot.attachment?.kind == .image {
+            mode = .photo
+        } else if snapshot.attachment?.kind == .audio {
+            mode = .voice
+            text = ""
         }
-        switch kind {
-        case .star: return canSave ? "把星星向上推，放进瓶口" : "写下一点什么，星星才会成形"
-        case .capsule: return canSave ? "把胶囊向上推，收进盒子" : "准备好内容，胶囊才会合上"
-        case .paper: return canSave ? "把纸团向上推，先放在这里" : "说清感受，再把它揉起来"
+        didRestoreDraft = true
+    }
+
+    private func scheduleDraftSave(_ value: String) {
+        draftSaveTask?.cancel()
+        let repository = draftRepository
+        let spaceID = draftSpaceID
+        let draftKind = kind
+        draftSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            repository.saveText(value, spaceID: spaceID, kind: draftKind)
         }
     }
 
@@ -285,9 +311,19 @@ struct ComposeSheet: View {
               !recorder.isPreparing,
               !recorder.isRecording else { return }
         isFocused = false
+        if newMode == .voice {
+            draftSaveTask?.cancel()
+            draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
+        }
         recorder.discard()
         removeAttachment()
+        let previousMode = mode
         mode = newMode
+        if newMode == .voice {
+            text = ""
+        } else if previousMode == .voice {
+            text = draftRepository.text(spaceID: draftSpaceID, kind: kind)
+        }
 
         if newMode == .text {
             Task { @MainActor in
@@ -314,12 +350,12 @@ struct ComposeSheet: View {
     }
 
     private func voiceRecorded(_ draft: AttachmentDraft) {
-        replaceAttachment(with: draft)
+        guard replaceAttachment(with: draft) else { return }
         save()
     }
 
     private func interruptActiveRecording() {
-        guard recorder.isRecording else { return }
+        guard recorder.isRecording || recorder.isPreparing else { return }
         recorder.discard()
         RitualHaptics.warning()
         localNotice = LocalNotice(
@@ -339,9 +375,12 @@ struct ComposeSheet: View {
             let success = await store.add(kind: kind, text: text, attachment: draft)
             await MainActor.run {
                 if success {
+                    didSave = true
+                    draftSaveTask?.cancel()
+                    draftRepository.clear(spaceID: draftSpaceID, kind: kind)
                     RitualHaptics.success()
                     Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 520_000_000)
+                        try? await Task.sleep(nanoseconds: 160_000_000)
                         dismiss()
                     }
                 } else {
@@ -349,8 +388,8 @@ struct ComposeSheet: View {
                     isSaving = false
                     RitualHaptics.warning()
                     localNotice = LocalNotice(
-                        title: "还没有放进去",
-                        message: "内容仍留在这里，可以稍后再试。"
+                        title: "保存失败",
+                        message: "草稿已保留，可以立即重试。"
                     )
                 }
             }
@@ -378,25 +417,43 @@ struct ComposeSheet: View {
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("dear-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
             try data.write(to: url, options: .atomic)
-            replaceAttachment(
+            guard replaceAttachment(
                 with: AttachmentDraft(
                     kind: .image,
                     url: url,
                     originalFilename: "照片.\(fileExtension)"
                 )
-            )
+            ) else { return }
             RitualHaptics.selection()
         } catch {
-            localNotice = LocalNotice(title: "这张照片没有拿进来", message: error.localizedDescription)
+            localNotice = LocalNotice(title: "无法读取照片", message: error.localizedDescription)
         }
     }
 
-    private func replaceAttachment(with draft: AttachmentDraft) {
-        cleanupTemporaryDraft(attachmentDraft)
-        attachmentDraft = draft
+    @discardableResult
+    private func replaceAttachment(with draft: AttachmentDraft) -> Bool {
+        do {
+            let stored = try draftRepository.storeAttachment(
+                draft,
+                spaceID: draftSpaceID,
+                kind: kind
+            )
+            cleanupTemporaryDraft(attachmentDraft)
+            cleanupTemporaryDraft(draft)
+            attachmentDraft = stored
+            return true
+        } catch {
+            cleanupTemporaryDraft(draft)
+            localNotice = LocalNotice(
+                title: "无法保存草稿",
+                message: "请重新选择或录制。"
+            )
+            return false
+        }
     }
 
     private func removeAttachment() {
+        draftRepository.removeAttachment(spaceID: draftSpaceID, kind: kind)
         cleanupTemporaryDraft(attachmentDraft)
         attachmentDraft = nil
     }
@@ -413,7 +470,6 @@ struct ComposeSheet: View {
 private struct DepositTargetView: View {
     let kind: ContainerKind
     let isActive: Bool
-    @State private var isGlowing = false
 
     var body: some View {
         ZStack {
@@ -430,9 +486,8 @@ private struct DepositTargetView: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(kind.tint.opacity(isActive ? 0.92 : 0.48))
         }
-        .scaleEffect(isGlowing ? 1.04 : 0.96)
-        .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: isGlowing)
-        .onAppear { isGlowing = true }
+        .scaleEffect(isActive ? 1.04 : 1)
+        .animation(.easeOut(duration: 0.16), value: isActive)
         .accessibilityHidden(true)
     }
 }
@@ -552,12 +607,9 @@ private struct PhotoRitualEditor: View {
                                     .font(.system(size: 30, weight: .light))
                                     .foregroundStyle(kind.tint)
                             }
-                            Text("从相册拿一张照片")
+                            Text("选择照片")
                                 .font(.headline)
                                 .foregroundStyle(AppTheme.primaryText)
-                            Text("这里只选择照片；1.1 暂停新增视频写入")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
@@ -584,7 +636,7 @@ private struct PhotoRitualEditor: View {
                         .foregroundStyle(kind.tint.opacity(0.72))
                         .padding(.top, 3)
 
-                    TextField("写在相纸下面的一句话，也可以留白", text: $text, axis: .vertical)
+                    TextField("添加说明（可选）", text: $text, axis: .vertical)
                         .lineLimit(1...3)
                         .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(AppTheme.primaryText)
@@ -619,10 +671,10 @@ private struct VoicePreparedView: View {
             }
 
             VStack(spacing: 7) {
-                Text("语音还好好留在这里")
+                Text("语音草稿已保留")
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
-                Text("录了 \((draft.duration ?? 0).formattedDuration)，向上推可以重新放入")
+                Text("\((draft.duration ?? 0).formattedDuration) · 向上拖动重试")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
             }
@@ -631,7 +683,7 @@ private struct VoicePreparedView: View {
                 RitualHaptics.selection()
                 discard()
             } label: {
-                Text("不要这一段，重新录")
+                Text("删除并重录")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
                     .padding(.horizontal, 16)
@@ -647,7 +699,6 @@ private struct VoicePreparedView: View {
 
 private struct SavingRitualOverlay: View {
     let kind: ContainerKind
-    @State private var travelsUp = false
 
     var body: some View {
         ZStack {
@@ -656,28 +707,15 @@ private struct SavingRitualOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 14) {
-                RitualObjectGlyph(kind: kind, size: 88, filled: true)
-                    .rotationEffect(.degrees(travelsUp ? 24 : -8))
-                    .offset(y: travelsUp ? -56 : 28)
-                    .scaleEffect(travelsUp ? 0.52 : 1)
-                    .opacity(travelsUp ? 0.24 : 1)
+                ProgressView()
+                    .tint(kind.tint)
 
-                Text(savingText)
+                Text("正在保存")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }
         }
-        .animation(.easeInOut(duration: 0.52), value: travelsUp)
-        .onAppear { travelsUp = true }
         .allowsHitTesting(true)
-    }
-
-    private var savingText: String {
-        switch kind {
-        case .star: return "星星落进瓶子里了"
-        case .capsule: return "胶囊被轻轻收好了"
-        case .paper: return "先把这份感受放下"
-        }
     }
 }
 

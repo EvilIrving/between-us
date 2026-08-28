@@ -4,6 +4,7 @@ struct MyDepositsView: View {
     @EnvironmentObject private var store: DearUsStore
     @Environment(\.dismiss) private var dismiss
     @State private var selectedKind: ContainerKind?
+    @State private var section: DrawerSection = .leftByMe
 
     var body: some View {
         ZStack {
@@ -14,34 +15,32 @@ struct MyDepositsView: View {
                     HStack {
                         SceneCloseControl(label: "关上抽屉") { dismiss() }
                         Spacer()
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
-                            .frame(width: 42, height: 42)
                     }
 
                     VStack(spacing: 6) {
-                        Text("我的抽屉")
+                        Text("抽屉")
                             .font(.system(size: 30, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.primaryText)
-                        Text("你曾经放下的东西，以及它有没有被对方轻轻打开")
+                        Text(section.subtitle)
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
                             .multilineTextAlignment(.center)
                     }
 
+                    sectionTokens
+
                     filterTokens
 
                     if items.isEmpty {
-                        EmptyDrawerView(kind: selectedKind)
+                        EmptyDrawerView(kind: selectedKind, section: section)
                             .frame(minHeight: 360)
                     } else {
                         LazyVStack(spacing: 13) {
                             ForEach(items) { item in
                                 NavigationLink {
-                                    OwnDepositDetailView(item: item)
+                                    DrawerItemDetailView(item: item, section: section)
                                 } label: {
-                                    OwnDepositCard(item: item)
+                                    DrawerItemCard(item: item, section: section)
                                 }
                                 .buttonStyle(SoftScaleButtonStyle())
                             }
@@ -56,6 +55,23 @@ struct MyDepositsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var sectionTokens: some View {
+        HStack(spacing: 8) {
+            ForEach(DrawerSection.allCases) { candidate in
+                DrawerSectionToken(
+                    section: candidate,
+                    isSelected: section == candidate
+                ) {
+                    section = candidate
+                }
+            }
+        }
+        .padding(5)
+        .background(Color.white.opacity(0.20))
+        .clipShape(Capsule())
+        .overlay { Capsule().stroke(Color.white.opacity(0.38), lineWidth: 1) }
     }
 
     private var filterTokens: some View {
@@ -83,7 +99,12 @@ struct MyDepositsView: View {
     }
 
     private var items: [SecretItem] {
-        store.viewModel.data.ownItems(kind: selectedKind)
+        switch section {
+        case .leftByMe:
+            return store.viewModel.data.ownItems(kind: selectedKind)
+        case .openedFromOther:
+            return store.viewModel.data.openedFromCounterpart(kind: selectedKind)
+        }
     }
 
     private func shortTitle(for kind: ContainerKind) -> String {
@@ -100,6 +121,56 @@ struct MyDepositsView: View {
         case .capsule: return "capsule.fill"
         case .paper: return "doc.fill"
         }
+    }
+}
+
+private enum DrawerSection: String, CaseIterable, Identifiable {
+    case leftByMe
+    case openedFromOther
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .leftByMe: return "我留下的"
+        case .openedFromOther: return "我接住的"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .leftByMe: return "你留下的内容"
+        case .openedFromOther: return "你打开过的内容"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .leftByMe: return "tray.and.arrow.down"
+        case .openedFromOther: return "hands.sparkles"
+        }
+    }
+}
+
+private struct DrawerSectionToken: View {
+    let section: DrawerSection
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            RitualHaptics.selection()
+            action()
+        } label: {
+            Label(section.title, systemImage: section.systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.56))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(isSelected ? Color.white.opacity(0.50) : Color.clear)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(SoftScaleButtonStyle())
     }
 }
 
@@ -137,6 +208,7 @@ private struct DrawerFilterToken: View {
 
 private struct EmptyDrawerView: View {
     let kind: ContainerKind?
+    let section: DrawerSection
 
     var body: some View {
         VStack(spacing: 16) {
@@ -152,10 +224,10 @@ private struct EmptyDrawerView: View {
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.55))
                 }
             }
-            Text("这个角落还是空的")
+            Text(section == .leftByMe ? "还没有留下内容" : "还没有打开内容")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text("你放进共同容器的内容，会在这里留下只属于你的存根。")
+            Text(emptyMessage)
                 .font(.caption)
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
                 .multilineTextAlignment(.center)
@@ -163,10 +235,20 @@ private struct EmptyDrawerView: View {
                 .padding(.horizontal, 34)
         }
     }
+
+    private var emptyMessage: String {
+        switch section {
+        case .leftByMe:
+            return "从任一容器留下一件后，会显示在这里。"
+        case .openedFromOther:
+            return "打开过的内容会保留在这里。"
+        }
+    }
 }
 
-private struct OwnDepositCard: View {
+private struct DrawerItemCard: View {
     let item: SecretItem
+    let section: DrawerSection
 
     var body: some View {
         HStack(spacing: 14) {
@@ -199,12 +281,12 @@ private struct OwnDepositCard: View {
 
             VStack(spacing: 7) {
                 Circle()
-                    .fill(item.openedAt == nil ? AppTheme.secondaryText.opacity(0.16) : item.kind.tint.opacity(0.78))
+                    .fill(statusIsActive ? item.kind.tint.opacity(0.78) : AppTheme.secondaryText.opacity(0.16))
                     .frame(width: 9, height: 9)
-                    .shadow(color: item.openedAt == nil ? .clear : item.kind.tint.opacity(0.34), radius: 5)
-                Text(item.openedAt == nil ? "等着" : "看过")
+                    .shadow(color: statusIsActive ? item.kind.tint.opacity(0.34) : .clear, radius: 5)
+                Text(statusText)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(item.openedAt == nil ? AppTheme.secondaryText.opacity(0.56) : item.kind.tint)
+                    .foregroundStyle(statusIsActive ? item.kind.tint : AppTheme.secondaryText.opacity(0.56))
             }
         }
         .padding(.horizontal, 15)
@@ -221,13 +303,25 @@ private struct OwnDepositCard: View {
         .accessibilityElement(children: .combine)
     }
 
+    private var statusIsActive: Bool {
+        section == .openedFromOther || item.openedAt != nil
+    }
+
+    private var statusText: String {
+        switch section {
+        case .leftByMe: return item.openedAt == nil ? "等着" : "看过"
+        case .openedFromOther: return "收好"
+        }
+    }
+
     private var rotation: Double {
         Double(abs(item.id.uuidString.hashValue % 5) - 2) * 0.22
     }
 }
 
-private struct OwnDepositDetailView: View {
+private struct DrawerItemDetailView: View {
     let item: SecretItem
+    let section: DrawerSection
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -239,9 +333,9 @@ private struct OwnDepositDetailView: View {
                     HStack {
                         SceneCloseControl(label: "返回抽屉") { dismiss() }
                         Spacer()
-                        Text(item.openedAt == nil ? "还在等对方" : "对方已经打开")
+                        Text(detailStatus)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(item.openedAt == nil ? AppTheme.secondaryText : item.kind.tint)
+                            .foregroundStyle(section == .openedFromOther || item.openedAt != nil ? item.kind.tint : AppTheme.secondaryText)
                     }
 
                     RevealObjectAnimationForDeposit(kind: item.kind)
@@ -284,6 +378,16 @@ private struct OwnDepositDetailView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var detailStatus: String {
+        switch section {
+        case .leftByMe:
+            return item.openedAt == nil ? "还在等对方" : "对方已经打开"
+        case .openedFromOther:
+            guard let openedAt = item.openedAt else { return "已经接住" }
+            return "你在 \(openedAt.formatted(date: .abbreviated, time: .shortened)) 接住了它"
+        }
     }
 }
 

@@ -3,7 +3,6 @@ import UIKit
 
 struct RelationshipOnboardingView: View {
     @EnvironmentObject private var store: DearUsStore
-    @State private var bottleBreathes = false
 
     var body: some View {
         ZStack {
@@ -16,20 +15,16 @@ struct RelationshipOnboardingView: View {
                     ZStack {
                         AppTheme.glow(for: .star)
                             .frame(width: 300, height: 260)
-                        StarBottleIllustration(count: 0)
+                        FunctionalContainerPlaceholder(kind: .star, count: 0, compact: true)
                             .frame(width: 184, height: 208)
-                            .scaleEffect(bottleBreathes ? 1.025 : 0.98)
-                            .offset(y: bottleBreathes ? -3 : 2)
                     }
-                    .animation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true), value: bottleBreathes)
-                    .onAppear { bottleBreathes = true }
 
                     VStack(spacing: 10) {
                         Text("耳语")
                             .font(.system(size: 38, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.primaryText)
 
-                        Text("不是把话发出去，\n而是在两个人共同拥有的地方，慢慢留下生活。")
+                        Text("两个人，共用三个容器。")
                             .font(.body)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.80))
                             .multilineTextAlignment(.center)
@@ -47,8 +42,8 @@ struct RelationshipOnboardingView: View {
 
                     HoldToOpenControl(
                         kind: .star,
-                        title: "按住，放下第一个空瓶子",
-                        inactiveTitle: "正在布置共同房间",
+                        title: "按住创建空间",
+                        inactiveTitle: "正在创建",
                         duration: 0.92,
                         isEnabled: !store.viewModel.isPerformingAction,
                         isWorking: store.viewModel.isPerformingAction,
@@ -66,10 +61,10 @@ struct RelationshipOnboardingView: View {
                     }
 
                     VStack(spacing: 8) {
-                        Text("已经收到邀请？")
+                        Text("已有邀请")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.primaryText)
-                        Text("直接打开对方发来的 iCloud 邀请。系统接受后，你会回到这间共同房间。")
+                        Text("打开对方发送的 iCloud 邀请即可加入。")
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                             .multilineTextAlignment(.center)
@@ -77,7 +72,7 @@ struct RelationshipOnboardingView: View {
                     }
                     .padding(.horizontal, 34)
 
-                    Text("一次只保留一个双人空间。没有额外账号，也没有公开主页。")
+                    Text("一次只能加入一个共同空间。")
                         .font(.caption2)
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.48))
                         .multilineTextAlignment(.center)
@@ -159,10 +154,10 @@ private struct LookAroundEntry: View {
                 if prominent {
                     RitualObjectGlyph(kind: .star, size: 64, filled: false)
                 }
-                Text("先看看房间")
+                Text("本机预览")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
-                Text("不创建 iCloud 共同空间。星星瓶、胶囊盒和纸团篓都可以先摸一遍。")
+                Text("不创建空间，内容不会同步。")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                     .multilineTextAlignment(.center)

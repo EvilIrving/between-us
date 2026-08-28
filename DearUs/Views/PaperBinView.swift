@@ -5,31 +5,30 @@ struct PaperBinView: View {
     @State private var showCompose = false
     @State private var revealedItem: SecretItem?
     @State private var isOpening = false
-    @State private var papersSettle = false
+    @State private var openingTask: Task<Void, Never>?
 
     var body: some View {
         ContainerDetailShell(
             kind: .paper,
             title: "纸团篓",
-            subtitle: "这里不会把委屈突然推到你面前。只有你主动按住、愿意接住时，它才会展开。"
+            subtitle: "只有持续按住，内容才会打开。"
         ) {
             VStack(spacing: 19) {
                 ZStack {
                     AppTheme.glow(for: .paper)
-                        .frame(height: 300)
+                        .frame(height: 340)
                         .opacity(canOpen ? 0.76 : 0.38)
 
-                    PaperBinIllustration(count: sharedCount)
-                        .frame(height: 284)
-                        .padding(.horizontal, 12)
-                        .offset(y: papersSettle ? 1 : -3)
-                        .rotationEffect(.degrees(isOpening ? 1.6 : 0))
-                        .scaleEffect(isOpening ? 1.035 : 1)
-                        .shadow(color: ContainerKind.paper.tint.opacity(0.12), radius: 22, y: 16)
+                    FunctionalContainerPlaceholder(
+                        kind: .paper,
+                        count: sharedCount,
+                        isActive: canOpen
+                    )
+                    .frame(width: 224, height: 276)
+                    .rotationEffect(.degrees(isOpening ? 2.5 : 0))
+                    .scaleEffect(isOpening ? 1.04 : 1)
                 }
-                .animation(.spring(response: 0.44, dampingFraction: 0.74), value: isOpening)
-                .animation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true), value: papersSettle)
-                .onAppear { papersSettle = true }
+                .animation(.spring(response: 0.42, dampingFraction: 0.74), value: isOpening)
                 .accessibilityLabel("共同纸团篓，里面积累了 \(sharedCount) 个纸团")
 
                 ExchangeBalanceView(
@@ -39,35 +38,32 @@ struct PaperBinView: View {
                     status: balanceWhisper
                 )
 
-                VStack(spacing: 8) {
-                    HoldToOpenControl(
-                        kind: .paper,
-                        title: "我现在愿意接住一个",
-                        inactiveTitle: unavailableWhisper,
-                        duration: 1.55,
-                        isEnabled: canOpen,
-                        isWorking: isOpening,
-                        onComplete: openPaper
-                    )
+                HoldToOpenControl(
+                    kind: .paper,
+                    title: "按住打开",
+                    inactiveTitle: unavailableWhisper,
+                    duration: 1.55,
+                    isEnabled: canOpen,
+                    isWorking: isOpening,
+                    onComplete: openPaper
+                )
 
-                    if canOpen {
-                        Text("任何时候松开，都不会打开")
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.52))
-                    }
-                }
-
-                RitualDivider(text: "也可以先照顾自己的感受")
+                RitualDivider(text: "留下新的")
 
                 RitualActionToken(
                     kind: .paper,
-                    title: "揉一个自己的纸团，先把它放下",
-                    subtitle: "写发生了什么、你的感受，以及你希望对方知道什么"
+                    title: "留下一件",
+                    subtitle: "文字、照片或语音"
                 ) {
                     showCompose = true
                 }
                 .padding(.bottom, 4)
             }
+        }
+        .onDisappear {
+            openingTask?.cancel()
+            openingTask = nil
+            isOpening = false
         }
         .fullScreenCover(isPresented: $showCompose) {
             ComposeSheet(kind: .paper)
@@ -84,33 +80,33 @@ struct PaperBinView: View {
     private var canOpen: Bool { credits > 0 && unopenedCount > 0 && !isOpening }
 
     private var balanceWhisper: String {
-        if credits > 0, unopenedCount > 0 {
-            return "这里确实有一份感受，但它不会催促，也不会在通知里暴露内容。"
-        }
-        if credits == 0, unopenedCount > 0 {
-            return "交换不是惩罚。先诚实放下自己的感受，再决定何时接住对方。"
-        }
-        if credits > 0 {
-            return "你已经放下了一次；现在没有新的纸团需要你承担。"
-        }
-        return "今天没有需要处理的事，也是一种平静。"
+        if credits > 0, unopenedCount > 0 { return "可以打开一件" }
+        if credits == 0, unopenedCount > 0 { return "先留下一件" }
+        if credits > 0 { return "等待对方留下内容" }
+        return "还没有内容"
     }
 
     private var unavailableWhisper: String {
-        if credits == 0 { return "先放下一个自己的纸团" }
-        return "现在没有需要展开的纸团"
+        if credits == 0 { return "先留下一件" }
+        return "没有待打开内容"
     }
 
     private func openPaper() {
         guard canOpen else { return }
         isOpening = true
-        Task {
-            try? await Task.sleep(nanoseconds: 460_000_000)
-            let item = await store.openNext(kind: .paper)
-            await MainActor.run {
-                isOpening = false
-                revealedItem = item
+        openingTask?.cancel()
+        openingTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 120_000_000)
+            } catch {
+                return
             }
+            guard !Task.isCancelled else { return }
+            let item = await store.openNext(kind: .paper)
+            guard !Task.isCancelled else { return }
+            isOpening = false
+            revealedItem = item
+            openingTask = nil
         }
     }
 }

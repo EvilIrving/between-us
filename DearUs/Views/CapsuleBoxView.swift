@@ -5,13 +5,13 @@ struct CapsuleBoxView: View {
     @State private var showCompose = false
     @State private var revealedItem: SecretItem?
     @State private var isOpening = false
-    @State private var boxBreathes = false
+    @State private var openingTask: Task<Void, Never>?
 
     var body: some View {
         ContainerDetailShell(
             kind: .capsule,
             title: "胶囊盒",
-            subtitle: "鼓励、建议和认真想说的事，不必挤进一次仓促的聊天里。"
+            subtitle: "留下一件，才能打开一件。"
         ) {
             VStack(spacing: 19) {
                 ZStack {
@@ -19,20 +19,22 @@ struct CapsuleBoxView: View {
                         .frame(height: 300)
                         .opacity(canOpen ? 0.92 : 0.48)
 
-                    CapsuleBoxIllustration(count: sharedCount)
-                        .frame(height: 278)
-                        .padding(.horizontal, 8)
-                        .rotation3DEffect(
-                            .degrees(isOpening ? 8 : (boxBreathes ? 1.2 : -1.2)),
+                    FunctionalContainerPlaceholder(
+                        kind: .capsule,
+                        count: sharedCount,
+                        isActive: canOpen
+                    )
+                    .frame(width: 224, height: 250)
+                    .padding(.horizontal, 8)
+                    .rotation3DEffect(
+                            .degrees(isOpening ? 8 : 0),
                             axis: (x: 1, y: 0, z: 0),
                             perspective: 0.45
                         )
                         .scaleEffect(isOpening ? 1.04 : 1)
                         .shadow(color: ContainerKind.capsule.tint.opacity(0.13), radius: 24, y: 16)
                 }
-                .animation(.spring(response: 0.42, dampingFraction: 0.72), value: isOpening)
-                .animation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: boxBreathes)
-                .onAppear { boxBreathes = true }
+                .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isOpening)
                 .accessibilityLabel("共同胶囊盒，里面积累了 \(sharedCount) 颗胶囊")
 
                 ExchangeBalanceView(
@@ -44,7 +46,7 @@ struct CapsuleBoxView: View {
 
                 HoldToOpenControl(
                     kind: .capsule,
-                    title: "按住，打开一颗",
+                    title: "按住打开",
                     inactiveTitle: unavailableWhisper,
                     duration: 0.78,
                     isEnabled: canOpen,
@@ -52,17 +54,22 @@ struct CapsuleBoxView: View {
                     onComplete: openCapsule
                 )
 
-                RitualDivider(text: "或者")
+                RitualDivider(text: "留下新的")
 
                 RitualActionToken(
                     kind: .capsule,
-                    title: "拿一颗空胶囊，封进想说的事",
-                    subtitle: "它不会要求对方立刻回复"
+                    title: "留下一件",
+                    subtitle: "文字、照片或语音"
                 ) {
                     showCompose = true
                 }
                 .padding(.bottom, 4)
             }
+        }
+        .onDisappear {
+            openingTask?.cancel()
+            openingTask = nil
+            isOpening = false
         }
         .fullScreenCover(isPresented: $showCompose) {
             ComposeSheet(kind: .capsule)
@@ -79,33 +86,33 @@ struct CapsuleBoxView: View {
     private var canOpen: Bool { credits > 0 && unopenedCount > 0 && !isOpening }
 
     private var balanceWhisper: String {
-        if credits > 0, unopenedCount > 0 {
-            return "盒子里有一颗已经准备好，被你在不匆忙的时候打开。"
-        }
-        if credits == 0, unopenedCount > 0 {
-            return "先封进一件你也认真想说的事，交换才会发生。"
-        }
-        if credits > 0 {
-            return "你已经留下了一颗；对方准备好时，盒子会再变重。"
-        }
-        return "暂时没有胶囊，也不代表你们没有在彼此身边。"
+        if credits > 0, unopenedCount > 0 { return "可以打开一件" }
+        if credits == 0, unopenedCount > 0 { return "先留下一件" }
+        if credits > 0 { return "等待对方留下内容" }
+        return "还没有内容"
     }
 
     private var unavailableWhisper: String {
-        if credits == 0 { return "先封一颗自己的胶囊" }
-        return "盒子里暂时没有新的胶囊"
+        if credits == 0 { return "先留下一件" }
+        return "没有待打开内容"
     }
 
     private func openCapsule() {
         guard canOpen else { return }
         isOpening = true
-        Task {
-            try? await Task.sleep(nanoseconds: 420_000_000)
-            let item = await store.openNext(kind: .capsule)
-            await MainActor.run {
-                isOpening = false
-                revealedItem = item
+        openingTask?.cancel()
+        openingTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 120_000_000)
+            } catch {
+                return
             }
+            guard !Task.isCancelled else { return }
+            let item = await store.openNext(kind: .capsule)
+            guard !Task.isCancelled else { return }
+            isOpening = false
+            revealedItem = item
+            openingTask = nil
         }
     }
 }

@@ -217,6 +217,19 @@ extension AppData {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
+    func openedFromCounterpart(kind: ContainerKind? = nil) -> [SecretItem] {
+        items.values
+            .filter { item in
+                item.authorID != currentUserID
+                    && item.openedByID == currentUserID
+                    && item.openedAt != nil
+                    && (kind == nil || item.kind == kind)
+            }
+            .sorted {
+                ($0.openedAt ?? $0.createdAt) > ($1.openedAt ?? $1.createdAt)
+            }
+    }
+
     func activeCredits(kind: ContainerKind) -> Int {
         let deposited = allItems(kind: kind).filter { $0.authorID == currentUserID }.count
         let opened = allItems(kind: kind).filter {
