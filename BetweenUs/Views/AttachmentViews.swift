@@ -445,9 +445,11 @@ private struct FullScreenMediaViewer: View {
 
 private struct ZoomableImageView: UIViewRepresentable {
     let image: UIImage
+    let onSingleTap: () -> Void
+    let onZoomChanged: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onSingleTap: onSingleTap, onZoomChanged: onZoomChanged)
     }
 
     func makeUIView(context: Context) -> UIScrollView {
@@ -478,10 +480,19 @@ private struct ZoomableImageView: UIViewRepresentable {
         doubleTap.numberOfTapsRequired = 2
         scrollView.addGestureRecognizer(doubleTap)
 
+        let singleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleSingleTap)
+        )
+        singleTap.require(toFail: doubleTap)
+        scrollView.addGestureRecognizer(singleTap)
+
         return scrollView
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.onSingleTap = onSingleTap
+        context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.imageView?.image = image
         if scrollView.zoomScale == scrollView.minimumZoomScale {
             context.coordinator.imageView?.frame = scrollView.bounds
@@ -493,13 +504,22 @@ private struct ZoomableImageView: UIViewRepresentable {
     final class Coordinator: NSObject, UIScrollViewDelegate {
         weak var scrollView: UIScrollView?
         weak var imageView: UIImageView?
+        var onSingleTap: () -> Void
+        var onZoomChanged: (Bool) -> Void
+
+        init(onSingleTap: @escaping () -> Void, onZoomChanged: @escaping (Bool) -> Void) {
+            self.onSingleTap = onSingleTap
+            self.onZoomChanged = onZoomChanged
+        }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             imageView
         }
 
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            scrollView.panGestureRecognizer.isEnabled = scrollView.zoomScale > 1.01
+            let isZoomed = scrollView.zoomScale > scrollView.minimumZoomScale + 0.01
+            scrollView.panGestureRecognizer.isEnabled = isZoomed
+            onZoomChanged(isZoomed)
             centerImage()
         }
 
@@ -540,23 +560,313 @@ private struct ZoomableImageView: UIViewRepresentable {
             )
             scrollView.zoom(to: zoomRect, animated: true)
         }
+
+        @objc func handleSingleTap() {
+            onSingleTap()
+        }
     }
 }
 
 private struct VideoAttachmentView: View {
     let url: URL
-    @State private var player: AVPlayer
+    let openVideo: (() -> Void)?
+
+    var body: some View {
+        Button {
+            openVideo?()
+        } label: {
+            VideoPosterView(url: url)
+                .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 420)
+                .overlay {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .offset(x: 2)
+                        .frame(width: 64, height: 64)
+                        .background(.black.opacity(0.42))
+                        .clipShape(Circle())
+                        .overlay { Circle().stroke(.white.opacity(0.24), lineWidth: 1) }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(openVideo == nil)
+        .accessibilityLabel("播放视频".localized)
+    }
+}
+
+private struct VideoPosterView: View {
+    let url: URL
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.88)
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                ProgressView()
+                    .tint(.white.opacity(0.72))
+            }
+        }
+        .task(id: url) {
+            let asset = AVURLAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 1_200, height: 1_200)
+            let requestedTime = CMTime(seconds: 0.08, preferredTimescale: 600)
+            if let result = try? await generator.image(at: requestedTime), !Task.isCancelled {
+                image = UIImage(cgImage: result.image)
+            }
+        }
+    }
+}
+
+@MainActor
+private final class VideoPlaybackController: ObservableObject {
+    let player: AVPlayer
+
+    @Published private(set) var isPlaying = false
+    @Published private(set) var currentTime: TimeInterval = 0
+    @Published private(set) var duration: TimeInterval = 0
+
+    private var timeObserver: Any?
+    private var endObserver: NSObjectProtocol?
+    private var resumeAfterSeeking = false
 
     init(url: URL) {
-        self.url = url
-        _player = State(initialValue: AVPlayer(url: url))
+        player = AVPlayer(url: url)
+        player.actionAtItemEnd = .pause
+
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.05, preferredTimescale: 600),
+            queue: .main
+        ) { [weak self] time in
+            Task { @MainActor in
+                guard let self else { return }
+                let seconds = time.seconds
+                if seconds.isFinite { self.currentTime = max(0, seconds) }
+                if let itemDuration = self.player.currentItem?.duration.seconds,
+                   itemDuration.isFinite,
+                   itemDuration > 0 {
+                    self.duration = itemDuration
+                }
+            }
+        }
+
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.isPlaying = false
+            }
+        }
+    }
+
+    var progress: Double {
+        guard duration > 0 else { return 0 }
+        return min(max(currentTime / duration, 0), 1)
+    }
+
+    func play() {
+        if duration > 0, currentTime >= duration - 0.05 {
+            player.seek(to: .zero)
+            currentTime = 0
+        }
+        player.play()
+        isPlaying = true
+    }
+
+    func pause() {
+        player.pause()
+        isPlaying = false
+    }
+
+    func toggle() {
+        RitualHaptics.selection()
+        isPlaying ? pause() : play()
+    }
+
+    func beginSeeking() {
+        resumeAfterSeeking = isPlaying
+        pause()
+    }
+
+    func previewSeek(progress: Double) {
+        guard duration > 0 else { return }
+        currentTime = min(max(progress, 0), 1) * duration
+    }
+
+    func endSeeking(progress: Double) {
+        let clamped = min(max(progress, 0), 1)
+        let target = duration * clamped
+        player.seek(
+            to: CMTime(seconds: target, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
+        currentTime = target
+        if resumeAfterSeeking { play() }
+        resumeAfterSeeking = false
+    }
+
+    deinit {
+        if let timeObserver {
+            player.removeTimeObserver(timeObserver)
+        }
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+    }
+}
+
+private struct FullScreenVideoPage: View {
+    @StateObject private var controller: VideoPlaybackController
+    let isActive: Bool
+    let controlsVisible: Bool
+    let toggleControls: () -> Void
+
+    init(
+        url: URL,
+        isActive: Bool,
+        controlsVisible: Bool,
+        toggleControls: @escaping () -> Void
+    ) {
+        _controller = StateObject(wrappedValue: VideoPlaybackController(url: url))
+        self.isActive = isActive
+        self.controlsVisible = controlsVisible
+        self.toggleControls = toggleControls
     }
 
     var body: some View {
-        VideoPlayer(player: player)
-            .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 420)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .onDisappear { player.pause() }
+        ZStack {
+            PlayerSurfaceView(player: controller.player)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: toggleControls)
+
+            if controlsVisible {
+                Button(action: controller.toggle) {
+                    Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .offset(x: controller.isPlaying ? 0 : 2)
+                        .frame(width: 68, height: 68)
+                        .background(.black.opacity(0.38))
+                        .clipShape(Circle())
+                        .overlay { Circle().stroke(.white.opacity(0.22), lineWidth: 1) }
+                }
+                .buttonStyle(SoftScaleButtonStyle())
+                .accessibilityLabel(controller.isPlaying ? "暂停视频".localized : "播放视频".localized)
+
+                VStack {
+                    Spacer()
+                    HStack(spacing: 11) {
+                        Text(controller.currentTime.formattedDuration)
+                        VideoProgressScrubber(
+                            progress: controller.progress,
+                            beginSeeking: controller.beginSeeking,
+                            previewSeek: controller.previewSeek,
+                            endSeeking: controller.endSeeking
+                        )
+                        .frame(height: 34)
+                        Text(max(0, controller.duration - controller.currentTime).formattedDuration)
+                    }
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.42))
+                    .clipShape(Capsule())
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 64)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: controlsVisible)
+        .onAppear {
+            if isActive { controller.play() }
+        }
+        .onChange(of: isActive) { _, active in
+            active ? controller.play() : controller.pause()
+        }
+        .onDisappear { controller.pause() }
+    }
+}
+
+private final class PlayerSurfaceUIView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+}
+
+private struct PlayerSurfaceView: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerSurfaceUIView {
+        let view = PlayerSurfaceUIView()
+        view.backgroundColor = .black
+        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.player = player
+        return view
+    }
+
+    func updateUIView(_ view: PlayerSurfaceUIView, context: Context) {
+        view.playerLayer.player = player
+    }
+}
+
+private struct VideoProgressScrubber: View {
+    let progress: Double
+    let beginSeeking: () -> Void
+    let previewSeek: (Double) -> Void
+    let endSeeking: (Double) -> Void
+
+    @State private var scrubbingProgress: Double?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let displayedProgress = scrubbingProgress ?? progress
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.white.opacity(0.24))
+                    .frame(height: 3)
+                Capsule()
+                    .fill(.white.opacity(0.92))
+                    .frame(width: proxy.size.width * displayedProgress, height: 3)
+                Circle()
+                    .fill(.white)
+                    .frame(width: scrubbingProgress == nil ? 10 : 15, height: scrubbingProgress == nil ? 10 : 15)
+                    .offset(x: max(0, proxy.size.width * displayedProgress - (scrubbingProgress == nil ? 5 : 7.5)))
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard proxy.size.width > 0 else { return }
+                        let value = min(max(Double(value.location.x / proxy.size.width), 0), 1)
+                        if scrubbingProgress == nil {
+                            RitualHaptics.selection()
+                            beginSeeking()
+                        }
+                        scrubbingProgress = value
+                        previewSeek(value)
+                    }
+                    .onEnded { value in
+                        guard proxy.size.width > 0 else { return }
+                        let value = min(max(Double(value.location.x / proxy.size.width), 0), 1)
+                        endSeeking(value)
+                        scrubbingProgress = nil
+                    }
+            )
+        }
+        .accessibilityElement()
+        .accessibilityLabel("视频播放进度".localized)
+        .accessibilityValue("百分之 %d".localized(Int(progress * 100)))
     }
 }
 
