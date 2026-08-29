@@ -120,9 +120,6 @@ struct ContainerRitualScene: View {
         }
         .sheet(isPresented: $showCompose) {
             ComposeSheet(kind: kind)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-                .presentationCornerRadius(30)
         }
         .sheet(item: $revealedItem) { item in
             RevealSheet(item: item)

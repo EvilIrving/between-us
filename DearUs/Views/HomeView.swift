@@ -29,9 +29,6 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $composeKind) { kind in
                 ComposeSheet(kind: kind)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.hidden)
-                    .presentationCornerRadius(30)
             }
         }
     }

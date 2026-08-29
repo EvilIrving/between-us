@@ -21,17 +21,21 @@ struct ComposeSheet: View {
     @State private var didRestoreDraft = false
     @State private var didSave = false
     @State private var draftSaveTask: Task<Void, Never>?
+    @State private var selectedDetent: PresentationDetent = .fraction(0.50)
     @FocusState private var isFocused: Bool
 
     private let maxLength = 4_000
     private let draftRepository = ComposeDraftRepository()
+    private let compactDetent: PresentationDetent = .fraction(0.50)
+    private let mediumDetent: PresentationDetent = .fraction(0.64)
+    private let photoGridDetent: PresentationDetent = .fraction(0.78)
 
     var body: some View {
         ZStack {
             AmbientRoomBackground(kind: kind)
 
             GeometryReader { proxy in
-                let editorHeight = min(430, max(300, proxy.size.height - 312))
+                let editorHeight = max(300, proxy.size.height - 96)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -41,7 +45,7 @@ struct ComposeSheet: View {
 
                         content
                             .frame(maxWidth: .infinity)
-                            .frame(height: editorHeight)
+                            .frame(minHeight: editorHeight)
                             .padding(.horizontal, 20)
                             .padding(.top, 14)
 
@@ -76,9 +80,18 @@ struct ComposeSheet: View {
             }
         }
         .animation(.easeOut(duration: 0.22), value: localNotice?.id)
+        .presentationDetents(
+            [compactDetent, mediumDetent, photoGridDetent],
+            selection: $selectedDetent
+        )
+        .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(30)
         .onChange(of: selectedMediaItems) { _, newValue in
             guard !newValue.isEmpty else { return }
             Task { await importPickerItems(newValue) }
+        }
+        .onChange(of: imageDrafts.count) { _, _ in
+            selectedDetent = restingDetent
         }
         .onChange(of: text) { _, newValue in
             if newValue.count > maxLength {
@@ -98,7 +111,8 @@ struct ComposeSheet: View {
         }
         .onAppear {
             restoreDraftIfNeeded()
-            isFocused = attachmentDraft?.kind != .audio
+            selectedDetent = restingDetent
+            isFocused = false
         }
         .onDisappear {
             draftSaveTask?.cancel()
@@ -187,6 +201,17 @@ struct ComposeSheet: View {
 
     private var hasTextOrImages: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageDrafts.isEmpty
+    }
+
+    private var restingDetent: PresentationDetent {
+        let visibleTiles = imageDrafts.count < 9 ? imageDrafts.count + 1 : imageDrafts.count
+        let rows = max(1, Int(ceil(Double(visibleTiles) / 3.0)))
+
+        switch rows {
+        case 1: return compactDetent
+        case 2: return mediumDetent
+        default: return photoGridDetent
+        }
     }
 
     private var canSave: Bool {

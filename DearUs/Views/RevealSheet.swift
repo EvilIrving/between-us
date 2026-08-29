@@ -56,6 +56,7 @@ struct RevealSheet: View {
                             Text(item.createdAt.formatted(date: .long, time: .shortened))
                                 .font(.caption2)
                                 .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 24)
@@ -111,9 +112,6 @@ struct RevealSheet: View {
         }
         .sheet(isPresented: $showResponseComposer) {
             ComposeSheet(kind: item.kind)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-                .presentationCornerRadius(30)
         }
     }
 

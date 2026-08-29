@@ -31,7 +31,7 @@ struct VoiceHoldRecorderView: View {
 
     private var recordingStage: some View {
         ZStack(alignment: .bottomTrailing) {
-            HStack(spacing: 6) {
+            HStack(alignment: .bottom, spacing: 8) {
                 recordingInfo
                 voicePad
             }
@@ -113,22 +113,23 @@ struct VoiceHoldRecorderView: View {
             } else {
                 TextField("这一刻的想法…", text: $text, axis: .vertical)
                     .focused(isFocused)
-                    .lineLimit(1...4)
+                    .lineLimit(5...8)
                     .font(.system(size: 17, weight: .regular, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                     .tint(kind.tint)
                     .padding(.horizontal, 15)
                     .padding(.vertical, 12)
+                    .frame(minHeight: 132, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 47)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color.white.opacity(0.38))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.white.opacity(0.66), lineWidth: 1)
         }
     }
