@@ -4,193 +4,243 @@ import SwiftUI
 struct VoiceHoldRecorderView: View {
     let kind: ContainerKind
     @ObservedObject var recorder: AudioRecorder
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+    let hasComposeContent: Bool
     let isDisabled: Bool
+    let onCommit: () -> Void
     let onRecorded: (AttachmentDraft) -> Void
+    let onPreviewed: (AttachmentDraft) -> Void
     let onCancelled: () -> Void
     let onTooShort: () -> Void
     let onError: (String) -> Void
 
-    @State private var fingerDown = false
+    @State private var captureState: VoiceCaptureState = .idle
     @State private var dragX: CGFloat = 0
     @State private var dragY: CGFloat = 0
-    @State private var isLocked = false
-    @State private var gestureBeganLocked = false
-    @State private var didUnlockDuringGesture = false
-    @State private var crossedCancelThreshold = false
-    @State private var currentSessionID: UUID?
+    @State private var dragAxis: VoiceDragAxis?
+    @State private var isCancelArmed = false
 
     private let cancelDistance: CGFloat = 96
     private let lockDistance: CGFloat = 78
     private let minimumDuration: TimeInterval = 0.65
 
     var body: some View {
-        VStack(spacing: 14) {
-            recordingStatus
+        recordingStage
+    }
 
-            LiveVoiceWaveform(
-                level: recorder.level,
-                isActive: recorder.isRecording && !recorder.isPaused,
-                tint: cancelProgress >= 1 ? AppTheme.secondaryText : kind.tint
-            )
-            .frame(height: 48)
-            .padding(.horizontal, 16)
-
-            ZStack {
-                cancelTrail
-                lockTrail
-
+    private var recordingStage: some View {
+        ZStack(alignment: .bottomTrailing) {
+            HStack(spacing: 6) {
+                recordingInfo
                 voicePad
-                    .offset(x: dragX, y: dragY * 0.22)
             }
-            .frame(height: 124)
 
-            VStack(spacing: 6) {
-                Text(instructionTitle)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-                    .animation(.easeOut(duration: 0.18), value: instructionTitle)
-
-                Text(instructionDetail)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
-                    .multilineTextAlignment(.center)
-            }
+            lockGuide
+                .offset(x: -3, y: -54)
         }
-        .padding(.horizontal, 22)
+        .frame(maxWidth: 360, minHeight: 47, alignment: .bottom)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("语音输入")
-        .accessibilityValue(accessibilityValue)
-        .accessibilityHint("按住说话，上滑可锁定录音；也可使用辅助功能动作开始、完成或取消")
-        .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "开始录音") {
-            guard !isDisabled, !fingerDown, !recorder.isRecording else { return }
+            guard !isDisabled, !hasComposeContent, captureState == .idle, !recorder.isRecording else { return }
             beginRecordingGesture()
         }
-        .accessibilityAction(named: "完成并放入") {
-            guard fingerDown || isLocked || recorder.isRecording else { return }
+        .accessibilityAction(named: "发送录音") {
+            guard recorder.isRecording else { return }
             finishRecordingGesture(cancelled: false)
+        }
+        .accessibilityAction(named: "停止并预览") {
+            guard isLocked, recorder.isRecording else { return }
+            previewLockedRecording()
         }
         .accessibilityAction(named: "取消录音") {
             guard fingerDown || isLocked || recorder.isRecording else { return }
             finishRecordingGesture(cancelled: true)
         }
         .onChange(of: recorder.isRecording) { wasRecording, isRecording in
-            guard wasRecording, !isRecording, (fingerDown || isLocked) else { return }
-            resetGestureState()
+            guard wasRecording, !isRecording, captureState.acceptsExternalStop else { return }
+            resetInteractionState()
         }
     }
 
+    private var fingerDown: Bool { captureState.isFingerDown }
+    private var isLocked: Bool { captureState.isLocked }
 
     private var accessibilityValue: String {
         if recorder.isPreparing { return "正在准备录音" }
-        if recorder.isPaused { return "录音已暂停，时长 \(recorder.duration.formattedRecordingDuration)" }
+        if captureState == .producingDraft { return "正在生成语音草稿" }
+        if isLocked { return "录音已锁定，时长 \(recorder.duration.formattedRecordingDuration)" }
         if recorder.isRecording { return "正在录音，时长 \(recorder.duration.formattedRecordingDuration)" }
         return "尚未开始录音"
     }
 
     private var recordingStatus: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(recorder.isRecording && !recorder.isPaused ? Color.red : AppTheme.secondaryText.opacity(0.22))
-                .frame(width: 8, height: 8)
-                .shadow(color: recorder.isRecording && !recorder.isPaused ? Color.red.opacity(0.38) : .clear, radius: 6)
-
             if recorder.isPreparing {
-                Text("正在听见你……")
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(kind.tint)
             } else {
-                Text(recorder.duration.formattedRecordingDuration)
-                    .monospacedDigit()
+                Circle()
+                    .fill(recorder.isRecording ? Color.red : AppTheme.secondaryText.opacity(0.22))
+                    .frame(width: 10, height: 10)
+                    .shadow(color: recorder.isRecording ? Color.red.opacity(0.38) : .clear, radius: 6)
+            }
+
+            Text(recorder.duration.formattedRecordingDuration)
+                .monospacedDigit()
+        }
+        .font(.system(size: 15, weight: .medium, design: .monospaced))
+        .foregroundStyle(AppTheme.primaryText.opacity(0.78))
+        .fixedSize()
+    }
+
+    private var recordingInfo: some View {
+        ZStack {
+            Capsule()
+                .fill(Color.white.opacity(0.38))
+                .overlay {
+                    Capsule()
+                        .stroke(Color.white.opacity(0.66), lineWidth: 1)
+                }
+
+            if captureState == .producingDraft {
+                ProgressView()
+                    .tint(kind.tint)
+            } else if recorder.isRecording || recorder.isPreparing {
+                HStack(spacing: 10) {
+                    recordingStatus
+
+                    Spacer(minLength: 8)
+
+                    recordingCancelControl
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 16)
+            } else {
+                TextField("这一刻的想法…", text: $text)
+                    .focused(isFocused)
+                    .lineLimit(1)
+                    .font(.system(size: 17, weight: .regular, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .tint(kind.tint)
+                    .padding(.horizontal, 15)
             }
         }
-        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-        .foregroundStyle(AppTheme.secondaryText)
-        .frame(height: 22)
+        .frame(maxWidth: .infinity)
+        .frame(height: 47)
     }
 
-    private var cancelTrail: some View {
-        HStack(spacing: 8) {
-            Image(systemName: cancelProgress >= 1 ? "xmark.circle.fill" : "arrow.left")
-                .font(.system(size: 15, weight: .bold))
-            Text(cancelProgress >= 1 ? "松开取消" : "向左滑取消")
-                .font(.caption.weight(.semibold))
+    @ViewBuilder
+    private var recordingCancelControl: some View {
+        if isLocked {
+            Button {
+                finishRecordingGesture(cancelled: true)
+            } label: {
+                Text("取消")
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(kind.tint)
+                    .frame(minWidth: 52, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+        } else if fingerDown {
+            HStack(spacing: 6) {
+                Image(systemName: cancelProgress >= 1 ? "xmark" : "chevron.left")
+                    .font(.system(size: 11, weight: .bold))
+                Text(cancelProgress >= 1 ? "松开取消" : "左滑取消")
+                    .font(.system(size: 14, weight: .regular))
+            }
+            .foregroundStyle(AppTheme.secondaryText.opacity(cancelProgress >= 1 ? 0.82 : 0.52))
+            .offset(x: dragX * 0.16)
+        } else {
+            Color.clear
+                .frame(width: 82, height: 1)
         }
-        .foregroundStyle(cancelProgress >= 1 ? AppTheme.secondaryText : AppTheme.secondaryText.opacity(0.46))
-        .opacity(fingerDown ? max(0.28, cancelProgress) : 0)
-        .offset(x: -112)
-        .animation(.easeOut(duration: 0.16), value: cancelProgress)
     }
 
-    private var lockTrail: some View {
-        VStack(spacing: 3) {
-            Image(systemName: isLocked ? "lock.open.fill" : (lockProgress >= 1 ? "lock.fill" : "arrow.up"))
-                .font(.system(size: 14, weight: .bold))
-            Text(isLocked ? "再上滑解锁" : (lockProgress >= 1 ? "松手继续录音" : "上滑锁定"))
-                .font(.caption2.weight(.semibold))
+    private var lockGuide: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "chevron.up")
+                .font(.system(size: 10, weight: .bold))
+            Image(systemName: lockProgress >= 1 ? "lock.fill" : "lock.open.fill")
+                .font(.system(size: 14, weight: .semibold))
         }
-        .foregroundStyle((isLocked || lockProgress >= 1) ? kind.tint : AppTheme.secondaryText.opacity(0.50))
-        .opacity(isLocked ? 0.78 : (fingerDown ? max(0.42, lockProgress) : 0))
-        .offset(y: -53)
-        .animation(.easeOut(duration: 0.16), value: lockProgress)
+        .foregroundStyle(lockProgress >= 1 ? kind.tint : AppTheme.secondaryText.opacity(0.55))
+        .frame(width: 40, height: 58)
+        .background(Color.white.opacity(0.46))
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color.white.opacity(0.66), lineWidth: 1)
+        }
+        .opacity(!isLocked && fingerDown && recorder.isRecording ? max(0.46, lockProgress) : 0)
+        .offset(y: dragY * 0.08)
+        .allowsHitTesting(false)
     }
 
+    @ViewBuilder
     private var voicePad: some View {
+        if isLocked && !fingerDown {
+            Button {
+                previewLockedRecording()
+            } label: {
+                voicePadSurface
+            }
+            .buttonStyle(SoftScaleButtonStyle())
+            .disabled(isDisabled || !recorder.isRecording)
+            .accessibilityLabel("停止录音并进入预览")
+        } else if hasComposeContent && captureState == .idle {
+            Button {
+                onCommit()
+            } label: {
+                commitPadSurface
+            }
+            .buttonStyle(SoftScaleButtonStyle())
+            .disabled(isDisabled)
+            .accessibilityLabel("放入")
+        } else {
+            voicePadSurface
+                .highPriorityGesture(recordingGesture, including: isDisabled || hasComposeContent ? .none : .all)
+                .accessibilityLabel("按住录音")
+                .accessibilityHint("左滑取消，上滑锁定")
+        }
+    }
+
+    private var commitPadSurface: some View {
+        Image(systemName: "arrow.up")
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 46, height: 47)
+            .background(kind.tint)
+            .clipShape(Capsule())
+    }
+
+    private var voicePadSurface: some View {
         ZStack {
-            Circle()
-                .fill(kind.tint.opacity(fingerDown ? 0.19 : 0.10))
-                .frame(width: 92, height: 92)
-                .blur(radius: fingerDown ? 0 : 3)
-
-            Circle()
-                .fill(Color.white.opacity(fingerDown ? 0.78 : 0.58))
-                .frame(width: 70, height: 70)
+            Capsule()
+                .fill(Color.white.opacity(fingerDown ? 0.58 : 0.44))
                 .overlay {
-                    Circle()
-                        .stroke(
-                            cancelProgress >= 1 ? AppTheme.secondaryText.opacity(0.42) : kind.tint.opacity(0.38),
-                            lineWidth: fingerDown ? 2 : 1
-                        )
+                    Capsule()
+                        .stroke(Color.white.opacity(0.72), lineWidth: 1)
                 }
-                .shadow(color: kind.tint.opacity(fingerDown ? 0.24 : 0.10), radius: fingerDown ? 24 : 12, y: 8)
 
-            if recorder.isPreparing {
+            if recorder.isPreparing || captureState == .producingDraft {
                 ProgressView()
                     .tint(kind.tint)
             } else {
                 Image(systemName: voicePadSymbol)
-                    .font(.system(size: 23, weight: .semibold))
+                    .font(.system(size: isLocked ? 14 : 20, weight: .semibold))
                     .foregroundStyle(cancelProgress >= 1 ? AppTheme.secondaryText : kind.tint)
-                    .symbolEffect(.variableColor.iterative, isActive: recorder.isRecording && !recorder.isPaused && !isLocked)
             }
         }
-        .scaleEffect(fingerDown ? 1.06 : 1)
+        .frame(width: 46, height: 47)
+        .contentShape(Capsule())
+        .scaleEffect(fingerDown ? 1.04 : 1)
         .animation(.spring(response: 0.28, dampingFraction: 0.70), value: fingerDown)
-        .highPriorityGesture(recordingGesture, including: isDisabled ? .none : .all)
     }
 
     private var voicePadSymbol: String {
-        if recorder.isPaused { return "play.fill" }
-        if isLocked && recorder.isRecording { return "pause.fill" }
-        return recorder.isRecording ? "waveform" : "mic.fill"
-    }
-
-    private var instructionTitle: String {
-        if recorder.isPaused { return "录音已暂停" }
-        if isLocked { return "录音已锁定" }
-        if cancelProgress >= 1 { return "松开，这段就不会留下" }
-        if recorder.isPreparing { return "保持按住" }
-        if recorder.isRecording { return "正在录音" }
-        return "按住说话"
-    }
-
-    private var instructionDetail: String {
-        if isLocked {
-            return recorder.isPreparing ? "正在准备，松手也会继续" : "轻点暂停 · 左滑取消 · 再上滑解锁"
-        }
-        if recorder.isRecording {
-            return "上滑锁定 · 左滑取消 · 松开完成"
-        }
-        return "长按开始 · 上滑锁定 · 左滑取消"
+        isLocked && recorder.isRecording ? "stop.fill" : "mic.fill"
     }
 
     private var cancelProgress: CGFloat {
@@ -205,96 +255,85 @@ struct VoiceHoldRecorderView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 guard !isDisabled else { return }
-                if !fingerDown {
-                    if isLocked {
-                        fingerDown = true
-                        gestureBeganLocked = true
-                        didUnlockDuringGesture = false
-                        crossedCancelThreshold = false
-                    } else {
-                        beginRecordingGesture()
-                    }
+                if captureState == .idle {
+                    beginRecordingGesture()
                 }
-                dragX = min(0, value.translation.width)
-                dragY = min(0, value.translation.height)
-                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
-                let shouldCancel = isHorizontal && -value.translation.width >= cancelDistance
-                let shouldLock = !isHorizontal && -value.translation.height >= lockDistance
 
-                if gestureBeganLocked {
-                    if shouldLock {
-                        isLocked = false
-                        gestureBeganLocked = false
-                        didUnlockDuringGesture = true
-                        dragX = 0
-                        dragY = 0
-                        RitualHaptics.selection()
-                        return
-                    }
-                } else if shouldLock, !isLocked, !didUnlockDuringGesture {
-                    isLocked = true
+                guard case .holding = captureState else {
+                    resetTransientGestureState()
+                    return
+                }
+
+                let leftDistance = max(-value.translation.width, 0)
+                let upDistance = max(-value.translation.height, 0)
+                if max(leftDistance, upDistance) < 8 {
+                    dragAxis = nil
+                } else if abs(leftDistance - upDistance) >= 6 || dragAxis == nil {
+                    dragAxis = leftDistance >= upDistance ? .horizontal : .vertical
+                }
+
+                switch dragAxis {
+                case .horizontal:
+                    dragX = -min(leftDistance, cancelDistance + 18)
+                    dragY = 0
+                case .vertical:
+                    dragX = 0
+                    dragY = -min(upDistance, lockDistance + 18)
+                case nil:
                     dragX = 0
                     dragY = 0
+                }
+
+                let shouldCancel = dragAxis == .horizontal && -dragX >= cancelDistance
+                let shouldLock = dragAxis == .vertical && -dragY >= lockDistance
+
+                if shouldLock, let sessionID = captureState.sessionID {
+                    captureState = .locking(sessionID)
+                    isCancelArmed = false
+                    dragX = 0
+                    dragY = 0
+                    dragAxis = nil
                     RitualHaptics.success()
                     return
                 }
-                if shouldCancel, !crossedCancelThreshold {
-                    crossedCancelThreshold = true
+                if shouldCancel, !isCancelArmed {
+                    isCancelArmed = true
                     RitualHaptics.warning()
-                } else if !shouldCancel, crossedCancelThreshold, -value.translation.width < cancelDistance * 0.72 {
-                    crossedCancelThreshold = false
+                } else if !shouldCancel,
+                          isCancelArmed,
+                          (dragAxis != .horizontal || leftDistance < cancelDistance * 0.72) {
+                    isCancelArmed = false
                     RitualHaptics.selection()
                 }
             }
-            .onEnded { value in
-                guard fingerDown else { return }
-                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
-                let shouldCancel = isHorizontal && -value.translation.width >= cancelDistance
-
-                if gestureBeganLocked, isLocked {
-                    fingerDown = false
-                    dragX = 0
-                    dragY = 0
-                    gestureBeganLocked = false
-                    crossedCancelThreshold = false
-                    if shouldCancel {
-                        finishRecordingGesture(cancelled: true)
-                    } else if hypot(value.translation.width, value.translation.height) < 12 {
-                        recorder.togglePause()
-                        RitualHaptics.selection()
-                    }
-                    return
+            .onEnded { _ in
+                switch captureState {
+                case let .locking(sessionID):
+                    captureState = .locked(sessionID)
+                    resetTransientGestureState()
+                case .holding:
+                    finishRecordingGesture(cancelled: isCancelArmed)
+                case .idle, .locked, .producingDraft:
+                    break
                 }
-                if isLocked {
-                    fingerDown = false
-                    dragX = 0
-                    dragY = 0
-                    return
-                }
-                finishRecordingGesture(cancelled: shouldCancel)
             }
     }
 
     private func beginRecordingGesture() {
-        fingerDown = true
-        dragX = 0
-        dragY = 0
-        isLocked = false
-        gestureBeganLocked = false
-        didUnlockDuringGesture = false
-        crossedCancelThreshold = false
+        isFocused.wrappedValue = false
         let sessionID = UUID()
-        currentSessionID = sessionID
+        captureState = .holding(sessionID)
+        resetTransientGestureState()
         RitualHaptics.medium()
 
         Task { @MainActor in
             let started = await recorder.start()
-            guard currentSessionID == sessionID, (fingerDown || isLocked) else {
+            guard captureState.sessionID == sessionID else {
                 if started { recorder.discard() }
                 return
             }
             if !started {
-                resetGestureState()
+                resetInteractionState()
                 if let message = recorder.errorMessage {
                     onError(message)
                 }
@@ -302,79 +341,124 @@ struct VoiceHoldRecorderView: View {
         }
     }
 
-    private func resetGestureState() {
-        fingerDown = false
-        dragX = 0
-        dragY = 0
-        isLocked = false
-        gestureBeganLocked = false
-        didUnlockDuringGesture = false
-        crossedCancelThreshold = false
-        currentSessionID = nil
+    private func previewLockedRecording() {
+        guard case .locked = captureState, recorder.isRecording else { return }
+        captureState = .producingDraft
+        resetTransientGestureState()
+        Task { @MainActor in
+            await Task.yield()
+            finishRecordingGesture(cancelled: false, completion: .preview)
+        }
     }
 
-    private func finishRecordingGesture(cancelled: Bool) {
+    private func resetTransientGestureState() {
+        dragX = 0
+        dragY = 0
+        dragAxis = nil
+        isCancelArmed = false
+    }
+
+    private func resetInteractionState() {
+        captureState = .idle
+        resetTransientGestureState()
+    }
+
+    private func finishRecordingGesture(
+        cancelled: Bool,
+        completion: VoiceRecordingCompletion = .send
+    ) {
         let wasActive = recorder.isRecording || recorder.isPreparing
-        resetGestureState()
 
         if cancelled {
+            resetInteractionState()
             recorder.discard()
             if wasActive { onCancelled() }
             return
         }
 
-        guard recorder.isRecording else { return }
-
-        guard recorder.duration >= minimumDuration else {
+        if recorder.isPreparing {
+            resetInteractionState()
             recorder.discard()
             RitualHaptics.warning()
             onTooShort()
             return
         }
 
+        guard recorder.isRecording else { return }
+
+        guard recorder.duration >= minimumDuration else {
+            resetInteractionState()
+            recorder.discard()
+            RitualHaptics.warning()
+            onTooShort()
+            return
+        }
+
+        captureState = .producingDraft
+        resetTransientGestureState()
         if let draft = recorder.stop() {
             RitualHaptics.success()
-            onRecorded(draft)
+            switch completion {
+            case .send:
+                onRecorded(draft)
+                resetInteractionState()
+            case .preview:
+                Task { @MainActor in
+                    await Task.yield()
+                    onPreviewed(draft)
+                    resetInteractionState()
+                }
+            }
+        } else {
+            resetInteractionState()
         }
     }
 }
 
-private struct LiveVoiceWaveform: View {
-    let level: Double
-    let isActive: Bool
-    let tint: Color
+private enum VoiceRecordingCompletion {
+    case send
+    case preview
+}
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+private enum VoiceCaptureState: Equatable {
+    case idle
+    case holding(UUID)
+    case locking(UUID)
+    case locked(UUID)
+    case producingDraft
 
-    var body: some View {
-        Group {
-            if isActive, !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { context in
-                    waveform(phase: context.date.timeIntervalSinceReferenceDate * 6.5, active: true)
-                }
-            } else {
-                waveform(phase: 0, active: isActive)
-            }
+    var sessionID: UUID? {
+        switch self {
+        case let .holding(id), let .locking(id), let .locked(id): return id
+        case .idle, .producingDraft: return nil
         }
-        .animation(.easeOut(duration: 0.12), value: level)
-        .accessibilityHidden(true)
     }
 
-    private func waveform(phase: Double, active: Bool) -> some View {
-        HStack(alignment: .center, spacing: 4) {
-            ForEach(0..<25, id: \.self) { index in
-                let wave = (sin(phase + Double(index) * 0.72) + 1) / 2
-                let centerWeight = 1 - abs(Double(index) - 12) / 18
-                let liveLevel = active ? max(0.10, min(1, level * 1.65)) : 0.06
-                let height = 7 + 43 * liveLevel * (0.32 + wave * 0.68) * centerWeight
-
-                Capsule()
-                    .fill(tint.opacity(active ? 0.70 : 0.24))
-                    .frame(width: 3.5, height: height)
-            }
+    var isFingerDown: Bool {
+        switch self {
+        case .holding, .locking: return true
+        case .idle, .locked, .producingDraft: return false
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    var isLocked: Bool {
+        switch self {
+        case .locking, .locked: return true
+        case .idle, .holding, .producingDraft: return false
+        }
+    }
+
+    var acceptsExternalStop: Bool {
+        switch self {
+        case .holding, .locking, .locked: return true
+        case .idle, .producingDraft: return false
+        }
+    }
+}
+
+private enum VoiceDragAxis: Equatable {
+    case horizontal
+    case vertical
 }
 
 extension TimeInterval {

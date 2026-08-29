@@ -355,6 +355,108 @@ private struct AudioAttachmentView: View {
     }
 }
 
+struct VoiceDraftPreviewPlayer: View {
+    @StateObject private var controller: AudioPlaybackController
+    let expectedDuration: TimeInterval?
+    let tint: Color
+    let discard: () -> Void
+    let commit: () -> Void
+
+    init(
+        url: URL,
+        expectedDuration: TimeInterval?,
+        tint: Color,
+        discard: @escaping () -> Void,
+        commit: @escaping () -> Void
+    ) {
+        _controller = StateObject(wrappedValue: AudioPlaybackController(url: url))
+        self.expectedDuration = expectedDuration
+        self.tint = tint
+        self.discard = discard
+        self.commit = commit
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                controller.stop()
+                RitualHaptics.selection()
+                discard()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.70))
+                    .frame(width: 40, height: 40)
+                    .background(Color.white.opacity(0.42))
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(Color.white.opacity(0.68), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(SoftScaleButtonStyle())
+            .accessibilityLabel("删除录音并重录")
+
+            HStack(spacing: 8) {
+                Button(action: controller.toggle) {
+                    HStack(spacing: 3) {
+                        Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .offset(x: controller.isPlaying ? 0 : 1)
+
+                        Text(displayedDuration.formattedDuration)
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(tint)
+                    .frame(width: 64, height: 22)
+                    .background(Color.white.opacity(0.52))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(SoftScaleButtonStyle())
+                .accessibilityLabel(controller.isPlaying ? "暂停语音" : "播放语音")
+
+                AudioWaveformScrubber(
+                    progress: controller.progress,
+                    isPlaying: controller.isPlaying,
+                    tint: tint,
+                    onSeek: { controller.seek(progress: $0) }
+                )
+                .frame(height: 13)
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(Color.white.opacity(0.38))
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(0.66), lineWidth: 1)
+            }
+
+            Button(action: commit) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(tint)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(SoftScaleButtonStyle())
+            .accessibilityLabel("放入")
+        }
+        .frame(maxWidth: 360)
+        .onDisappear { controller.stop() }
+    }
+
+    private var displayedDuration: TimeInterval {
+        if controller.isPlaying || controller.currentTime > 0 {
+            return controller.currentTime
+        }
+        return controller.duration > 0 ? controller.duration : expectedDuration ?? 0
+    }
+}
+
 private struct AudioWaveformScrubber: View {
     let progress: Double
     let isPlaying: Bool
@@ -367,9 +469,11 @@ private struct AudioWaveformScrubber: View {
                 ForEach(0..<42, id: \.self) { index in
                     let normalizedIndex = Double(index) / 41
                     let pseudoWave = 0.26 + abs(sin(Double(index) * 1.73)) * 0.74
+                    let minimumBarHeight = max(3, proxy.size.height * 0.24)
+                    let barHeight = minimumBarHeight + max(0, proxy.size.height - minimumBarHeight) * pseudoWave
                     Capsule()
                         .fill(normalizedIndex <= progress ? tint.opacity(0.84) : AppTheme.secondaryText.opacity(0.16))
-                        .frame(width: 3, height: 10 + 36 * pseudoWave)
+                        .frame(width: 3, height: barHeight)
                         .scaleEffect(y: isPlaying && abs(normalizedIndex - progress) < 0.08 ? 1.12 : 1)
                 }
             }

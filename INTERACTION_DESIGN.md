@@ -66,6 +66,12 @@ idleReady
       → slideLeftPastThreshold → armedToCancel
           → slideBack → recording
           → release → discard
+      → slideUpPastThreshold → lockedRecording
+          → release → lockedRecording
+          → tapPause → stop → preview
+              → playOrScrub → preview
+              → discard → idleReady
+              → deposit → save
       → releaseUnderMinimumDuration → discard + hint
       → normalRelease → stop + save
           → saveSuccess → dismiss
@@ -77,6 +83,9 @@ idleReady
 关键规则：
 
 - 长按开始，松手完成，向左滑取消。
+- 上滑越过阈值后锁定；松手继续录音，点击暂停图标停止并进入预览。
+- 录音状态不展示删除或发送按钮；预览在同一录音舞台原地切换为播放、可拖动波形和删除重录，最终仍使用制作场景的放入手势。
+- 录音手势生命周期只由 `idle / holding / locking / locked / producingDraft` 单一阶段驱动；停止是 recorder 与正式音频草稿之间的状态边界。
 - 第一次进入语音模式时先请求权限；只有权限准备完成后才允许开始按住。
 - 录音会话仍使用会话标识保护，按住状态消失后即使异步启动返回也会立即丢弃。
 - 红点只代表 `AVAudioRecorder` 已真实进入录音状态。

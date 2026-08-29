@@ -5,41 +5,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
-enum ComposeMode: String, CaseIterable, Identifiable {
-    case text
-    case voice
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .text: return "写与照片"
-        case .voice: return "语音"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .text: return "photo.on.rectangle.angled"
-        case .voice: return "waveform"
-        }
-    }
-}
-
 struct ComposeSheet: View {
     let kind: ContainerKind
 
     @EnvironmentObject private var store: DearUsStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recorder = AudioRecorder()
-    @State private var mode: ComposeMode = .text
     @State private var text = ""
     @State private var selectedMediaItems: [PhotosPickerItem] = []
     @State private var imageDrafts: [AttachmentDraft] = []
     @State private var attachmentDraft: AttachmentDraft?
     @State private var isLoadingAttachment = false
     @State private var isSaving = false
-    @State private var isPreparingVoicePermission = false
     @State private var localNotice: LocalNotice?
     @State private var didRestoreDraft = false
     @State private var didSave = false
@@ -68,31 +45,8 @@ struct ComposeSheet: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 14)
 
-                        modeSelector
-                            .padding(.horizontal, 26)
-                            .padding(.top, 8)
-                            .opacity(isVoiceInteractionLocked ? 0.22 : 1)
-                            .allowsHitTesting(!isVoiceInteractionLocked && !isSaving)
-
-                        if mode != .voice || attachmentDraft?.kind == .audio {
-                            RitualDepositControl(
-                                kind: kind,
-                                isEnabled: canSave,
-                                isWorking: isSaving,
-                                instruction: depositInstruction,
-                                onGestureBegan: { isFocused = false },
-                                onCommit: save
-                            )
-                            .padding(.horizontal, 28)
-                            .padding(.top, 12)
-                            .padding(.bottom, 6)
-                        } else {
-                            Text("上滑锁定后可松手")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
-                                .frame(height: 38)
-                                .padding(.bottom, 10)
-                        }
+                        Color.clear
+                            .frame(height: 8)
                     }
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
@@ -121,7 +75,6 @@ struct ComposeSheet: View {
                 .zIndex(4)
             }
         }
-        .animation(.easeOut(duration: 0.16), value: mode)
         .animation(.easeOut(duration: 0.22), value: localNotice?.id)
         .onChange(of: selectedMediaItems) { _, newValue in
             guard !newValue.isEmpty else { return }
@@ -132,7 +85,7 @@ struct ComposeSheet: View {
                 text = String(newValue.prefix(maxLength))
                 return
             }
-            guard didRestoreDraft, mode != .voice else { return }
+            guard didRestoreDraft else { return }
             scheduleDraftSave(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
@@ -145,18 +98,18 @@ struct ComposeSheet: View {
         }
         .onAppear {
             restoreDraftIfNeeded()
-            isFocused = mode == .text
+            isFocused = attachmentDraft?.kind != .audio
         }
         .onDisappear {
             draftSaveTask?.cancel()
-            if !didSave, mode != .voice {
+            if !didSave {
                 draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
             }
             recorder.discard()
             cleanupTemporaryDraft(attachmentDraft)
             for draft in imageDrafts { cleanupTemporaryDraft(draft) }
         }
-        .interactiveDismissDisabled(isSaving || isPreparingVoicePermission || recorder.isRecording || recorder.isPreparing)
+        .interactiveDismissDisabled(isSaving || recorder.isRecording)
     }
 
     private var header: some View {
@@ -183,26 +136,33 @@ struct ComposeSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        switch mode {
-        case .text:
-            PhotoRitualEditor(
-                kind: kind,
-                text: $text,
-                selectedMediaItems: $selectedMediaItems,
-                drafts: imageDrafts,
-                isLoading: isLoadingAttachment,
-                isFocused: $isFocused,
-                remove: removeImage
-            )
-        case .voice:
+        PhotoRitualEditor(
+            kind: kind,
+            selectedMediaItems: $selectedMediaItems,
+            drafts: attachmentDraft?.kind == .audio ? [] : imageDrafts,
+            isLoading: isLoadingAttachment,
+            allowsPhotos: attachmentDraft?.kind != .audio,
+            remove: removeImage
+        ) {
             if let draft = attachmentDraft, draft.kind == .audio {
-                VoicePreparedView(kind: kind, draft: draft, discard: removeAttachment)
+                VoiceDraftPreviewPlayer(
+                    url: draft.url,
+                    expectedDuration: draft.duration,
+                    tint: kind.tint,
+                    discard: removeAttachment,
+                    commit: save
+                )
             } else {
                 VoiceHoldRecorderView(
                     kind: kind,
                     recorder: recorder,
-                    isDisabled: isSaving || isPreparingVoicePermission,
+                    text: $text,
+                    isFocused: $isFocused,
+                    hasComposeContent: hasTextOrImages,
+                    isDisabled: isSaving || isLoadingAttachment,
+                    onCommit: save,
                     onRecorded: voiceRecorded,
+                    onPreviewed: voicePreviewed,
                     onCancelled: {
                         localNotice = LocalNotice(title: "已取消", message: "录音未保存。")
                     },
@@ -213,28 +173,8 @@ struct ComposeSheet: View {
                         localNotice = LocalNotice(title: "无法录音", message: message)
                     }
                 )
-                .frame(maxHeight: 440)
             }
         }
-    }
-
-    private var modeSelector: some View {
-        HStack(spacing: 4) {
-            ForEach(ComposeMode.allCases) { candidate in
-                RitualModeToken(
-                    systemImage: candidate.systemImage,
-                    title: candidate.title,
-                    isSelected: mode == candidate,
-                    tint: kind.tint,
-                    action: { selectMode(candidate) }
-                )
-            }
-        }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 8)
-        .background(Color.white.opacity(0.38))
-        .clipShape(Capsule())
-        .overlay { Capsule().stroke(Color.white.opacity(0.70), lineWidth: 1) }
     }
 
     private var draftSpaceID: String {
@@ -242,30 +182,18 @@ struct ComposeSheet: View {
     }
 
     private var isVoiceInteractionLocked: Bool {
-        mode == .voice && (isPreparingVoicePermission || recorder.isPreparing || recorder.isRecording)
+        recorder.isRecording || recorder.isPreparing
+    }
+
+    private var hasTextOrImages: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageDrafts.isEmpty
     }
 
     private var canSave: Bool {
         guard !isSaving, !isLoadingAttachment, !recorder.isRecording, !recorder.isPreparing else {
             return false
         }
-        switch mode {
-        case .text:
-            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageDrafts.isEmpty
-        case .voice:
-            return attachmentDraft?.kind == .audio
-        }
-    }
-
-    private var depositInstruction: String {
-        if mode == .voice, attachmentDraft?.kind == .audio {
-            return "向上拖动重试"
-        }
-        if canSave { return "向上拖动放入" }
-        switch mode {
-        case .text: return "先写下内容或选择照片"
-        case .voice: return "按住开始录音"
-        }
+        return hasTextOrImages || attachmentDraft?.kind == .audio
     }
 
     private func restoreDraftIfNeeded() {
@@ -276,9 +204,7 @@ struct ComposeSheet: View {
         if snapshot.attachment?.kind == .image {
             imageDrafts = snapshot.attachment.map { [$0] } ?? []
             attachmentDraft = nil
-            mode = .text
         } else if snapshot.attachment?.kind == .audio {
-            mode = .voice
             text = ""
         }
         didRestoreDraft = true
@@ -296,54 +222,13 @@ struct ComposeSheet: View {
         }
     }
 
-    private func selectMode(_ newMode: ComposeMode) {
-        guard newMode != mode,
-              !isSaving,
-              !isPreparingVoicePermission,
-              !recorder.isPreparing,
-              !recorder.isRecording else { return }
-        isFocused = false
-        if newMode == .voice {
-            draftSaveTask?.cancel()
-            draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
-        }
-        recorder.discard()
-        removeAllAttachments()
-        let previousMode = mode
-        mode = newMode
-        if newMode == .voice {
-            text = ""
-        } else if previousMode == .voice {
-            text = draftRepository.text(spaceID: draftSpaceID, kind: kind)
-        }
-
-        if newMode == .text {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 220_000_000)
-                isFocused = true
-            }
-        } else if newMode == .voice {
-            isPreparingVoicePermission = true
-            Task { @MainActor in
-                let granted = await recorder.preparePermission()
-                guard mode == .voice else {
-                    isPreparingVoicePermission = false
-                    return
-                }
-                isPreparingVoicePermission = false
-                if !granted {
-                    localNotice = LocalNotice(
-                        title: "暂时听不见",
-                        message: recorder.errorMessage ?? "请在系统设置中允许麦克风访问。"
-                    )
-                }
-            }
-        }
-    }
-
     private func voiceRecorded(_ draft: AttachmentDraft) {
         guard replaceAttachment(with: draft) else { return }
         save()
+    }
+
+    private func voicePreviewed(_ draft: AttachmentDraft) {
+        _ = replaceAttachment(with: draft)
     }
 
     private func interruptActiveRecording() {
@@ -360,7 +245,9 @@ struct ComposeSheet: View {
         guard canSave else { return }
         isFocused = false
         isSaving = true
-        let drafts = mode == .text ? imageDrafts : (attachmentDraft.map { [$0] } ?? [])
+        let drafts = attachmentDraft?.kind == .audio
+            ? (attachmentDraft.map { [$0] } ?? [])
+            : imageDrafts
         attachmentDraft = nil
         imageDrafts = []
 
@@ -377,10 +264,10 @@ struct ComposeSheet: View {
                         dismiss()
                     }
                 } else {
-                    if mode == .text {
-                        imageDrafts = drafts
-                    } else {
+                    if drafts.first?.kind == .audio {
                         attachmentDraft = drafts.first
+                    } else {
+                        imageDrafts = drafts
                     }
                     isSaving = false
                     RitualHaptics.warning()
@@ -542,18 +429,45 @@ private struct WhisperPaperEditor: View {
     }
 }
 
-private struct PhotoRitualEditor: View {
+private struct PhotoRitualEditor<Composer: View>: View {
     let kind: ContainerKind
-    @Binding var text: String
     @Binding var selectedMediaItems: [PhotosPickerItem]
     let drafts: [AttachmentDraft]
     let isLoading: Bool
-    var isFocused: FocusState<Bool>.Binding
+    let allowsPhotos: Bool
     let remove: (Int) -> Void
+    let composer: Composer
+
+    init(
+        kind: ContainerKind,
+        selectedMediaItems: Binding<[PhotosPickerItem]>,
+        drafts: [AttachmentDraft],
+        isLoading: Bool,
+        allowsPhotos: Bool,
+        remove: @escaping (Int) -> Void,
+        @ViewBuilder composer: () -> Composer
+    ) {
+        self.kind = kind
+        _selectedMediaItems = selectedMediaItems
+        self.drafts = drafts
+        self.isLoading = isLoading
+        self.allowsPhotos = allowsPhotos
+        self.remove = remove
+        self.composer = composer()
+    }
 
     var body: some View {
-        photoContent
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        VStack(spacing: 12) {
+            if allowsPhotos {
+                photoGrid
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+
+            Spacer(minLength: 12)
+
+            composer
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 6)
         .opacity(isLoading ? 0.48 : 1)
         .overlay {
@@ -568,45 +482,30 @@ private struct PhotoRitualEditor: View {
         .allowsHitTesting(!isLoading)
     }
 
-    private var photoContent: some View {
-        VStack(spacing: 0) {
-            TextField("这一刻的想法...", text: $text, axis: .vertical)
-                .focused(isFocused)
-                .lineLimit(1...3)
-                .font(.system(size: 18, weight: .regular, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-                .tint(kind.tint)
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
+    private var photoGrid: some View {
+        LazyVGrid(columns: gridColumns, alignment: .center, spacing: 8) {
+            ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
+                PhotoDraftTile(
+                    draft: draft,
+                    index: index,
+                    remove: remove
+                )
+            }
 
-            Color.clear
-                .frame(height: 96)
-
-            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 8) {
-                ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
-                    PhotoDraftTile(
-                        draft: draft,
-                        index: index,
-                        remove: remove
-                    )
-                }
-
-                if drafts.count < 9 {
-                    photoPicker {
-                        ZStack {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.46))
-                            Image(systemName: "plus")
-                                .font(.system(size: 32, weight: .ultraLight))
-                                .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                        }
-                        .aspectRatio(1, contentMode: .fit)
-                        .contentShape(Rectangle())
-                        .accessibilityLabel("添加照片，最多 9 张")
+            if drafts.count < 9 {
+                photoPicker {
+                    ZStack {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.46))
+                        Image(systemName: "plus")
+                            .font(.system(size: 32, weight: .ultraLight))
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                     }
+                    .aspectRatio(1, contentMode: .fit)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("添加照片，最多 9 张")
                 }
             }
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -665,49 +564,6 @@ private struct PhotoDraftTile: View {
                 .padding(5)
                 .accessibilityLabel("移除第 \(index + 1) 张照片")
             }
-    }
-}
-
-private struct VoicePreparedView: View {
-    let kind: ContainerKind
-    let draft: AttachmentDraft
-    let discard: () -> Void
-
-    var body: some View {
-        VStack(spacing: 22) {
-            ZStack {
-                AppTheme.glow(for: kind)
-                    .frame(width: 220, height: 180)
-                RitualObjectGlyph(kind: kind, size: 104, filled: true)
-                Image(systemName: "waveform")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-
-            VStack(spacing: 7) {
-                Text("语音草稿已保留")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-                Text("\((draft.duration ?? 0).formattedDuration) · 向上拖动重试")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-            }
-
-            Button {
-                RitualHaptics.selection()
-                discard()
-            } label: {
-                Text("删除并重录")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.30))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(SoftScaleButtonStyle())
-        }
-        .frame(maxWidth: .infinity, maxHeight: 420)
     }
 }
 

@@ -6,9 +6,7 @@ import Foundation
 final class AudioRecorder: NSObject, ObservableObject {
     @Published private(set) var isPreparing = false
     @Published private(set) var isRecording = false
-    @Published private(set) var isPaused = false
     @Published private(set) var duration: TimeInterval = 0
-    @Published private(set) var level: Double = 0
     @Published private(set) var errorMessage: String?
 
     private var recorder: AVAudioRecorder?
@@ -37,7 +35,11 @@ final class AudioRecorder: NSObject, ObservableObject {
         isPreparing = true
         let sessionID = UUID()
         recordingSessionID = sessionID
-        defer { isPreparing = false }
+        defer {
+            if recordingSessionID == sessionID || recordingSessionID == nil {
+                isPreparing = false
+            }
+        }
 
         guard await requestPermission() else {
             if recordingSessionID == sessionID {
@@ -66,16 +68,13 @@ final class AudioRecorder: NSObject, ObservableObject {
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
             let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.isMeteringEnabled = true
             recorder.prepareToRecord()
             guard recorder.record() else { throw AudioRecorderError.failedToStart }
 
             self.recorder = recorder
             fileURL = url
             isRecording = true
-            isPaused = false
             duration = 0
-            level = 0
             startTimer()
             return true
         } catch {
@@ -94,9 +93,7 @@ final class AudioRecorder: NSObject, ObservableObject {
         self.fileURL = nil
         recordingSessionID = nil
         isRecording = false
-        isPaused = false
         duration = recordedDuration
-        level = 0
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
         return AttachmentDraft(
@@ -112,10 +109,9 @@ final class AudioRecorder: NSObject, ObservableObject {
         recorder?.stop()
         recorder = nil
         stopTimer()
+        isPreparing = false
         isRecording = false
-        isPaused = false
         duration = 0
-        level = 0
         if let fileURL {
             try? FileManager.default.removeItem(at: fileURL)
         }
@@ -123,34 +119,16 @@ final class AudioRecorder: NSObject, ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    func togglePause() {
-        guard isRecording, let recorder else { return }
-        if isPaused {
-            guard recorder.record() else {
-                errorMessage = "录音无法继续。"
-                return
-            }
-            isPaused = false
-        } else {
-            recorder.pause()
-            isPaused = true
-            level = 0
-        }
-    }
-
     private func startTimer() {
         stopTimer()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let recorder = self.recorder else { return }
                 self.duration = recorder.currentTime
-                recorder.updateMeters()
-                let power = recorder.averagePower(forChannel: 0)
-                // Map the useful spoken-voice range (roughly -48...0 dB) to a calm 0...1 animation value.
-                let normalized = max(0, min(1, (Double(power) + 48) / 48))
-                self.level = pow(normalized, 1.45)
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     private func stopTimer() {
@@ -160,7 +138,7 @@ final class AudioRecorder: NSObject, ObservableObject {
 
     private func requestPermission() async -> Bool {
         await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            AVAudioApplication.requestRecordPermission { granted in
                 continuation.resume(returning: granted)
             }
         }
