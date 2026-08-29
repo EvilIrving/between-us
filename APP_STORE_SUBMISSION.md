@@ -1,14 +1,25 @@
 # App Store 首发提交材料
 
-本文是 `0.0.1 (1)` 首发版本的 App Store Connect 内容底稿。当前构建尚未接入 App 内购买；下面的买断口径需在 StoreKit、权益同步与额度拦截完成后再用于正式提交。
+本文是 `0.0.1 (1)` 首发版本的 App Store Connect 内容底稿。当前构建已接入 StoreKit 2 非消耗型购买、恢复购买、免费额度拦截、单条删除释放额度，以及当前空间的双人权益同步。正式提交前仍须在 App Store Connect 创建并随版本送审对应产品。
 
-## 买断方案（待实现）
+## 买断方案
 
 - 免费版：双方在三个容器中最多同时保留 10 条内容，删除后释放额度。
 - 永久版：一次性购买后内容数量不限，不提供订阅。
-- 一人购买，整个双人共同空间共享权益。
+- 一人购买，整个双人空间共享权益。
 - 中国区：¥18 永久买断。
 - 美国区：US$2.99 永久买断；其他地区采用 App Store 对等价格。
+
+### App Store Connect 配置
+
+- 类型：Non-Consumable。
+- Product ID：`cain.com.between-us.lifetime`，必须与工程中的 `CommerceConfiguration.lifetimeProductID` 完全一致。
+- Reference Name 建议：`Whisper Lifetime`。
+- 不启用 App Store Family Sharing；双人共享由当前受邀共同空间负责，避免把权益扩展到与该空间无关的家庭成员。
+- 中国大陆价格手动设为 ¥18，美国价格手动设为 US$2.99；其他地区使用 App Store 对等价格。
+- 为简体中文、英文、日文、韩文填写本地化显示名与说明，并上传永久版购买页的审核截图。
+- 确认 Paid Apps Agreement、税务与收款资料有效，选择销售地区，再把此 App 内购买与首发版本一并提交审核。
+- 产品尚未在 App Store Connect 创建或可售时，应用会保留免费额度逻辑，并在购买页显示无法连接 App Store，不会伪造本地价格。
 
 ## 全局信息
 
@@ -30,7 +41,7 @@
 
 ### 副标题
 
-两个人的私密共同空间
+两个人的私密空间
 
 ### 宣传文本
 
@@ -38,7 +49,7 @@
 
 ### 描述
 
-耳语是为两个人设计的私密共同空间。
+耳语是为两个人设计的私密空间。
 
 它不是聊天列表。你们把文字、照片和语音放进共同养着的三个容器，等对方准备好时再亲手打开。
 
@@ -70,7 +81,7 @@ Between us
 
 ### Subtitle
 
-A quiet shared space for two
+A quiet space for two
 
 ### Promotional text
 
@@ -78,7 +89,7 @@ Leave words, photos, and voice notes in three shared vessels. No chat feed, unre
 
 ### Description
 
-Between us is a private shared space made for two people.
+Between us is a private space made for two people.
 
 It is not a chat feed. You leave words, photos, and voice notes inside three vessels you care for together, then open them when the other person is ready.
 
@@ -150,7 +161,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 부제
 
-둘만의 조용한 공유 공간
+둘만의 조용한 공간
 
 ### 홍보 문구
 
@@ -158,7 +169,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 설명
 
-속삭임은 두 사람을 위한 조용하고 사적인 공유 공간입니다.
+속삭임은 두 사람을 위한 조용하고 사적인 공간입니다.
 
 채팅 타임라인이 아닙니다. 글과 사진, 음성을 세 개의 보관함에 남기고, 상대가 준비되었을 때 직접 열어 봅니다.
 
@@ -176,7 +187,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 • 광고 추적 및 타사 분석 SDK 없음
 • 简体中文, English, 日本語, 한국어 지원
 
-각자 자신의 Apple Account를 사용합니다. 공유 공간에는 iCloud 로그인이 필요합니다. iOS 17 이상이 설치된 iPhone과 iPad를 지원합니다.
+각자 자신의 Apple Account를 사용합니다. 공간에는 iCloud 로그인이 필요합니다. iOS 17 이상이 설치된 iPhone과 iPad를 지원합니다.
 
 ### 키워드
 
@@ -185,18 +196,20 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 ## App Review Notes
 
 ```text
-Between us uses Apple iCloud and CloudKit for its two-person shared space. The app does not have an app-specific username or password.
+Between us uses Apple iCloud and CloudKit for its two-person space. The app does not have an app-specific username or password.
 
 To review the core experience without a second device or Apple Account:
 1. On the first screen, tap “Local Preview”.
 2. The preview loads sample content into all three vessels.
 3. Reviewers can open existing items, add text or a photo, record a voice note, inspect the drawer and settings, and leave the preview.
 
-Local Preview stores data only on the review device and does not sync to iCloud.
+Local Preview stores data only on the review device, does not sync to iCloud, and does not enforce the space quota.
 
-To test the real shared flow, use two devices signed in to different Apple Accounts. On the first device, hold “Invite” to create a shared space and present Apple’s iCloud sharing sheet. Open the invitation on the second device. The app has no public profiles, user search, random matching, or anonymous chat.
+To test the real shared flow, use two devices signed in to different Apple Accounts. On the first device, hold “Invite” to create a space and present Apple’s iCloud sharing sheet. Open the invitation on the second device. The app has no public profiles, user search, random matching, or anonymous chat.
 
-Microphone permission is requested only after the reviewer chooses the voice mode. Notifications are optional and never include the user’s text, photos, or audio. This build contains no in-app purchases.
+To review the non-consumable In-App Purchase, create or join a real iCloud space, then open Settings > Content Space > Free. The free space can keep up to 10 items at once. The product `cain.com.between-us.lifetime` removes that limit permanently. After one person completes a verified purchase, the current CloudKit space is marked as unlocked; the invited person receives unlimited access through that space state and does not need to purchase or restore separately. “Restore Purchases” is available on the purchase screen.
+
+Microphone permission is requested only after the reviewer chooses the voice mode. Notifications are optional and never include the user’s text, photos, or audio.
 ```
 
 ## App Privacy 填写底稿

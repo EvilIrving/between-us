@@ -11,7 +11,9 @@
 - 语音支持按住录音、左滑取消、上滑锁定、波形试听与拖动定位。
 - 打开内容后通过制作新的同类物件回应。
 - “我的抽屉”展示自己留下的内容与对方打开状态。
-- 设置中的退出和删除共同空间使用持续按住操作。
+- 设置中的退出和删除空间使用持续按住操作。
+- 免费共同空间最多同时保留 10 条内容；抽屉支持按住删除单条内容并释放位置。
+- 永久版采用一次买断，由当前共同空间中的两个人共享，不提供订阅。
 
 ### 视觉与交互
 
@@ -25,7 +27,8 @@
 - Xcode 工程、Target、Scheme、源码目录和应用入口统一使用 `BetweenUs`。
 - Bundle ID 为 `cain.com.between-us`，CloudKit Container 为 `iCloud.cain.com.between-us`。
 - CloudKit 使用 `BetweenUsRelationship`、`BetweenUsItem` 与系统 `cloudkit.share` 记录类型。
-- 支持 CloudKit 双人共享、离线缓存、同步、邀请、推送与共同空间管理。
+- 支持 CloudKit 双人共享、离线缓存、同步、邀请、推送与空间管理。
+- 接入 StoreKit 2 非消耗型购买、交易监听与恢复购买，并把空间解锁状态同步到 `BetweenUsRelationship`。
 - 最低支持 iOS 17，无第三方依赖和自建业务服务器。
 
 ### 本地化与公开页面

@@ -47,7 +47,7 @@
 
 ### 打开与回应
 
-打开后的内容使用完整的拆星星、分开胶囊或摊平纸团动画，再展示正文与媒体。回应通过重新折一颗星星、封一颗胶囊或揉一个纸团放回共同空间完成，保持“共同容器”而非聊天线程的心智模型。
+打开后的内容使用完整的拆星星、分开胶囊或摊平纸团动画，再展示正文与媒体。回应通过重新折一颗星星、封一颗胶囊或揉一个纸团放回空间完成，保持“共同容器”而非聊天线程的心智模型。
 
 ## 核心能力
 
@@ -59,14 +59,16 @@
 - 离线本机缓存、待上传恢复、基础冲突合并和账号变化处理。
 - 支持写入文字、图片、视频和语音。
 - 容器变化和“对方已打开”弱提醒，通知不展示正文。
-- 共同空间管理、参与者退出和创建者删除。
+- 空间管理、参与者退出和创建者删除。
 - “我的抽屉”查看自己留下的内容及打开状态。
+- 免费共同空间最多同时保留 10 条内容，删除单条或清空后立即释放位置。
+- StoreKit 2 非消耗型永久买断；一人购买后，当前共同空间由两个人共享不限量权益，不提供订阅。
 - 界面支持简体中文、英文、日文和韩文，可跟随系统或在设置中即时切换。
 - 无第三方依赖，无自建业务服务器。
 
 ## 数据
 
-CloudKit 使用 `BetweenUsRelationship`、`BetweenUsItem` 记录类型与 `iCloud.cain.com.between-us` 容器。`BetweenUsItem.attachmentKind` 写入 `image`、`video` 或 `audio`；正文、作者标识和打开状态写入 `CKRecord.encryptedValues`，媒体使用 `CKAsset`。
+CloudKit 使用 `BetweenUsRelationship`、`BetweenUsItem` 记录类型与 `iCloud.cain.com.between-us` 容器。`BetweenUsItem.attachmentKind` 写入 `image`、`video` 或 `audio`；正文、作者标识和打开状态写入 `CKRecord.encryptedValues`，媒体使用 `CKAsset`。StoreKit 只在购买者设备验证交易；关系记录只同步当前空间的永久解锁状态与时间，不保存购买者身份、交易号或付款资料。
 
 ## 工程结构
 
@@ -96,7 +98,7 @@ BetweenUs/
 
 ## 开始运行
 
-先阅读 [CLOUDKIT_SETUP.md](CLOUDKIT_SETUP.md)，确认根目录 `Config.xcconfig` 中的团队与标识，再用 Xcode 打开 `BetweenUs.xcodeproj`。确认 iCloud、CloudKit、Push Notifications 与 Background Modes 中的 Remote notifications 已启用，然后在登录 iCloud 的真机运行。
+先阅读 [CLOUDKIT_SETUP.md](CLOUDKIT_SETUP.md)，确认根目录 `Config.xcconfig` 中的团队与标识，再用 Xcode 打开 `BetweenUs.xcodeproj`。确认 iCloud、CloudKit、Push Notifications 与 Background Modes 中的 Remote notifications 已启用，然后在登录 iCloud 的真机运行。正式测试购买前，还需在 App Store Connect 创建 Non-Consumable 产品 `cain.com.between-us.lifetime`；价格与提交要求见 [APP_STORE_SUBMISSION.md](APP_STORE_SUBMISSION.md)。
 
 双人分享测试应使用两台真机和两个不同的 Apple 账号。新容器需先在 Development 真机成功创建一次共享，确认 `BetweenUsRelationship`、`BetweenUsItem` 和系统类型 `cloudkit.share` 已生成，再部署到 Production。
 

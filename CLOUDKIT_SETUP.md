@@ -41,18 +41,21 @@ DEVELOPMENT_TEAM_ID = QZZ878S3NS
 
 使用一台已登录 iCloud 的真机运行 Debug 版本。首次启动后：
 
-1. 创建共同空间。
+1. 创建空间。
 2. 至少分别放入一颗星星、一颗胶囊和一个纸团。
 3. 至少测试一份图片、一份视频和一份语音附件。
-4. 在 CloudKit Console 选择你的容器和 Development 环境，确认自定义记录类型以及系统生成的 `cloudkit.share` 已经出现；`cloudkit.share` 只有在开发环境成功保存过一次共享后才会生成。
+4. 使用 Sandbox Apple Account 完成一次永久版购买，让权益写入当前空间。
+5. 在 CloudKit Console 选择你的容器和 Development 环境，确认自定义记录类型、永久权益字段以及系统生成的 `cloudkit.share` 已经出现；`cloudkit.share` 只有在开发环境成功保存过一次共享后才会生成。
 
 工程会使用以下自定义记录类型，不需要 Query Index：
 
 | 记录类型 | 字段 | 类型与用途 |
 |---|---|---|
-| `BetweenUsRelationship` | `schemaVersion` | Int64，当前为 1 |
+| `BetweenUsRelationship` | `schemaVersion` | Int64，新建关系当前为 2 |
 | `BetweenUsRelationship` | `createdAt` | Date/Time，关系创建时间 |
 | `BetweenUsRelationship` | `ownerID` | Encrypted String，创建者的 CloudKit 用户标识 |
+| `BetweenUsRelationship` | `lifetimeProductID` | String，可选，解锁当前空间的非消耗型产品 ID |
+| `BetweenUsRelationship` | `lifetimeUnlockedAt` | Date/Time，可选，原始购买时间 |
 | `BetweenUsItem` | `schemaVersion` | Int64，当前为 1 |
 | `BetweenUsItem` | `kind` | String，`star`、`capsule` 或 `paper` |
 | `BetweenUsItem` | `text` | Encrypted String，正文，可为空字符串 |
@@ -67,19 +70,19 @@ DEVELOPMENT_TEAM_ID = QZZ878S3NS
 | `BetweenUsItem` | `duration` | Double，可选，语音时长 |
 | `BetweenUsItem` | `byteCount` | Int64，可选，附件字节数 |
 
-`CKShare` 是 CloudKit 系统记录，不能在 Console 中手工创建；工程第一次在 Development 环境成功创建共同空间后，CloudKit 会生成对应的 `cloudkit.share` 系统类型。正文等字段通过 `CKRecord.encryptedValues` 写入，CloudKit Console 中的字段表现应与普通未加密字段不同。
+`CKShare` 是 CloudKit 系统记录，不能在 Console 中手工创建；工程第一次在 Development 环境成功创建空间后，CloudKit 会生成对应的 `cloudkit.share` 系统类型。正文等字段通过 `CKRecord.encryptedValues` 写入，CloudKit Console 中的字段表现应与普通未加密字段不同。永久权益字段不包含正文、购买者身份、交易号或付款资料，只用于让被邀请的一方读取“当前空间已解锁”；被邀请者不需要拥有或恢复购买。
 
 ## 五、双人分享测试
 
 分享测试建议使用两台真机、两个不同的 Apple 账号，以及同一个开发团队签名出来的 App：
 
-1. 设备 A 创建共同空间，系统共享面板会出现。
+1. 设备 A 创建空间，系统共享面板会出现。
 2. A 通过“信息”、邮件或复制链接把邀请发给设备 B。
 3. B 打开邀请并接受，系统应切回 App，B 的数据来源显示为共享数据库。
 4. A 与 B 分别放入同类内容，验证双方只有在自己留下内容后才能打开一次。
 5. 验证 A 打开 B 的内容后，B 的“我的抽屉”状态会更新；开启提醒后，B 会收到不含正文的通知。
 6. 断开一台设备网络，写入内容，再恢复网络，验证最终同步。
-7. 测试创建者停止共享、参与者退出以及创建者彻底删除共同空间。
+7. 测试创建者停止共享、参与者退出以及创建者彻底删除空间。
 
 CloudKit 分享和静默推送在模拟器中的行为不适合作为最终验收依据。正式验收应使用真机，并确认两台设备都开启了 iCloud Drive、网络和本 App 的通知权限。
 
@@ -89,7 +92,7 @@ CloudKit 分享和静默推送在模拟器中的行为不适合作为最终验�
 Development 和 Production 是两套独立环境。Development 中运行成功不代表 TestFlight 可以直接使用。上传任何 TestFlight 或 App Store 构建前：
 
 1. 进入 CloudKit Console，选择正确容器。
-2. 在 Development 环境确认 `BetweenUsRelationship`、`BetweenUsItem` 以及系统类型 `cloudkit.share` 均已出现；若没有 `cloudkit.share`，先用 Debug 真机完整创建一次共同空间。
+2. 在 Development 环境确认 `BetweenUsRelationship`、`BetweenUsItem` 以及系统类型 `cloudkit.share` 均已出现；若没有 `cloudkit.share`，先用 Debug 真机完整创建一次空间。
 3. 使用 Deploy Schema Changes，把开发 Schema 部署到 Production。
 4. 切换到 Production，确认记录类型和字段已经存在。
 5. 再上传 TestFlight 构建，用两个测试账号完成一次全新创建和邀请。
