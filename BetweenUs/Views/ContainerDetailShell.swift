@@ -27,13 +27,13 @@ struct ContainerDetailShell<Content: View>: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
-                        SceneCloseControl(label: "回到首页") {
+                        SceneCloseControl(label: "返回首页") {
                             dismiss()
                         }
 
                         Spacer()
 
-                        Text(title)
+                        Text(title.localized)
                             .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.primaryText)
 
@@ -46,7 +46,7 @@ struct ContainerDetailShell<Content: View>: View {
                     .padding(.top, 8)
 
                     if !subtitle.isEmpty {
-                        Text(subtitle)
+                        Text(subtitle.localized)
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.76))
                             .multilineTextAlignment(.center)
@@ -72,7 +72,7 @@ struct ContainerDetailShell<Content: View>: View {
 struct ContainerRitualScene: View {
     let kind: ContainerKind
 
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
     @State private var showCompose = false
     @State private var revealedItem: SecretItem?
     @State private var isOpening = false
@@ -91,7 +91,7 @@ struct ContainerRitualScene: View {
                     duration: AppMotion.holdDuration(for: kind),
                     isEnabled: canOpen,
                     isWorking: isOpening,
-                    title: canOpen ? "按住容器打开" : unavailableWhisper,
+                    title: hasOpenableItem ? kind.openActionTitle : unavailableWhisper,
                     onComplete: openNext
                 )
                 .frame(height: kind == .capsule ? 236 : 272)
@@ -104,8 +104,7 @@ struct ContainerRitualScene: View {
 
                 RitualActionToken(
                     kind: kind,
-                    title: "留下一件",
-                    subtitle: "文字、照片或语音"
+                    title: kind.homeActionTitle
                 ) {
                     showCompose = true
                 }
@@ -121,7 +120,9 @@ struct ContainerRitualScene: View {
         .sheet(isPresented: $showCompose) {
             ComposeSheet(kind: kind)
         }
-        .sheet(item: $revealedItem) { item in
+        .sheet(item: $revealedItem, onDismiss: {
+            isOpening = false
+        }) { item in
             RevealSheet(item: item)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
@@ -133,11 +134,12 @@ struct ContainerRitualScene: View {
     private var credits: Int { data.activeCredits(kind: kind) }
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: kind) }
     private var sharedCount: Int { data.count(kind: kind) }
-    private var canOpen: Bool { credits > 0 && unopenedCount > 0 && !isOpening }
+    private var hasOpenableItem: Bool { credits > 0 && unopenedCount > 0 }
+    private var canOpen: Bool { hasOpenableItem && !isOpening && revealedItem == nil }
 
     private var unavailableWhisper: String {
-        if credits == 0 { return "先留下一件" }
-        return "没有待打开内容"
+        if credits == 0 { return kind.creditRequirementTitle }
+        return kind.emptyWaitingTitle
     }
 
     private func openNext() {
@@ -153,9 +155,12 @@ struct ContainerRitualScene: View {
             guard !Task.isCancelled else { return }
             let item = await store.openNext(kind: kind)
             guard !Task.isCancelled else { return }
-            isOpening = false
-            revealedItem = item
             openingTask = nil
+            if let item {
+                revealedItem = item
+            } else {
+                isOpening = false
+            }
         }
     }
 }
@@ -178,33 +183,52 @@ private struct ContainerHoldStage: View {
             isWorking: isWorking,
             onComplete: onComplete
         ) { progress, isPressing in
+            let motionProgress = reduceMotion ? 0 : min(max(progress, 0), 1)
+
             VStack(spacing: 8) {
                 ZStack {
                     AppTheme.glow(for: kind)
-                        .opacity(isEnabled ? 0.86 : 0.34)
+                        .scaleEffect(1 + motionProgress * 0.20)
+                        .opacity(
+                            isPressing || isWorking
+                                ? 1
+                                : (isEnabled ? 0.70 : 0.34)
+                        )
 
                     ContainerVisual(
                         kind: kind,
                         count: count,
                         style: .detail,
-                        interactionProgress: reduceMotion ? 0 : progress,
-                        isActive: isEnabled || isPressing
+                        interactionProgress: motionProgress,
+                        isActive: isPressing || isWorking
                     )
                     .padding(.horizontal, kind == .capsule ? 18 : 36)
                     .padding(.vertical, 8)
+                    .brightness(motionProgress * 0.035)
+                    .shadow(
+                        color: kind.tint.opacity(motionProgress * 0.24),
+                        radius: motionProgress * 16,
+                        y: motionProgress * 4
+                    )
                 }
+                .scaleEffect(reduceMotion ? 1 : 1 - motionProgress * 0.045)
+                .offset(y: reduceMotion ? 0 : motionProgress * 6)
+                .animation(.easeOut(duration: AppMotion.pressDuration), value: isPressing)
 
-                Text(isWorking ? "正在打开" : title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(labelStyle(progress: progress))
-                    .frame(height: 20)
+                ShimmeringHoldLabel(
+                    text: title,
+                    tint: kind.tint,
+                    baseStyle: labelStyle(progress: progress),
+                    isShimmering: isPressing && !reduceMotion
+                )
+                .offset(y: promptOffset)
             }
             .contentShape(Rectangle())
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(kind.title)，里面积累了 \(count) 件内容。\(title)")
+        .accessibilityLabel("%@，里面积累了 %d 件内容。%@".localized(kind.title, count, title.localized))
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("持续按住完成，提前松开取消")
+        .accessibilityHint("持续按住完成，提前松开取消".localized)
         .accessibilityAction {
             guard isEnabled, !isWorking else { return }
             onComplete()
@@ -245,6 +269,58 @@ private struct ContainerHoldStage: View {
             endPoint: .trailing
         )
     }
+
+    private var promptOffset: CGFloat {
+        switch kind {
+        case .star: return -34
+        case .capsule: return -20
+        case .paper: return -26
+        }
+    }
+}
+
+private struct ShimmeringHoldLabel: View {
+    let text: String
+    let tint: Color
+    let baseStyle: LinearGradient
+    let isShimmering: Bool
+
+    var body: some View {
+        Text(text.localized)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(baseStyle)
+            .overlay {
+                if isShimmering {
+                    TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+                        GeometryReader { proxy in
+                            let width = max(28, proxy.size.width * 0.42)
+                            let cycle = timeline.date.timeIntervalSinceReferenceDate
+                                .truncatingRemainder(dividingBy: 1.75) / 1.75
+
+                            LinearGradient(
+                                colors: [
+                                    .clear,
+                                    tint.opacity(0.16),
+                                    Color.white.opacity(0.94),
+                                    tint.opacity(0.26),
+                                    .clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: width)
+                            .offset(x: CGFloat(cycle) * (proxy.size.width + width) - width)
+                            .blendMode(.screen)
+                        }
+                        .mask {
+                            Text(text.localized)
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                }
+            }
+            .frame(height: 20)
+    }
 }
 
 struct ExchangeBalanceView: View {
@@ -266,7 +342,7 @@ struct ExchangeBalanceView: View {
         .background(Color.white.opacity(0.24))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("可打开 \(credits) 次，还有 \(waiting) 件内容等你打开")
+        .accessibilityLabel("可打开 %d 次，还有 %d 件内容等你打开".localized(credits, waiting))
     }
 }
 
@@ -280,12 +356,12 @@ private struct BalanceValue: View {
             Text("\(value)")
                 .font(.headline.bold().monospacedDigit())
                 .foregroundStyle(value > 0 ? tint : AppTheme.secondaryText.opacity(0.48))
-            Text(label)
+            Text(label.localized)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
         }
         .frame(maxWidth: .infinity)
-        .accessibilityLabel("\(label) \(value) 件")
+        .accessibilityLabel("%@ %d 件".localized(label.localized, value))
     }
 }
 
@@ -297,7 +373,7 @@ struct RitualDivider: View {
             Rectangle()
                 .fill(AppTheme.border)
                 .frame(height: 1)
-            Text(text)
+            Text(text.localized)
                 .font(.caption2)
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.46))
             Rectangle()

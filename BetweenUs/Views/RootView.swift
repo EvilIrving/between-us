@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
 
     var body: some View {
         Group {
@@ -9,7 +9,7 @@ struct RootView: View {
             case .loading:
                 LoadingView()
             case .needsICloud(let message):
-                ICloudRequiredView(message: message)
+                ICloudRequiredView(message: message.localized)
             case .needsRelationship:
                 RelationshipOnboardingView()
             case .ready:
@@ -19,11 +19,11 @@ struct RootView: View {
         .task {
             await store.start()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dearUsSharingFailed)) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: .betweenUsSharingFailed)) { notification in
             guard let error = notification.object as? Error else { return }
             Task { await store.reportSharingFailure(error) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dearUsSharingStopped)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .betweenUsSharingStopped)) { _ in
             Task { await store.sharingDidStop() }
         }
         .sheet(item: shareSheetBinding) { payload in
@@ -71,7 +71,7 @@ private struct LoadingView: View {
                 VStack(spacing: 8) {
                     ProgressView()
                         .tint(AppTheme.secondaryText)
-                    Text("正在载入")
+                    Text("正在加载")
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.secondaryText)
                 }

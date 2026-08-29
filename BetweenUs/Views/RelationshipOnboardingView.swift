@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct RelationshipOnboardingView: View {
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
 
     var body: some View {
         ZStack {
@@ -32,47 +32,33 @@ struct RelationshipOnboardingView: View {
                     }
                     .padding(.horizontal, 28)
 
-                    if LocalPreview.isSimulator {
-                        LookAroundEntry(prominent: true) {
-                            Task { await store.enterLocalPreview() }
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 4)
-                    }
+                    VStack(spacing: 9) {
+                        HoldToOpenControl(
+                            kind: .star,
+                            title: "按住邀请",
+                            inactiveTitle: "正在创建",
+                            duration: 0.92,
+                            isEnabled: !store.viewModel.isPerformingAction,
+                            isWorking: store.viewModel.isPerformingAction,
+                            onComplete: {
+                                Task { await store.createRelationship() }
+                            }
+                        )
 
-                    HoldToOpenControl(
-                        kind: .star,
-                        title: "按住创建空间",
-                        inactiveTitle: "正在创建",
-                        duration: 0.92,
-                        isEnabled: !store.viewModel.isPerformingAction,
-                        isWorking: store.viewModel.isPerformingAction,
-                        onComplete: {
-                            Task { await store.createRelationship() }
-                        }
-                    )
+                        Text("创建后邀请另一半")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
+                    }
                     .padding(.horizontal, 36)
 
-                    if !LocalPreview.isSimulator {
-                        LookAroundEntry {
-                            Task { await store.enterLocalPreview() }
-                        }
-                        .padding(.top, 4)
+                    JoinSpaceHint()
+                        .padding(.horizontal, 28)
+
+                    LookAroundEntry {
+                        Task { await store.enterLocalPreview() }
                     }
 
-                    VStack(spacing: 8) {
-                        Text("已有邀请")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text("打开对方发送的 iCloud 邀请即可加入。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(4)
-                    }
-                    .padding(.horizontal, 34)
-
-                    Text("一次只能加入一个共同空间。")
+                    Text("每人使用自己的 Apple 账号")
                         .font(.caption2)
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.48))
                         .multilineTextAlignment(.center)
@@ -86,10 +72,45 @@ struct RelationshipOnboardingView: View {
     }
 }
 
+private struct JoinSpaceHint: View {
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: "envelope.open")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(ContainerKind.capsule.tint.opacity(0.88))
+                .frame(width: 42, height: 42)
+                .background(ContainerKind.capsule.tint.opacity(0.10))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("加入空间".localized)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text("打开对方发来的 iCloud 邀请".localized)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.66))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.30))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.54), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct ICloudRequiredView: View {
     let message: String
 
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -108,7 +129,7 @@ struct ICloudRequiredView: View {
                     }
 
                     VStack(spacing: 9) {
-                        Text("共同空间暂时无法打开")
+                        Text("无法打开共同空间")
                             .font(.title2.bold())
                             .foregroundStyle(AppTheme.primaryText)
                         Text(message)
@@ -118,7 +139,7 @@ struct ICloudRequiredView: View {
                             .lineSpacing(5)
                     }
 
-                    LookAroundEntry(prominent: true) {
+                    LookAroundEntry {
                         Task { await store.enterLocalPreview() }
                     }
 
@@ -128,7 +149,7 @@ struct ICloudRequiredView: View {
                             openURL(url)
                         }
 
-                        QuietSystemAction(systemName: "arrow.clockwise", title: "再试一次") {
+                        QuietSystemAction(systemName: "arrow.clockwise", title: "重试") {
                             Task { await store.sceneBecameActive() }
                         }
                     }
@@ -150,25 +171,40 @@ private struct LookAroundEntry: View {
             RitualHaptics.selection()
             action()
         } label: {
-            VStack(spacing: prominent ? 8 : 6) {
+            Group {
                 if prominent {
-                    RitualObjectGlyph(kind: .star, size: 64, filled: false)
-                }
-                Text("本机预览")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                Text("不创建空间，内容不会同步。")
-                    .font(.caption)
+                    VStack(spacing: 8) {
+                        RitualObjectGlyph(kind: .star, size: 64, filled: false)
+
+                        Text("本机预览")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+
+                        Text("仅保存在本机")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 8)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye")
+                            .font(.caption.weight(.semibold))
+                        Text("本机预览")
+                            .font(.caption.weight(.semibold))
+                    }
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    .padding(.horizontal, 13)
+                    .frame(height: 34)
+                    .background(Color.white.opacity(0.26))
+                    .clipShape(Capsule())
+                    .overlay { Capsule().stroke(Color.white.opacity(0.46), lineWidth: 1) }
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityHint("进入本机预览")
+        .accessibilityHint("进入本机预览".localized)
     }
 }
 
@@ -189,7 +225,7 @@ private struct QuietSystemAction: View {
                     .frame(width: 58, height: 58)
                     .background(Color.white.opacity(0.38))
                     .clipShape(Circle())
-                Text(title)
+                Text(title.localized)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }

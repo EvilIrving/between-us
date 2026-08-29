@@ -17,7 +17,7 @@ struct MediaFileStore: Sendable {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         directoryURL = baseURL
-            .appendingPathComponent("DearUs", isDirectory: true)
+            .appendingPathComponent("BetweenUs", isDirectory: true)
             .appendingPathComponent("Media", isDirectory: true)
         try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     }

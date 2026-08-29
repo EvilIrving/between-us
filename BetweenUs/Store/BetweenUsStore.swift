@@ -2,12 +2,13 @@ import CloudKit
 import Foundation
 import OSLog
 
-final actor DearUsStore: Sendable, ObservableObject {
+final actor BetweenUsStore: Sendable, ObservableObject {
     static let container = CKContainer.default()
 
     private enum RelationshipOperation {
         case creating
         case accepting
+        case clearing
         case ending
     }
 
@@ -25,7 +26,7 @@ final actor DearUsStore: Sendable, ObservableObject {
     private var didStart = false
 
     private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "DearUs",
+        subsystem: Bundle.main.bundleIdentifier ?? "BetweenUs",
         category: "CloudKit"
     )
 
@@ -87,7 +88,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         sharedSyncEngine = nil
         _ = await persistOrReport(
             context: "保存本机预览状态",
-            noticeMessage: "本机预览可以继续使用，但这次状态可能无法保留到下次启动。"
+            noticeMessage: "本机预览可以继续使用，但本次更改可能不会保留。"
         )
         await presentLocalPreview()
     }
@@ -106,7 +107,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         composeDraftRepository.clearAll()
         _ = await persistOrReport(
             context: "保存退出本机预览后的状态",
-            noticeMessage: "退出状态未能写入本机，请重新打开 App 后再试。"
+            noticeMessage: "退出状态未能写入本机，请重新打开应用后重试。"
         )
         await publishData()
         await setSyncStatus(.idle)
@@ -118,14 +119,14 @@ final actor DearUsStore: Sendable, ObservableObject {
         let changed = prepareLocalPreviewContent()
         if changed {
             let persisted = await persistOrReport(
-                context: "保存补充后的演示内容",
-                noticeMessage: "演示内容已经补充，但这次变化可能无法保留到下次启动。"
+                context: "保存补充后的容器内容",
+                noticeMessage: "容器内容已补充，但本次更改可能不会保留。"
             )
             await publishData()
             guard persisted else { return }
         }
         await showNotice(
-            title: "演示内容已补充",
+            title: "容器内容已补充",
             message: "三个容器现在都可以打开。"
         )
     }
@@ -180,7 +181,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         let originalData = appData
         var createdZoneID: CKRecordZone.ID?
         do {
-            let zone = CKRecordZone(zoneName: "DearUsRelationship-\(UUID().uuidString)")
+            let zone = CKRecordZone(zoneName: "BetweenUsRelationship-\(UUID().uuidString)")
             let database = Self.container.privateCloudDatabase
             _ = try await database.save(zone)
             createdZoneID = zone.zoneID
@@ -190,7 +191,7 @@ final actor DearUsStore: Sendable, ObservableObject {
                 zoneID: zone.zoneID
             )
             let relationshipRecord = CKRecord(
-                recordType: "DearUsRelationship",
+                recordType: "BetweenUsRelationship",
                 recordID: relationshipRecordID
             )
             relationshipRecord["schemaVersion"] = 1 as CKRecordValue
@@ -198,7 +199,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             relationshipRecord.encryptedValues["ownerID"] = appData.currentUserID as CKRecordValue
 
             let share = CKShare(recordZoneID: zone.zoneID)
-            share[CKShare.SystemFieldKey.title] = "耳语" as CKRecordValue
+            share[CKShare.SystemFieldKey.title] = "耳语".localized as CKRecordValue
             share.publicPermission = .none
 
             _ = try await database.modifyRecords(
@@ -242,7 +243,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         if appData.isLocalPreview {
             await showNotice(
                 title: "本机预览",
-                message: "这里只是本机看看，还没有真正的共同空间，也不能邀请。"
+                message: "本机预览无法邀请成员。"
             )
             return
         }
@@ -267,7 +268,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         } catch let error as CKError where error.code == .unknownItem && relationship.isOwner {
             do {
                 let share = CKShare(recordZoneID: relationship.zoneID)
-                share[CKShare.SystemFieldKey.title] = "耳语" as CKRecordValue
+                share[CKShare.SystemFieldKey.title] = "耳语".localized as CKRecordValue
                 share.publicPermission = .none
                 _ = try await database.modifyRecords(saving: [share], deleting: [])
                 appData.relationship?.shareRecordName = share.recordID.recordName
@@ -309,14 +310,14 @@ final actor DearUsStore: Sendable, ObservableObject {
             }
             await showNotice(
                 title: "已有共同空间",
-                message: "当前版本一次只支持一段关系，请先在设置中结束现有共同空间。"
+                message: "一次只能加入一个共同空间。请先在设置中退出或删除当前空间。"
             )
             return
         }
 
         if let expectedIdentifier = Self.container.containerIdentifier,
            metadata.containerIdentifier != expectedIdentifier {
-            await showNotice(title: "邀请无效", message: "这个邀请不属于当前 App 的 iCloud 容器。")
+            await showNotice(title: "邀请无效", message: "此邀请无法用于当前应用。")
             return
         }
 
@@ -368,8 +369,8 @@ final actor DearUsStore: Sendable, ObservableObject {
                 await publishData()
                 await setPhase(.ready)
                 await showNotice(
-                    title: "已经加入共同空间",
-                    message: "本机状态暂时没有保存完整；重新打开 App 后会从 iCloud 自动找回。"
+                    title: "已加入共同空间",
+                    message: "本机状态尚未完整保存。重新打开应用后会继续从 iCloud 同步。"
                 )
             } else {
                 await showNotice(title: "加入失败", message: cloudFriendlyMessage(for: error))
@@ -396,7 +397,7 @@ final actor DearUsStore: Sendable, ObservableObject {
                 try mediaStore.importDraft(draft, itemID: itemID, slot: index)
             }
         } catch {
-            await showNotice(title: "无法加入附件", message: error.localizedDescription)
+            await showNotice(title: "附件添加失败", message: error.localizedDescription)
             return false
         }
 
@@ -427,7 +428,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             for attachment in attachments {
                 try? mediaStore.remove(attachment)
             }
-            await showNotice(title: "没有保存下来", message: "本机存储失败，请稍后再试。")
+            await showNotice(title: "保存失败", message: "无法写入本机存储，请稍后重试。")
             return false
         }
     }
@@ -467,6 +468,61 @@ final actor DearUsStore: Sendable, ObservableObject {
         await performEndRelationship()
         await setPerformingAction(false)
         relationshipOperation = nil
+    }
+
+    func clearAllContent() async {
+        guard relationshipOperation == nil else {
+            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            return
+        }
+        guard !appData.items.isEmpty else {
+            await showNotice(title: "无需清空", message: "三个容器里还没有内容。")
+            return
+        }
+
+        relationshipOperation = .clearing
+        await setPerformingAction(true)
+        await performClearAllContent()
+        await setPerformingAction(false)
+        relationshipOperation = nil
+    }
+
+    private func performClearAllContent() async {
+        guard let relationship = appData.relationship else { return }
+
+        let originalItems = appData.items
+        let originalDirtyRecordNames = appData.dirtyRecordNames
+        let recordIDs = originalItems.values.map { $0.recordID(in: relationship) }
+
+        appData.items = [:]
+        appData.dirtyRecordNames = []
+
+        do {
+            try persist()
+        } catch {
+            appData.items = originalItems
+            appData.dirtyRecordNames = originalDirtyRecordNames
+            await showNotice(title: "清空失败", message: "无法写入本机存储，请稍后重试。")
+            return
+        }
+
+        if !appData.isLocalPreview {
+            let scope = relationship.scope.databaseScope
+            queueDeletes(recordIDs, scope: scope)
+            Task { await self.sendQueuedChanges(scope: scope) }
+        }
+
+        do {
+            try mediaStore.removeAll()
+        } catch {
+            logger.error("Failed to remove cleared media: \(error.localizedDescription, privacy: .public)")
+        }
+        composeDraftRepository.clearAll()
+        await publishData()
+        await showNotice(
+            title: "已清空",
+            message: "三个容器里的内容已删除，共同空间仍然保留。"
+        )
     }
 
     private func performEndRelationship() async {
@@ -524,7 +580,7 @@ final actor DearUsStore: Sendable, ObservableObject {
     func reportSharingFailure(_ error: Error) async {
         await dismissShareSheet()
         await showNotice(
-            title: "共享没有完成",
+            title: "共享失败",
             message: cloudFriendlyMessage(for: error)
         )
     }
@@ -534,7 +590,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         if appData.relationship?.isOwner == true {
             await showNotice(
                 title: "已停止共享",
-                message: "你的内容仍保留在 iCloud 中；需要时可以重新邀请对方。"
+                message: "内容仍保存在 iCloud，可再次邀请对方。"
             )
             return
         }
@@ -578,7 +634,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             appData.items[original.recordName] = original
             appData.dirtyRecordNames.remove(original.recordName)
             await publishData()
-            await showNotice(title: "没有保存打开状态", message: "本机存储失败，请稍后再试一次。")
+            await showNotice(title: "状态保存失败", message: "无法写入本机存储，请稍后重试。")
             return nil
         }
     }
@@ -586,7 +642,7 @@ final actor DearUsStore: Sendable, ObservableObject {
 
 // MARK: - CKSyncEngineDelegate
 
-extension DearUsStore: CKSyncEngineDelegate {
+extension BetweenUsStore: CKSyncEngineDelegate {
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
         let scope = databaseScope(for: syncEngine)
         logger.debug("CKSyncEngine event for \(String(describing: scope), privacy: .public): \(String(describing: event), privacy: .public)")
@@ -698,7 +754,7 @@ extension DearUsStore: CKSyncEngineDelegate {
 
 // MARK: - Sync event handling
 
-private extension DearUsStore {
+private extension BetweenUsStore {
     func handleFetchedRecordZoneChanges(
         _ event: CKSyncEngine.Event.FetchedRecordZoneChanges,
         syncEngine: CKSyncEngine
@@ -793,8 +849,8 @@ private extension DearUsStore {
         await showNotice(
             title: "共同空间已结束",
             message: relationship.isOwner
-                ? "这个 iCloud 共同空间已经被删除。"
-                : "邀请方已经停止共享，或你已不再是参与者。"
+                ? "共同空间已从 iCloud 删除。"
+                : "邀请方已停止共享，或你已被移出共同空间。"
         )
     }
 
@@ -841,7 +897,7 @@ private extension DearUsStore {
                 } else {
                     await showNotice(
                         title: "共同空间不可用",
-                        message: "共享区域已经不存在，或当前账号没有写入权限。"
+                        message: "共同空间已被删除，或当前账号没有写入权限。"
                     )
                 }
 
@@ -899,13 +955,13 @@ private extension DearUsStore {
                 logger.error("Failed to reset local state after account change: \(error.localizedDescription, privacy: .public)")
                 _ = await persistOrReport(
                     context: "清除账号切换前的本机状态",
-                    noticeMessage: "iCloud 账号已经变化，但旧的本机状态未能完整清除，请重新打开 App。"
+                    noticeMessage: "iCloud 账号已更改，但旧的本机数据未能完整清除。请重新打开应用。"
                 )
             }
             try? mediaStore.removeAll()
             composeDraftRepository.clearAll()
             await publishData()
-            await setPhase(.needsICloud(message: "iCloud 账号发生了变化，请确认系统账号后重新打开 App。"))
+            await setPhase(.needsICloud(message: "iCloud 账号已更改。请确认账号后重新打开应用。"))
             await setSyncStatus(.idle)
         @unknown default:
             break
@@ -915,14 +971,14 @@ private extension DearUsStore {
 
 // MARK: - Setup and helpers
 
-private extension DearUsStore {
+private extension BetweenUsStore {
     enum StoreError: LocalizedError {
         case invalidShare
         case iCloudUnavailable
 
         var errorDescription: String? {
             switch self {
-            case .invalidShare: return "CloudKit 没有返回有效的共享记录。"
+            case .invalidShare: return "共享信息无效。"
             case .iCloudUnavailable: return "当前无法使用 iCloud。"
             }
         }
@@ -932,7 +988,7 @@ private extension DearUsStore {
         if prepareLocalPreviewContent() {
             _ = await persistOrReport(
                 context: "保存本机预览内容",
-                noticeMessage: "本机预览可以继续使用，但这次状态可能无法保留到下次启动。"
+                noticeMessage: "本机预览可以继续使用，但本次更改可能不会保留。"
             )
         }
         await publishData()
@@ -962,11 +1018,11 @@ private extension DearUsStore {
             let message: String
             switch status {
             case .noAccount:
-                message = "请在系统设置中登录 iCloud，关系数据只通过 Apple CloudKit 保存。"
+                message = "请在系统设置中登录 iCloud 后重试。"
             case .restricted:
                 message = "这台设备限制了 iCloud，请检查屏幕使用时间或设备管理设置。"
             case .temporarilyUnavailable:
-                message = "iCloud 暂时不可用，请稍后重新打开 App。"
+                message = "iCloud 暂时不可用，请稍后重新打开应用。"
             default:
                 message = "暂时无法确认 iCloud 状态，请检查网络和系统设置。"
             }
@@ -1031,13 +1087,13 @@ private extension DearUsStore {
         var candidates: [RelationshipLocator] = []
 
         for zone in zones {
-            if scope == .private && !zone.zoneID.zoneName.hasPrefix("DearUsRelationship-") {
+            if scope == .private && !zone.zoneID.zoneName.hasPrefix("BetweenUsRelationship-") {
                 continue
             }
             let recordID = CKRecord.ID(recordName: "relationship", zoneID: zone.zoneID)
             do {
                 let record = try await database.record(for: recordID)
-                guard record.recordType == "DearUsRelationship" else { continue }
+                guard record.recordType == "BetweenUsRelationship" else { continue }
                 let createdAt = record["createdAt"] as? Date ?? record.creationDate ?? .distantPast
                 candidates.append(
                     RelationshipLocator(
@@ -1160,7 +1216,7 @@ private extension DearUsStore {
             logger.fault("\(context, privacy: .public) failed completely: \(error.localizedDescription, privacy: .public)")
             await showNotice(
                 title: "本机清理未完成",
-                message: "共同空间已经结束，但旧的本机状态未能清除，请重新打开 App。"
+                message: "共同空间已结束，但本机数据未能清除。请重新打开应用。"
             )
             return false
         }
@@ -1169,6 +1225,16 @@ private extension DearUsStore {
     func queueSave(_ recordID: CKRecord.ID, scope: CKDatabase.Scope) {
         syncEngine(for: scope)?.state.add(
             pendingRecordZoneChanges: [.saveRecord(recordID)]
+        )
+    }
+
+    func queueDeletes(_ recordIDs: [CKRecord.ID], scope: CKDatabase.Scope) {
+        guard let engine = syncEngine(for: scope), !recordIDs.isEmpty else { return }
+        engine.state.remove(
+            pendingRecordZoneChanges: recordIDs.map { .saveRecord($0) }
+        )
+        engine.state.add(
+            pendingRecordZoneChanges: recordIDs.map { .deleteRecord($0) }
         )
     }
 
@@ -1297,7 +1363,7 @@ private extension DearUsStore {
 
     func showNotice(title: String, message: String) async {
         await MainActor.run {
-            self.viewModel.notice = AppNotice(title: title, message: message)
+            self.viewModel.notice = AppNotice(title: title.localized, message: message.localized)
         }
     }
 
@@ -1307,15 +1373,15 @@ private extension DearUsStore {
         }
         switch cloudError.code {
         case .notAuthenticated:
-            return "请在系统设置中登录 iCloud。"
+            return "请在系统设置中登录 iCloud。".localized
         case .networkUnavailable, .networkFailure:
-            return "当前网络不可用；本地内容不会丢失，恢复网络后会自动重试。"
+            return "当前网络不可用。本机内容不会丢失，联网后会自动重试。".localized
         case .serviceUnavailable, .zoneBusy, .requestRateLimited:
-            return "iCloud 正忙，请稍后再试。"
+            return "iCloud 正忙，请稍后再试。".localized
         case .permissionFailure:
-            return "当前账号没有访问这个共同空间的权限。"
+            return "当前账号没有访问这个共同空间的权限。".localized
         case .quotaExceeded:
-            return "iCloud 储存空间不足。"
+            return "iCloud 储存空间不足。".localized
         default:
             return cloudError.localizedDescription
         }

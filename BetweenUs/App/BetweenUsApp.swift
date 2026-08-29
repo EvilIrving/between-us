@@ -1,16 +1,18 @@
 import SwiftUI
 
 @main
-struct DearUsApp: App {
+struct BetweenUsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var localization = LocalizationManager.shared
 
-    private let store = DearUsStore()
+    private let store = BetweenUsStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .environment(\.locale, localization.currentLocale)
                 .preferredColorScheme(.light)
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }

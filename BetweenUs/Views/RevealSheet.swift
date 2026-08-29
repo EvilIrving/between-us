@@ -17,7 +17,7 @@ struct RevealSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
                     HStack {
-                        SceneCloseControl(label: "收好") {
+                        SceneCloseControl(label: "关闭") {
                             dismiss()
                         }
                         Spacer()
@@ -56,7 +56,7 @@ struct RevealSheet: View {
                             Text(item.createdAt.formatted(date: .long, time: .shortened))
                                 .font(.caption2)
                                 .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 24)
@@ -69,13 +69,9 @@ struct RevealSheet: View {
                         .shadow(color: Color.black.opacity(0.065), radius: 26, y: 14)
                         .transition(.scale(scale: 0.92).combined(with: .opacity))
 
-                        RitualDivider(text: "回应")
-                            .padding(.vertical, 3)
-
                         RitualActionToken(
                             kind: item.kind,
-                            title: "留下一件",
-                            subtitle: "创建新的内容"
+                            title: item.kind.homeActionTitle
                         ) {
                             showResponseComposer = true
                         }
@@ -83,7 +79,7 @@ struct RevealSheet: View {
                         VStack(spacing: 5) {
                             Image(systemName: "chevron.down")
                                 .font(.caption.weight(.bold))
-                            Text("下拉收好")
+                            Text("下拉关闭")
                                 .font(.caption2)
                         }
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.46))
@@ -158,7 +154,7 @@ private struct RevealObjectAnimation: View {
 
             case .capsule:
                 ZStack {
-                    SpherocylinderShape()
+                    CapsuleShellHalf(side: .leading)
                         .fill(
                             LinearGradient(
                                 colors: [Color(red: 0.72, green: 0.80, blue: 0.73), kind.tint],
@@ -166,10 +162,17 @@ private struct RevealObjectAnimation: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .overlay { SpherocylinderShape().stroke(kind.tint.opacity(0.44), lineWidth: 1) }
-                        .frame(width: 48, height: 34)
-                        .offset(x: isUnsealed ? -33 : 0)
-                    SpherocylinderShape()
+                        .overlay { CapsuleShellHalf(side: .leading).stroke(kind.tint.opacity(0.44), lineWidth: 1) }
+                        .overlay(alignment: .trailing) {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.34))
+                                .frame(width: 2)
+                                .padding(.vertical, 3)
+                        }
+                        .frame(width: 52, height: 36)
+                        .offset(x: isUnsealed ? -39 : -26)
+
+                    CapsuleShellHalf(side: .trailing)
                         .fill(
                             LinearGradient(
                                 colors: [Color.white.opacity(0.96), AppTheme.paper],
@@ -177,9 +180,15 @@ private struct RevealObjectAnimation: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .overlay { SpherocylinderShape().stroke(kind.tint.opacity(0.30), lineWidth: 1) }
-                        .frame(width: 48, height: 34)
-                        .offset(x: isUnsealed ? 33 : 0)
+                        .overlay { CapsuleShellHalf(side: .trailing).stroke(kind.tint.opacity(0.30), lineWidth: 1) }
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(kind.tint.opacity(0.20))
+                                .frame(width: 2)
+                                .padding(.vertical, 3)
+                        }
+                        .frame(width: 52, height: 36)
+                        .offset(x: isUnsealed ? 39 : 26)
                 }
                 .rotationEffect(.degrees(-15))
                 .shadow(color: kind.tint.opacity(0.20), radius: 15)
@@ -208,6 +217,49 @@ private struct RevealObjectAnimation: View {
             value: isUnsealed
         )
         .accessibilityHidden(true)
+    }
+}
+
+private struct CapsuleShellHalf: Shape {
+    enum Side {
+        case leading
+        case trailing
+    }
+
+    let side: Side
+
+    func path(in rect: CGRect) -> Path {
+        let radius = rect.height / 2
+        var path = Path()
+
+        switch side {
+        case .leading:
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+            path.addArc(
+                center: CGPoint(x: rect.minX + radius, y: rect.midY),
+                radius: radius,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(90),
+                clockwise: true
+            )
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+
+        case .trailing:
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+            path.addArc(
+                center: CGPoint(x: rect.maxX - radius, y: rect.midY),
+                radius: radius,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(90),
+                clockwise: false
+            )
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+
+        path.closeSubpath()
+        return path
     }
 }
 

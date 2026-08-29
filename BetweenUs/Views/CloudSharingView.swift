@@ -22,18 +22,18 @@ struct CloudSharingView: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UICloudSharingControllerDelegate {
         func itemTitle(for csc: UICloudSharingController) -> String? {
-            "耳语"
+            "耳语".localized
         }
 
         func cloudSharingController(
             _ csc: UICloudSharingController,
             failedToSaveShareWithError error: Error
         ) {
-            NotificationCenter.default.post(name: .dearUsSharingFailed, object: error)
+            NotificationCenter.default.post(name: .betweenUsSharingFailed, object: error)
         }
 
         func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
-            NotificationCenter.default.post(name: .dearUsSharingStopped, object: nil)
+            NotificationCenter.default.post(name: .betweenUsSharingStopped, object: nil)
         }
     }
 }

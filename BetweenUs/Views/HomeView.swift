@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
     @State private var composeKind: ContainerKind?
 
     var body: some View {
@@ -14,6 +14,9 @@ struct HomeView: View {
                         header
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
+
+                        coupleSyncCard
+                            .padding(.horizontal, 20)
 
                         sharedRoom
                             .padding(.horizontal, 20)
@@ -35,15 +38,10 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading) {
                 Text("耳语")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
-
-                Text(roomWhisper)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.70))
-                    .lineLimit(1)
             }
 
             Spacer(minLength: 8)
@@ -87,6 +85,78 @@ struct HomeView: View {
         .padding(.top, 20)
     }
 
+    private var coupleSyncCard: some View {
+        Button {
+            RitualHaptics.selection()
+            Task {
+                if store.viewModel.data.isLocalPreview {
+                    await store.leaveLocalPreview()
+                } else {
+                    await store.prepareShareSheet()
+                }
+            }
+        } label: {
+            HStack(spacing: 13) {
+                Image(systemName: store.viewModel.data.isLocalPreview ? "icloud.slash" : "person.2.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(ContainerKind.capsule.tint.opacity(0.90))
+                    .frame(width: 42, height: 42)
+                    .background(ContainerKind.capsule.tint.opacity(0.11))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("情侣同步".localized)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Text(syncCardDetail.localized)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 6)
+
+                Text(syncCardAction.localized)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ContainerKind.capsule.tint.opacity(0.92))
+                    .padding(.horizontal, 11)
+                    .frame(height: 32)
+                    .background(ContainerKind.capsule.tint.opacity(0.10))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(Color.white.opacity(0.34))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.58), lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SoftScaleButtonStyle())
+        .disabled(store.viewModel.isPerformingAction)
+    }
+
+    private var syncCardDetail: String {
+        if store.viewModel.data.isLocalPreview {
+            return "真机登录 iCloud 后可用"
+        }
+        return relationship?.isOwner == true ? "邀请对方，共用当前空间" : "已通过 iCloud 同步"
+    }
+
+    private var syncCardAction: String {
+        if store.viewModel.data.isLocalPreview {
+            return "离开预览"
+        }
+        return relationship?.isOwner == true ? "邀请对方" : "查看共享"
+    }
+
+    private var relationship: RelationshipLocator? {
+        store.viewModel.data.relationship
+    }
+
     private func roomObject<Destination: View>(
         kind: ContainerKind,
         @ViewBuilder destination: () -> Destination
@@ -105,27 +175,15 @@ struct HomeView: View {
                 RitualHaptics.selection()
                 composeKind = kind
             } label: {
-                Text("留下")
+                Text(kind.homeActionTitle)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(kind.tint.opacity(0.82))
                     .frame(height: 28)
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("在\(kind.title)留下一件")
+            .accessibilityLabel("在%@%@".localized(kind.title, kind.homeActionTitle))
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var roomWhisper: String {
-        if store.viewModel.data.isLocalPreview {
-            return "本机预览 · 内容不会同步"
-        }
-        let waiting = ContainerKind.allCases.reduce(0) { $0 + unopenedCount($1) }
-        switch waiting {
-        case 0: return "没有待打开的内容"
-        case 1: return "1 件内容待打开"
-        default: return "\(waiting) 件内容待打开"
-        }
     }
 
     private func sharedCount(_ kind: ContainerKind) -> Int {
@@ -157,7 +215,7 @@ private struct RoomObject: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(kind.title)
-        .accessibilityHint("打开这个共同容器")
+        .accessibilityHint("打开%@".localized(kind.title))
     }
 
     private var containerGlyph: some View {
@@ -218,7 +276,7 @@ private struct HomeCornerControl: View {
         HStack(spacing: 6) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
-            Text(title)
+            Text(title.localized)
                 .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(AppTheme.primaryText.opacity(0.66))

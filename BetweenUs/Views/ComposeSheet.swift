@@ -8,12 +8,12 @@ import UIKit
 struct ComposeSheet: View {
     let kind: ContainerKind
 
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recorder = AudioRecorder()
     @State private var text = ""
     @State private var selectedMediaItems: [PhotosPickerItem] = []
-    @State private var imageDrafts: [AttachmentDraft] = []
+    @State private var mediaDrafts: [AttachmentDraft] = []
     @State private var attachmentDraft: AttachmentDraft?
     @State private var isLoadingAttachment = false
     @State private var isSaving = false
@@ -21,22 +21,20 @@ struct ComposeSheet: View {
     @State private var didRestoreDraft = false
     @State private var didSave = false
     @State private var draftSaveTask: Task<Void, Never>?
-    @State private var selectedDetent: PresentationDetent = .fraction(0.50)
+    @State private var selectedDetent: PresentationDetent = .fraction(0.44)
     @FocusState private var isFocused: Bool
 
     private let maxLength = 4_000
     private let draftRepository = ComposeDraftRepository()
-    private let compactDetent: PresentationDetent = .fraction(0.50)
-    private let mediumDetent: PresentationDetent = .fraction(0.64)
-    private let photoGridDetent: PresentationDetent = .fraction(0.78)
+    private let compactDetent: PresentationDetent = .fraction(0.44)
+    private let mediumDetent: PresentationDetent = .fraction(0.58)
+    private let mediaGridDetent: PresentationDetent = .fraction(0.72)
 
     var body: some View {
         ZStack {
             AmbientRoomBackground(kind: kind)
 
             GeometryReader { proxy in
-                let editorHeight = max(300, proxy.size.height - 96)
-
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         header
@@ -45,7 +43,6 @@ struct ComposeSheet: View {
 
                         content
                             .frame(maxWidth: .infinity)
-                            .frame(minHeight: editorHeight)
                             .padding(.horizontal, 20)
                             .padding(.top, 14)
 
@@ -81,7 +78,7 @@ struct ComposeSheet: View {
         }
         .animation(.easeOut(duration: 0.22), value: localNotice?.id)
         .presentationDetents(
-            [compactDetent, mediumDetent, photoGridDetent],
+            [compactDetent, mediumDetent, mediaGridDetent],
             selection: $selectedDetent
         )
         .presentationDragIndicator(.hidden)
@@ -90,7 +87,7 @@ struct ComposeSheet: View {
             guard !newValue.isEmpty else { return }
             Task { await importPickerItems(newValue) }
         }
-        .onChange(of: imageDrafts.count) { _, _ in
+        .onChange(of: mediaDrafts.count) { _, _ in
             selectedDetent = restingDetent
         }
         .onChange(of: text) { _, newValue in
@@ -121,7 +118,7 @@ struct ComposeSheet: View {
             }
             recorder.discard()
             cleanupTemporaryDraft(attachmentDraft)
-            for draft in imageDrafts { cleanupTemporaryDraft(draft) }
+            for draft in mediaDrafts { cleanupTemporaryDraft(draft) }
         }
         .interactiveDismissDisabled(isSaving || recorder.isRecording)
     }
@@ -150,13 +147,13 @@ struct ComposeSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        PhotoRitualEditor(
+        MediaRitualEditor(
             kind: kind,
             selectedMediaItems: $selectedMediaItems,
-            drafts: attachmentDraft?.kind == .audio ? [] : imageDrafts,
+            drafts: mediaDrafts,
             isLoading: isLoadingAttachment,
-            allowsPhotos: attachmentDraft?.kind != .audio,
-            remove: removeImage
+            allowsMedia: true,
+            remove: removeMedia
         ) {
             if let draft = attachmentDraft, draft.kind == .audio {
                 VoiceDraftPreviewPlayer(
@@ -172,16 +169,16 @@ struct ComposeSheet: View {
                     recorder: recorder,
                     text: $text,
                     isFocused: $isFocused,
-                    hasComposeContent: hasTextOrImages,
+                    hasText: hasText,
                     isDisabled: isSaving || isLoadingAttachment,
                     onCommit: save,
                     onRecorded: voiceRecorded,
                     onPreviewed: voicePreviewed,
                     onCancelled: {
-                        localNotice = LocalNotice(title: "已取消", message: "录音未保存。")
+                        localNotice = LocalNotice(title: "录音已取消", message: "未保存录音。")
                     },
                     onTooShort: {
-                        localNotice = LocalNotice(title: "录音太短", message: "请按住并多说一点。")
+                        localNotice = LocalNotice(title: "录音太短", message: "请重新录制。")
                     },
                     onError: { message in
                         localNotice = LocalNotice(title: "无法录音", message: message)
@@ -199,18 +196,18 @@ struct ComposeSheet: View {
         recorder.isRecording || recorder.isPreparing
     }
 
-    private var hasTextOrImages: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageDrafts.isEmpty
+    private var hasText: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var restingDetent: PresentationDetent {
-        let visibleTiles = imageDrafts.count < 9 ? imageDrafts.count + 1 : imageDrafts.count
+        let visibleTiles = mediaDrafts.count < 9 ? mediaDrafts.count + 1 : mediaDrafts.count
         let rows = max(1, Int(ceil(Double(visibleTiles) / 3.0)))
 
         switch rows {
         case 1: return compactDetent
         case 2: return mediumDetent
-        default: return photoGridDetent
+        default: return mediaGridDetent
         }
     }
 
@@ -218,7 +215,7 @@ struct ComposeSheet: View {
         guard !isSaving, !isLoadingAttachment, !recorder.isRecording, !recorder.isPreparing else {
             return false
         }
-        return hasTextOrImages || attachmentDraft?.kind == .audio
+        return hasText || !mediaDrafts.isEmpty || attachmentDraft?.kind == .audio
     }
 
     private func restoreDraftIfNeeded() {
@@ -226,8 +223,8 @@ struct ComposeSheet: View {
         let snapshot = draftRepository.snapshot(spaceID: draftSpaceID, kind: kind)
         text = snapshot.text
         attachmentDraft = snapshot.attachment
-        if snapshot.attachment?.kind == .image {
-            imageDrafts = snapshot.attachment.map { [$0] } ?? []
+        if snapshot.attachment?.kind == .image || snapshot.attachment?.kind == .video {
+            mediaDrafts = snapshot.attachment.map { [$0] } ?? []
             attachmentDraft = nil
         } else if snapshot.attachment?.kind == .audio {
             text = ""
@@ -248,8 +245,7 @@ struct ComposeSheet: View {
     }
 
     private func voiceRecorded(_ draft: AttachmentDraft) {
-        guard replaceAttachment(with: draft) else { return }
-        save()
+        _ = replaceAttachment(with: draft)
     }
 
     private func voicePreviewed(_ draft: AttachmentDraft) {
@@ -261,8 +257,8 @@ struct ComposeSheet: View {
         recorder.discard()
         RitualHaptics.warning()
         localNotice = LocalNotice(
-            title: "录音停下来了",
-            message: "系统中断了这段语音，它没有被放进容器。"
+            title: "录音已中断",
+            message: "这段录音未保存。"
         )
     }
 
@@ -270,11 +266,12 @@ struct ComposeSheet: View {
         guard canSave else { return }
         isFocused = false
         isSaving = true
-        let drafts = attachmentDraft?.kind == .audio
+        let audioDrafts = attachmentDraft?.kind == .audio
             ? (attachmentDraft.map { [$0] } ?? [])
-            : imageDrafts
+            : []
+        let drafts = mediaDrafts + audioDrafts
         attachmentDraft = nil
-        imageDrafts = []
+        mediaDrafts = []
 
         Task {
             let success = await store.add(kind: kind, text: text, attachments: drafts)
@@ -289,16 +286,13 @@ struct ComposeSheet: View {
                         dismiss()
                     }
                 } else {
-                    if drafts.first?.kind == .audio {
-                        attachmentDraft = drafts.first
-                    } else {
-                        imageDrafts = drafts
-                    }
+                    attachmentDraft = drafts.first(where: { $0.kind == .audio })
+                    mediaDrafts = drafts.filter { $0.kind == .image || $0.kind == .video }
                     isSaving = false
                     RitualHaptics.warning()
                     localNotice = LocalNotice(
                         title: "保存失败",
-                        message: "草稿已保留，可以立即重试。"
+                        message: "草稿已保留，请重试。"
                     )
                 }
             }
@@ -313,13 +307,15 @@ struct ComposeSheet: View {
             selectedMediaItems = []
         }
 
-        let availableSlots = max(0, 9 - imageDrafts.count)
+        let availableSlots = max(0, 9 - mediaDrafts.count)
         guard availableSlots > 0 else { return }
         var imported: [AttachmentDraft] = []
 
         do {
             for item in items.prefix(availableSlots) {
-                guard let type = item.supportedContentTypes.first(where: { $0.conforms(to: .image) }),
+                guard let type = item.supportedContentTypes.first(where: {
+                    $0.conforms(to: .image) || $0.conforms(to: .movie)
+                }),
                       let data = try await item.loadTransferable(type: Data.self) else {
                     throw MediaImportError.unavailable
                 }
@@ -327,21 +323,23 @@ struct ComposeSheet: View {
                     throw MediaFileError.fileTooLarge
                 }
 
-                let fileExtension = type.preferredFilenameExtension ?? "jpg"
+                let attachmentKind: AttachmentKind = type.conforms(to: .movie) ? .video : .image
+                let fileExtension = type.preferredFilenameExtension
+                    ?? (attachmentKind == .video ? "mov" : "jpg")
                 let url = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("dear-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
+                    .appendingPathComponent("between-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
                 try data.write(to: url, options: .atomic)
                 imported.append(AttachmentDraft(
-                    kind: .image,
+                    kind: attachmentKind,
                     url: url,
-                    originalFilename: "照片.\(fileExtension)"
+                    originalFilename: "\(attachmentKind == .video ? "视频" : "照片").\(fileExtension)"
                 ))
             }
-            imageDrafts.append(contentsOf: imported)
+            mediaDrafts.append(contentsOf: imported)
             RitualHaptics.selection()
         } catch {
             for draft in imported { cleanupTemporaryDraft(draft) }
-            localNotice = LocalNotice(title: "无法读取照片", message: error.localizedDescription)
+            localNotice = LocalNotice(title: "无法读取媒体", message: error.localizedDescription)
         }
     }
 
@@ -373,15 +371,15 @@ struct ComposeSheet: View {
         attachmentDraft = nil
     }
 
-    private func removeImage(at index: Int) {
-        guard imageDrafts.indices.contains(index) else { return }
-        cleanupTemporaryDraft(imageDrafts.remove(at: index))
+    private func removeMedia(at index: Int) {
+        guard mediaDrafts.indices.contains(index) else { return }
+        cleanupTemporaryDraft(mediaDrafts.remove(at: index))
     }
 
     private func removeAllAttachments() {
         removeAttachment()
-        for draft in imageDrafts { cleanupTemporaryDraft(draft) }
-        imageDrafts = []
+        for draft in mediaDrafts { cleanupTemporaryDraft(draft) }
+        mediaDrafts = []
         selectedMediaItems = []
     }
 
@@ -423,7 +421,7 @@ private struct WhisperPaperEditor: View {
                     .padding(.bottom, 8)
 
                 if text.count > maxLength - 400 {
-                    Text("还可以写 \(maxLength - text.count) 个字")
+                    Text("剩余 %d 字".localized(maxLength - text.count))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -454,12 +452,12 @@ private struct WhisperPaperEditor: View {
     }
 }
 
-private struct PhotoRitualEditor<Composer: View>: View {
+private struct MediaRitualEditor<Composer: View>: View {
     let kind: ContainerKind
     @Binding var selectedMediaItems: [PhotosPickerItem]
     let drafts: [AttachmentDraft]
     let isLoading: Bool
-    let allowsPhotos: Bool
+    let allowsMedia: Bool
     let remove: (Int) -> Void
     let composer: Composer
 
@@ -468,7 +466,7 @@ private struct PhotoRitualEditor<Composer: View>: View {
         selectedMediaItems: Binding<[PhotosPickerItem]>,
         drafts: [AttachmentDraft],
         isLoading: Bool,
-        allowsPhotos: Bool,
+        allowsMedia: Bool,
         remove: @escaping (Int) -> Void,
         @ViewBuilder composer: () -> Composer
     ) {
@@ -476,23 +474,21 @@ private struct PhotoRitualEditor<Composer: View>: View {
         _selectedMediaItems = selectedMediaItems
         self.drafts = drafts
         self.isLoading = isLoading
-        self.allowsPhotos = allowsPhotos
+        self.allowsMedia = allowsMedia
         self.remove = remove
         self.composer = composer()
     }
 
     var body: some View {
         VStack(spacing: 12) {
-            if allowsPhotos {
-                photoGrid
+            if allowsMedia {
+                mediaGrid
                     .frame(maxWidth: .infinity, alignment: .top)
             }
 
-            Spacer(minLength: 12)
-
             composer
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .opacity(isLoading ? 0.48 : 1)
         .overlay {
@@ -507,10 +503,10 @@ private struct PhotoRitualEditor<Composer: View>: View {
         .allowsHitTesting(!isLoading)
     }
 
-    private var photoGrid: some View {
-        LazyVGrid(columns: gridColumns, alignment: .center, spacing: 8) {
+    private var mediaGrid: some View {
+        LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 8) {
             ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
-                PhotoDraftTile(
+                MediaDraftTile(
                     draft: draft,
                     index: index,
                     remove: remove
@@ -518,7 +514,7 @@ private struct PhotoRitualEditor<Composer: View>: View {
             }
 
             if drafts.count < 9 {
-                photoPicker {
+                mediaPicker {
                     ZStack {
                         Rectangle()
                             .fill(Color.white.opacity(0.46))
@@ -527,8 +523,9 @@ private struct PhotoRitualEditor<Composer: View>: View {
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                     }
                     .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .contentShape(Rectangle())
-                    .accessibilityLabel("添加照片，最多 9 张")
+                    .accessibilityLabel("添加图片或视频，最多 9 个".localized)
                 }
             }
         }
@@ -536,16 +533,16 @@ private struct PhotoRitualEditor<Composer: View>: View {
 
     private var gridColumns: [GridItem] {
         return Array(
-            repeating: GridItem(.flexible(minimum: 64, maximum: 104), spacing: 8),
+            repeating: GridItem(.flexible(minimum: 64), spacing: 8),
             count: 3
         )
     }
 
-    private func photoPicker<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+    private func mediaPicker<Label: View>(@ViewBuilder label: () -> Label) -> some View {
         PhotosPicker(
             selection: $selectedMediaItems,
             maxSelectionCount: max(1, 9 - drafts.count),
-            matching: .images,
+            matching: .any(of: [.images, .videos]),
             photoLibrary: .shared()
         ) { label() }
         .buttonStyle(SoftScaleButtonStyle())
@@ -553,7 +550,7 @@ private struct PhotoRitualEditor<Composer: View>: View {
     }
 }
 
-private struct PhotoDraftTile: View {
+private struct MediaDraftTile: View {
     let draft: AttachmentDraft
     let index: Int
     let remove: (Int) -> Void
@@ -562,17 +559,21 @@ private struct PhotoDraftTile: View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if let image = UIImage(contentsOfFile: draft.url.path) {
+                if draft.kind == .image,
+                   let image = UIImage(contentsOfFile: draft.url.path) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.36))
+                    ZStack {
+                        Color.black.opacity(0.08)
+                        Image(systemName: "play.fill")
+                            .font(.title2)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+                    }
                 }
             }
-            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 Button {
                     RitualHaptics.selection()
@@ -587,7 +588,7 @@ private struct PhotoDraftTile: View {
                 }
                 .buttonStyle(SoftScaleButtonStyle())
                 .padding(5)
-                .accessibilityLabel("移除第 \(index + 1) 张照片")
+                .accessibilityLabel("移除第 %d 个媒体".localized(index + 1))
             }
     }
 }
@@ -623,5 +624,5 @@ private struct LocalNotice: Identifiable {
 private enum MediaImportError: LocalizedError {
     case unavailable
 
-    var errorDescription: String? { "系统没有返回可读取的照片。" }
+    var errorDescription: String? { "系统没有返回可读取的图片或视频。" }
 }

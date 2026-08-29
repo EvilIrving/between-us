@@ -31,11 +31,11 @@ actor NotificationManager {
     func notifyNewItem(kind: ContainerKind) async {
         guard await authorizationState() == .enabled else { return }
         let content = UNMutableNotificationContent()
-        content.title = "耳语"
+        content.title = "耳语".localized
         switch kind {
-        case .star: content.body = "瓶子里好像多了一颗星星。"
-        case .capsule: content.body = "胶囊盒里好像有一点变化。"
-        case .paper: content.body = "纸团篓里有一件事，等你准备好再看。"
+        case .star: content.body = "星星瓶里多了一颗星星。".localized
+        case .capsule: content.body = "胶囊盒里多了一颗胶囊。".localized
+        case .paper: content.body = "纸团篓里多了一个纸团。".localized
         }
         content.sound = .default
         try? await center.add(
@@ -50,11 +50,11 @@ actor NotificationManager {
     func notifyOpened(kind: ContainerKind) async {
         guard await authorizationState() == .enabled else { return }
         let content = UNMutableNotificationContent()
-        content.title = "耳语"
+        content.title = "耳语".localized
         switch kind {
-        case .star: content.body = "对方打开了一颗你留下的星星。"
-        case .capsule: content.body = "对方打开了一颗你留下的胶囊。"
-        case .paper: content.body = "对方展开了一个你留下的纸团。"
+        case .star: content.body = "对方打开了你放入的星星。".localized
+        case .capsule: content.body = "对方打开了你放入的胶囊。".localized
+        case .paper: content.body = "对方展开了你放入的纸团。".localized
         }
         content.sound = .default
         try? await center.add(
@@ -95,6 +95,6 @@ final class CloudKitPushBroker {
 }
 
 extension Notification.Name {
-    static let dearUsSharingFailed = Notification.Name("DearUsSharingFailed")
-    static let dearUsSharingStopped = Notification.Name("DearUsSharingStopped")
+    static let betweenUsSharingFailed = Notification.Name("BetweenUsSharingFailed")
+    static let betweenUsSharingStopped = Notification.Name("BetweenUsSharingStopped")
 }

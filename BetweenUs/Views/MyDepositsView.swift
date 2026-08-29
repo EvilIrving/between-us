@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct MyDepositsView: View {
-    @EnvironmentObject private var store: DearUsStore
+    @EnvironmentObject private var store: BetweenUsStore
     @Environment(\.dismiss) private var dismiss
     @State private var selectedKind: ContainerKind?
     @State private var section: DrawerSection = .leftByMe
@@ -11,31 +11,28 @@ struct MyDepositsView: View {
         ZStack {
             AmbientRoomBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    HStack {
-                        SceneCloseControl(label: "关上抽屉") { dismiss() }
-                        Spacer()
-                    }
+            VStack(spacing: 16) {
+                HStack {
+                        SceneCloseControl(label: "返回首页") { dismiss() }
+                    Spacer()
+                }
 
-                    VStack(spacing: 6) {
-                        Text("抽屉")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(section.subtitle)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-                            .multilineTextAlignment(.center)
-                    }
+                VStack(spacing: 6) {
+                    Text("抽屉")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                }
+                .padding(.top, -20)
 
-                    sectionTokens
+                sectionTokens
 
-                    filterTokens
+                filterTokens
 
-                    if items.isEmpty {
-                        EmptyDrawerView(kind: selectedKind, section: section)
-                            .frame(minHeight: 360)
-                    } else {
+                if items.isEmpty {
+                    EmptyDrawerView(kind: selectedKind, section: section)
+                        .frame(maxHeight: .infinity)
+                } else {
+                    ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 13) {
                             ForEach(items) { item in
                                 NavigationLink {
@@ -46,14 +43,15 @@ struct MyDepositsView: View {
                                 .buttonStyle(SoftScaleButtonStyle())
                             }
                         }
+                        .padding(.top, 4)
+                        .padding(.bottom, 32)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 9)
-                .padding(.bottom, 32)
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 9)
+            .frame(maxWidth: 640, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity)
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -112,9 +110,9 @@ struct MyDepositsView: View {
 
     private func shortTitle(for kind: ContainerKind) -> String {
         switch kind {
-        case .star: return "星星"
-        case .capsule: return "胶囊"
-        case .paper: return "纸团"
+        case .star: return "星星".localized
+        case .capsule: return "胶囊".localized
+        case .paper: return "纸团".localized
         }
     }
 
@@ -128,15 +126,8 @@ private enum DrawerSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .leftByMe: return "我留下的"
-        case .openedFromOther: return "我接住的"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .leftByMe: return "你留下的内容"
-        case .openedFromOther: return "你打开过的内容"
+        case .leftByMe: return "我放入的".localized
+        case .openedFromOther: return "我打开的".localized
         }
     }
 
@@ -191,7 +182,7 @@ private struct DrawerFilterToken: View {
                         .font(.system(size: 14, weight: .semibold))
                         .frame(height: 28)
                 }
-                Text(title)
+                Text(title.localized)
                     .font(.caption2.weight(.semibold))
             }
             .foregroundStyle(isSelected ? tint : AppTheme.secondaryText.opacity(0.54))
@@ -226,7 +217,7 @@ private struct EmptyDrawerView: View {
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.55))
                 }
             }
-            Text(section == .leftByMe ? "还没有留下内容" : "还没有打开内容")
+            Text("暂无记录")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
             Text(emptyMessage)
@@ -241,9 +232,9 @@ private struct EmptyDrawerView: View {
     private var emptyMessage: String {
         switch section {
         case .leftByMe:
-            return "从任一容器留下一件后，会显示在这里。"
+            return "放入容器后会显示在这里".localized
         case .openedFromOther:
-            return "打开过的内容会保留在这里。"
+            return "打开后会保留在这里".localized
         }
     }
 }
@@ -256,6 +247,7 @@ private struct DrawerItemCard: View {
         HStack(spacing: 14) {
             DrawerItemLeadingVisual(item: item)
                 .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 7) {
@@ -312,7 +304,17 @@ private struct DrawerItemCard: View {
     private var attachmentSummary: (text: String, systemImage: String)? {
         let images = item.allAttachments.filter { $0.kind == .image }
         if !images.isEmpty {
-            return (images.count == 1 ? "照片" : "\(images.count) 张", images.count == 1 ? "photo" : "photo.stack")
+            return (
+                images.count == 1 ? "照片".localized : "%d 张".localized(images.count),
+                images.count == 1 ? "photo" : "photo.stack"
+            )
+        }
+        let videos = item.allAttachments.filter { $0.kind == .video }
+        if !videos.isEmpty {
+            return (
+                videos.count == 1 ? "视频".localized : "%d 个视频".localized(videos.count),
+                "video"
+            )
         }
         if let audio = item.allAttachments.first(where: { $0.kind == .audio }) {
             return ((audio.duration ?? 0).formattedDuration, "waveform")
@@ -322,8 +324,8 @@ private struct DrawerItemCard: View {
 
     private var statusText: String {
         switch section {
-        case .leftByMe: return item.openedAt == nil ? "等着" : "看过"
-        case .openedFromOther: return "收好"
+        case .leftByMe: return item.openedAt == nil ? "未打开".localized : "已打开".localized
+        case .openedFromOther: return "已打开".localized
         }
     }
 
@@ -362,7 +364,22 @@ private struct DrawerItemLeadingVisual: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(Color.white.opacity(0.74), lineWidth: 1)
                 }
-        } else if item.attachment?.kind == .audio {
+        } else if item.allAttachments.contains(where: { $0.kind == .video }) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.08))
+                Image(systemName: "play.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(item.kind.tint.opacity(0.88))
+                    .clipShape(Circle())
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(item.kind.tint.opacity(0.16), lineWidth: 1)
+            }
+        } else if item.allAttachments.contains(where: { $0.kind == .audio }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(item.kind.tint.opacity(0.11))
@@ -423,7 +440,7 @@ private struct DrawerItemDetailView: View {
                         Text(item.createdAt.formatted(date: .long, time: .shortened))
                             .font(.caption2)
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 24)
@@ -449,10 +466,10 @@ private struct DrawerItemDetailView: View {
     private var detailStatus: String {
         switch section {
         case .leftByMe:
-            return item.openedAt == nil ? "还在等对方" : "对方已经打开"
+            return item.openedAt == nil ? "等待对方打开".localized : "对方已打开".localized
         case .openedFromOther:
-            guard let openedAt = item.openedAt else { return "已经接住" }
-            return "你在 \(openedAt.formatted(date: .abbreviated, time: .shortened)) 接住了它"
+            guard let openedAt = item.openedAt else { return "已打开".localized }
+            return "打开于 %@".localized(openedAt.formatted(date: .abbreviated, time: .shortened))
         }
     }
 }

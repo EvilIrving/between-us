@@ -60,7 +60,7 @@ final class AudioRecorder: NSObject, ObservableObject {
             try session.setActive(true, options: .notifyOthersOnDeactivation)
 
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("dear-us-\(UUID().uuidString.lowercased()).m4a")
+                .appendingPathComponent("between-us-\(UUID().uuidString.lowercased()).m4a")
             let settings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 44_100,
@@ -78,7 +78,7 @@ final class AudioRecorder: NSObject, ObservableObject {
             startTimer()
             return true
         } catch {
-            errorMessage = "这次没有录下来：\(error.localizedDescription)"
+            errorMessage = "这次没有录下来：%@".localized(error.localizedDescription)
             discard()
             return false
         }

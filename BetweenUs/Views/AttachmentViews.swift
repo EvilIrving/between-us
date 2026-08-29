@@ -47,7 +47,7 @@ struct AttachmentDraftPreview: View {
             }
             .buttonStyle(SoftScaleButtonStyle())
             .padding(10)
-            .accessibilityLabel("移除附件")
+            .accessibilityLabel("移除附件".localized)
         }
     }
 
@@ -70,9 +70,9 @@ struct AttachmentDraftPreview: View {
 
     private var metadataText: String {
         if let duration = draft.duration {
-            return "已经录下 \(duration.formattedDuration)"
+            return "录音时长 %@".localized(duration.formattedDuration)
         }
-        return draft.originalFilename ?? "已经准备好"
+        return draft.originalFilename ?? "已准备".localized
     }
 }
 
@@ -92,7 +92,7 @@ struct AttachmentContentView: View {
                 case .image:
                     ImageAttachmentView(url: url)
                 case .video:
-                    LegacyVideoAttachmentView(url: url)
+                    VideoAttachmentView(url: url)
                 case .audio:
                     AudioAttachmentView(url: url, expectedDuration: attachment.duration, tint: tint)
                 }
@@ -104,9 +104,9 @@ struct AttachmentContentView: View {
         VStack(spacing: 11) {
             Image(systemName: "icloud.and.arrow.down")
                 .font(.system(size: 28, weight: .light))
-            Text("这份内容还在从 iCloud 慢慢回来")
+            Text("正在从 iCloud 下载附件")
                 .font(.subheadline.weight(.semibold))
-            Text("保持网络连接，稍后再靠近它")
+            Text("请保持网络连接，稍后重试")
                 .font(.caption)
                 .opacity(0.68)
         }
@@ -186,7 +186,7 @@ private struct ImageAttachmentView: View {
             VStack(spacing: 10) {
                 Image(systemName: "photo")
                     .font(.title2)
-                Text("照片暂时无法展开")
+                Text("照片暂时无法显示")
                     .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(AppTheme.secondaryText)
@@ -195,8 +195,7 @@ private struct ImageAttachmentView: View {
     }
 }
 
-/// 1.1 no longer creates new video items, but this reader remains so content made by 1.0 is not lost.
-private struct LegacyVideoAttachmentView: View {
+private struct VideoAttachmentView: View {
     let url: URL
     @State private var player: AVPlayer
 
@@ -206,15 +205,9 @@ private struct LegacyVideoAttachmentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            VideoPlayer(player: player)
-                .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 420)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-
-            Text("这是 1.0 留下的视频；1.1 暂停新增视频写入")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.52))
-        }
+        VideoPlayer(player: player)
+            .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 420)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onDisappear { player.pause() }
     }
 }
@@ -327,7 +320,7 @@ private struct AudioAttachmentView: View {
                 }
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel(controller.isPlaying ? "暂停语音" : "播放语音")
+            .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
 
             AudioWaveformScrubber(
                 progress: controller.progress,
@@ -395,7 +388,7 @@ struct VoiceDraftPreviewPlayer: View {
                     }
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("删除录音并重录")
+            .accessibilityLabel("删除录音并重录".localized)
 
             HStack(spacing: 8) {
                 Button(action: controller.toggle) {
@@ -414,7 +407,7 @@ struct VoiceDraftPreviewPlayer: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(SoftScaleButtonStyle())
-                .accessibilityLabel(controller.isPlaying ? "暂停语音" : "播放语音")
+                .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
 
                 AudioWaveformScrubber(
                     progress: controller.progress,
@@ -443,7 +436,7 @@ struct VoiceDraftPreviewPlayer: View {
                     .clipShape(Circle())
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("放入")
+            .accessibilityLabel("保存并放入容器".localized)
         }
         .frame(maxWidth: 360)
         .onDisappear { controller.stop() }
@@ -489,8 +482,8 @@ private struct AudioWaveformScrubber: View {
         }
         .animation(.easeOut(duration: 0.14), value: progress)
         .accessibilityElement()
-        .accessibilityLabel("语音播放进度")
-        .accessibilityValue("百分之 \(Int(progress * 100))")
+        .accessibilityLabel("语音播放进度".localized)
+        .accessibilityValue("百分之 %d".localized(Int(progress * 100)))
     }
 }
 

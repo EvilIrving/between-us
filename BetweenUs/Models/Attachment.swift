@@ -7,9 +7,9 @@ enum AttachmentKind: String, Codable, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .image: return "照片"
-        case .video: return "视频"
-        case .audio: return "语音"
+        case .image: return "照片".localized
+        case .video: return "视频".localized
+        case .audio: return "语音".localized
         }
     }
 

@@ -98,7 +98,7 @@ enum LocalPreview {
         return AppData(
             items: Dictionary(uniqueKeysWithValues: items.map { ($0.recordName, $0) }),
             relationship: RelationshipLocator(
-                zoneName: "DearUsLocalPreview",
+                zoneName: "BetweenUsLocalPreview",
                 ownerName: CKCurrentUserDefaultName,
                 shareRecordName: "preview-share",
                 scope: .privateOwner,
@@ -166,7 +166,7 @@ enum LocalPreview {
                 id: UUID(uuidString: "56A0C0DE-0001-4000-8000-000000000001")!,
                 kind: .capsule,
                 authorID: currentUserID,
-                text: "下班路上，天刚好是这个颜色。",
+                text: "下班路上拍的，想问问你觉得怎么样。",
                 createdAt: now.addingTimeInterval(-240),
                 updatedAt: now.addingTimeInterval(-240),
                 attachment: firstImage,
@@ -176,7 +176,7 @@ enum LocalPreview {
                 id: UUID(uuidString: "56A0C0DE-0002-4000-8000-000000000002")!,
                 kind: .capsule,
                 authorID: currentUserID,
-                text: "给你留了一小段语音。",
+                text: "有件事想跟你说，我录下来了。",
                 createdAt: now.addingTimeInterval(-120),
                 updatedAt: now.addingTimeInterval(-120),
                 attachment: attachments.audio
@@ -185,7 +185,7 @@ enum LocalPreview {
                 id: UUID(uuidString: "56A0C0DE-0003-4000-8000-000000000003")!,
                 kind: .capsule,
                 authorID: counterpartID,
-                text: "今天窗边的光很温柔，想让你也看看。",
+                text: "今天在窗边拍的，你看看。",
                 createdAt: imageDate,
                 updatedAt: imageDate,
                 attachment: firstImage,
@@ -195,7 +195,7 @@ enum LocalPreview {
                 id: UUID(uuidString: "56A0C0DE-0004-4000-8000-000000000004")!,
                 kind: .capsule,
                 authorID: counterpartID,
-                text: "有句话想慢慢说给你听。",
+                text: "我录了一段话，有空听一下。",
                 createdAt: audioDate,
                 updatedAt: audioDate,
                 attachment: attachments.audio
@@ -230,14 +230,14 @@ enum LocalPreview {
             SecretItem(
                 kind: .star,
                 authorID: currentUserID,
-                text: "今天你把杯子往我这边推了一点点，我其实一直记着。",
+                text: "谢谢你刚才帮我倒了杯水。",
                 createdAt: hoursAgo(30),
                 updatedAt: hoursAgo(30)
             ),
             SecretItem(
                 kind: .star,
                 authorID: currentUserID,
-                text: "谢谢你没有追问。那已经够了。",
+                text: "谢谢你没有追问，让我自己缓了一会儿。",
                 createdAt: hoursAgo(20),
                 updatedAt: hoursAgo(8),
                 openedByID: counterpartID,
@@ -246,42 +246,42 @@ enum LocalPreview {
             SecretItem(
                 kind: .star,
                 authorID: counterpartID,
-                text: "没有什么特别的事。就是想把这一天轻轻放进来。",
+                text: "今天没什么特别的，只是想跟你说声晚安。",
                 createdAt: hoursAgo(12),
                 updatedAt: hoursAgo(12)
             ),
             SecretItem(
                 kind: .star,
                 authorID: counterpartID,
-                text: "你靠过来的时候，房间好像安静了一点。",
+                text: "你不在家，我怎么有一种不想洗澡、不想睡觉的感觉？",
                 createdAt: hoursAgo(4),
                 updatedAt: hoursAgo(4)
             ),
             SecretItem(
                 kind: .capsule,
                 authorID: currentUserID,
-                text: "最近你已经很努力了。先歇一下也没关系。",
+                text: "你最近有点累，今晚早点休息吧。",
                 createdAt: hoursAgo(18),
                 updatedAt: hoursAgo(18)
             ),
             SecretItem(
                 kind: .capsule,
                 authorID: counterpartID,
-                text: "我想认真告诉你：你做得比自己以为的好。",
+                text: "这件事不用急，我们明天一起想办法。",
                 createdAt: hoursAgo(6),
                 updatedAt: hoursAgo(6)
             ),
             SecretItem(
                 kind: .paper,
                 authorID: currentUserID,
-                text: "有一句没有说完的话，先揉在这里。",
+                text: "刚才那句话让我有点不舒服，我还没想好怎么说。",
                 createdAt: hoursAgo(22),
                 updatedAt: hoursAgo(22)
             ),
             SecretItem(
                 kind: .paper,
                 authorID: counterpartID,
-                text: "今天有点闷。不是你的错，只是想被接住。",
+                text: "我今天心情不好，想先自己待一会儿，不是你的问题。",
                 createdAt: hoursAgo(3),
                 updatedAt: hoursAgo(3)
             )
@@ -296,17 +296,17 @@ enum LocalPreview {
         let choices: [String]
         switch (kind, fromCounterpart) {
         case (.star, false):
-            choices = ["今天也有一个瞬间，想悄悄留给你。", "谢谢你愿意和我一起慢慢来。"]
+            choices = ["谢谢你今天来接我。", "今天一起吃饭很开心。"]
         case (.star, true):
-            choices = ["刚才想到你，心里亮了一小会儿。", "有些温柔很小，但我一直记得。"]
+            choices = ["今天见到你很开心。", "谢谢你记得我随口提过的事。"]
         case (.capsule, false):
-            choices = ["别急着把今天做完，先照顾好自己。", "这件事可以慢一点，我们一起想。"]
+            choices = ["今晚别再忙了，早点休息。", "这件事不用急，我们明天再商量。"]
         case (.capsule, true):
-            choices = ["你已经做得很好了，不需要一直证明自己。", "如果累了就停一下，我会在这里。"]
+            choices = ["你已经做得很好了，先休息一下。", "如果需要帮忙，可以直接告诉我。"]
         case (.paper, false):
             choices = ["今天有点难受，我想先把它说出来。", "这件事让我有些委屈，需要一点时间。"]
         case (.paper, true):
-            choices = ["我刚才有点沉默，不是在怪你。", "心里还有一点乱，但我愿意慢慢告诉你。"]
+            choices = ["我刚才不说话，是因为有点生气。", "这件事我还没想清楚，晚点再跟你聊。"]
         }
         return choices[index % choices.count]
     }
@@ -405,11 +405,11 @@ enum CloudSyncStatus: Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .idle: return "等待同步"
-        case .syncing: return "正在同步"
-        case .upToDate: return "已同步"
-        case .attention: return "同步需处理"
-        case .localPreview: return "本机预览"
+        case .idle: return "等待同步".localized
+        case .syncing: return "正在同步".localized
+        case .upToDate: return "已同步".localized
+        case .attention: return "同步需处理".localized
+        case .localPreview: return "本机预览".localized
         }
     }
 

@@ -2,7 +2,7 @@ import CloudKit
 import Foundation
 
 struct SecretItem: Identifiable, Codable, Hashable, Sendable {
-    static let recordType: CKRecord.RecordType = "DearUsItem"
+    static let recordType: CKRecord.RecordType = "BetweenUsItem"
 
     var id: UUID
     var kind: ContainerKind
@@ -52,8 +52,14 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
         let images = allAttachments.filter { $0.kind == .image }
-        if !images.isEmpty { return images.count == 1 ? "一张照片" : "\(images.count) 张照片" }
-        return attachment?.kind.title ?? "一段内容"
+        if !images.isEmpty {
+            return images.count == 1 ? "一张照片".localized : "%d 张照片".localized(images.count)
+        }
+        let videos = allAttachments.filter { $0.kind == .video }
+        if !videos.isEmpty {
+            return videos.count == 1 ? "一段视频".localized : "%d 个视频".localized(videos.count)
+        }
+        return attachment?.kind.title ?? "一段内容".localized
     }
 
     var allAttachments: [AttachmentMetadata] {

@@ -483,7 +483,19 @@ private struct PaperHolderVisual: View {
                     let position = paperPositions[index]
                     ParametricTokenView(kind: .paper, seed: index)
                         .frame(width: width * 0.145, height: width * 0.14)
-                        .position(x: width * position.x, y: height * position.y - clampedProgress * height * 0.012)
+                        .position(x: width * position.x, y: height * position.y)
+                        .offset(
+                            x: clampedProgress * width * (index.isMultiple(of: 2) ? -0.025 : 0.025),
+                            y: -clampedProgress * height * CGFloat(0.055 + Double(index % 3) * 0.012)
+                        )
+                        .rotationEffect(
+                            .degrees(clampedProgress * Double(index.isMultiple(of: 2) ? -10 : 10))
+                        )
+                        .scaleEffect(1 + clampedProgress * 0.08)
+                        .shadow(
+                            color: ContainerKind.paper.tint.opacity(clampedProgress * 0.20),
+                            radius: clampedProgress * 7
+                        )
                 }
 
                 bin

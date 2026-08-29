@@ -4,10 +4,10 @@ struct LocalStateRepository: Sendable {
     private let fileURL: URL
     private let backupURL: URL
 
-    init(filename: String = "dear-us-v1.json") {
+    init(filename: String = "between-us-v1.json") {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let directoryURL = baseURL.appendingPathComponent("DearUs", isDirectory: true)
+        let directoryURL = baseURL.appendingPathComponent("BetweenUs", isDirectory: true)
         try? FileManager.default.createDirectory(
             at: directoryURL,
             withIntermediateDirectories: true,
@@ -88,7 +88,7 @@ struct ComposeDraftRepository: Sendable {
     init(filename: String = "compose-drafts-v2.json") {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let directoryURL = baseURL.appendingPathComponent("DearUs", isDirectory: true)
+        let directoryURL = baseURL.appendingPathComponent("BetweenUs", isDirectory: true)
         mediaDirectoryURL = directoryURL.appendingPathComponent("DraftMedia", isDirectory: true)
         try? FileManager.default.createDirectory(
             at: mediaDirectoryURL,

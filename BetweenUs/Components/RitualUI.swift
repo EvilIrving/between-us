@@ -86,7 +86,7 @@ struct SceneCloseControl: View {
             }
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel(label)
+        .accessibilityLabel(label.localized)
     }
 }
 
@@ -136,7 +136,6 @@ struct RitualObjectGlyph: View {
 struct RitualActionToken: View {
     let kind: ContainerKind
     let title: String
-    var subtitle: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -148,15 +147,9 @@ struct RitualActionToken: View {
                 RitualObjectGlyph(kind: kind, size: 52, filled: false)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
+                    Text(title.localized)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
-
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
-                    }
                 }
 
                 Spacer(minLength: 8)
@@ -193,10 +186,10 @@ struct WhisperNoticeBanner: View {
                     .foregroundStyle(AppTheme.warmLight)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
+                    Text(title.localized)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text(message)
+                    Text(message.localized)
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                         .lineLimit(3)
@@ -219,7 +212,7 @@ struct WhisperNoticeBanner: View {
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 8)
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel("\(title)，\(message)，轻点关闭")
+        .accessibilityLabel("通知：%@，%@。轻点关闭".localized(title.localized, message.localized))
     }
 }
 
@@ -245,7 +238,7 @@ struct RitualModeToken: View {
                         .foregroundStyle(isSelected ? tint : AppTheme.secondaryText.opacity(0.72))
                 }
 
-                Text(title)
+                Text(title.localized)
                     .font(.caption2.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.72))
             }
@@ -277,7 +270,7 @@ struct RitualDepositControl: View {
                 .scaleEffect(1 - progress * 0.10)
                 .rotationEffect(.degrees(rotationForProgress))
 
-            Text(isWorking ? "正在放进去……" : instruction)
+            Text(isWorking ? "正在保存…".localized : instruction.localized)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(
                     isEnabled
@@ -314,8 +307,8 @@ struct RitualDepositControl: View {
         .contentShape(Rectangle())
         .highPriorityGesture(dragGesture, including: isEnabled && !isWorking ? .all : .none)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(instruction)
-        .accessibilityHint("向上拖动完成")
+        .accessibilityLabel(instruction.localized)
+        .accessibilityHint("向上拖动完成".localized)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             guard isEnabled, !isWorking else { return }
@@ -490,11 +483,11 @@ struct HoldToOpenControl: View {
                     .scaleEffect(isPressing ? 0.94 : 1)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(isEnabled ? title : inactiveTitle)
+                    Text((isEnabled ? title : inactiveTitle).localized)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
 
-                    Text(isWorking ? "正在完成" : "持续按住 · 松开取消")
+                    Text(isWorking ? "请稍候".localized : "持续按住 · 松开取消".localized)
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText.opacity(isEnabled ? 0.66 : 0.40))
                 }
@@ -526,7 +519,7 @@ struct HoldToOpenControl: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("持续按住完成")
+        .accessibilityHint("持续按住完成".localized)
         .accessibilityAction {
             guard isEnabled, !isWorking else { return }
             onComplete()

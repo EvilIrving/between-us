@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Whisper";
+"NSMicrophoneUsageDescription" = "Record a voice message and place it in one of your shared containers.";
+
