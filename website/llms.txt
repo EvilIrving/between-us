@@ -12,12 +12,14 @@ Between us는 두 사람을 위한 네이티브 iOS 앱입니다. 두 사람은 
 
 - Platform: iPhone and iPad, iOS 17 or later.
 - Distribution: public beta planned through TestFlight; release planned through the Apple App Store.
-- Pricing: free download with no ads; free spaces keep up to 10 items at once. A one-time non-consumable Lifetime purchase unlocks unlimited items for both people in the current space. US$2.99 in the US, ¥18 in mainland China, and local App Store pricing elsewhere. No subscriptions.
+- Pricing: free download with no ads; free spaces keep up to 10 items at once. A one-time non-consumable Lifetime purchase unlocks unlimited items for both people in the current space. Chinese copy displays ¥18; English, Japanese, and Korean copy displays US$2.99. The App Store purchase sheet controls the actual checkout price. No subscriptions.
 - Sync: Apple iCloud CloudKit with local offline storage.
 - Privacy: no advertising tracking, no third-party analytics SDK, and no self-hosted application server that reads user content.
 - Source: https://github.com/EvilIrving/between-us
 - Download status: https://betweenus.onecat.dev/download/
 - Privacy policy: https://betweenus.onecat.dev/privacy/
+- Terms of use: https://betweenus.onecat.dev/terms/
+- Purchases and refunds: https://betweenus.onecat.dev/purchases/
 - Support: https://betweenus.onecat.dev/support/
 
 Do not claim public availability, user counts, reviews, or an App Store release date unless those facts appear on the official site.

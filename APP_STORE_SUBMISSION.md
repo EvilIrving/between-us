@@ -2,36 +2,62 @@
 
 本文是 `0.0.1 (1)` 首发版本的 App Store Connect 内容底稿。当前构建已接入 StoreKit 2 非消耗型购买、恢复购买、免费额度拦截、单条删除释放额度，以及当前空间的双人权益同步。正式提交前仍须在 App Store Connect 创建并随版本送审对应产品。
 
+## 明天提交顺序
+
+1. 在 Business 确认 Paid Apps Agreement 为 Active，并完成 Apple 要求的税务与收款资料；否则无法提交 App 内购买。
+2. 创建非消耗型产品 `cain.com.between-us.lifetime`，配置销售地区、价格、四语本地化、审核截图和审核说明。
+3. 完成 App Information：名称、副标题、分类、内容权利、年龄分级、隐私政策 URL、版权及适用地区要求；保留 Apple Standard EULA。
+4. 完成 App Privacy 问卷，按本文底稿申报 CloudKit 用户标识、用户内容、照片或视频、音频及购买记录。
+5. 为 App 版本填写四语描述、关键词、支持 URL、营销 URL，上传真实设备分辨率截图并选择构建。
+6. 填写出口合规问题、审核联系人和下方 App Review Notes。
+7. 把首个非消耗型 App 内购买与这个 App 版本加入同一审核提交，再点 Submit for Review。首个此类型内购不能脱离新版本单独首发。
+
 ## 买断方案
 
-- 免费版：双方在三个容器中最多同时保留 10 条内容，删除后释放额度。
+- 免费版：双方留下的星星、胶囊和纸团最多同时保留 10 件，删除后释放位置。
 - 永久版：一次性购买后内容数量不限，不提供订阅。
 - 一人购买，整个双人空间共享权益。
 - 中国区：¥18 永久买断。
 - 美国区：US$2.99 永久买断；其他地区采用 App Store 对等价格。
+- 静态展示规则：简体中文显示 `¥18`；英文、日文、韩文均显示 `US$2.99`。应用内最终购买按钮始终使用 StoreKit 返回的实际结算价格。
 
 ### App Store Connect 配置
 
 - 类型：Non-Consumable。
 - Product ID：`cain.com.between-us.lifetime`，必须与工程中的 `CommerceConfiguration.lifetimeProductID` 完全一致。
-- Reference Name 建议：`Whisper Lifetime`。
+- Reference Name 建议：`Between us Lifetime`。
 - 不启用 App Store Family Sharing；双人共享由当前受邀共同空间负责，避免把权益扩展到与该空间无关的家庭成员。
 - 中国大陆价格手动设为 ¥18，美国价格手动设为 US$2.99；其他地区使用 App Store 对等价格。
 - 为简体中文、英文、日文、韩文填写本地化显示名与说明，并上传永久版购买页的审核截图。
 - 确认 Paid Apps Agreement、税务与收款资料有效，选择销售地区，再把此 App 内购买与首发版本一并提交审核。
 - 产品尚未在 App Store Connect 创建或可售时，应用会保留免费额度逻辑，并在购买页显示无法连接 App Store，不会伪造本地价格。
 
+### App 内购买本地化
+
+| 语言 | Display Name | Description |
+|---|---|---|
+| 简体中文 | 永久版 | 一次购买，两个人都可以在当前空间不限量地留下星星、胶囊和纸团。 |
+| English | Lifetime | One purchase removes the item limit for both people in the current shared space. |
+| 日本語 | 買い切り版 | 一度の購入で、現在の共有スペースをふたりとも件数制限なく利用できます。 |
+| 한국어 | 평생 이용권 | 한 번 구매하면 현재 공유 공간을 두 사람 모두 개수 제한 없이 이용할 수 있습니다. |
+
+审核截图使用真实永久版购买页，画面中应同时出现 StoreKit 返回的价格、“一起解锁”、“只买一次”和“恢复购买”。
+
 ## 全局信息
 
 - Bundle ID：`cain.com.between-us`
-- SKU 建议：`between-us-ios`
-- 主分类建议：生活
-- 次分类建议：社交
+- SKU：`between-us-ios`
+- 主分类：生活
+- 次分类：社交
 - 隐私政策：`https://betweenus.onecat.dev/privacy/`
+- 使用条款：`https://betweenus.onecat.dev/terms/`
+- 购买与退款：`https://betweenus.onecat.dev/purchases/`
 - 支持：`https://betweenus.onecat.dev/support/`
 - 营销网址：`https://betweenus.onecat.dev/`
-- 版权：需由账号持有人填写真实个人或主体名称
-- 审核联系人邮箱与国际格式手机号：需由账号持有人填写
+- License Agreement：保留 Apple Standard EULA；应用内《使用条款》作为补充，不把购买说明粘贴成 Custom EULA。
+- 版权：`2026 TIANBAO DONG`
+- 审核联系人：`TIANBAO DONG` / `dong.yy1916@gmail.com`
+- 审核联系电话：由账号持有人填写可及时接听的国际格式手机号
 
 ## 简体中文
 
@@ -51,11 +77,11 @@
 
 耳语是为两个人设计的私密空间。
 
-它不是聊天列表。你们把文字、照片和语音放进共同养着的三个容器，等对方准备好时再亲手打开。
+它不是聊天列表。你们把文字、照片和语音留在共同的星星瓶、胶囊盒和纸团篓里，等对方准备好时再亲手打开。
 
 星星瓶收好喜欢、感谢和想分享的事；胶囊盒装下需要认真说、慢慢听的话；纸团篓接住委屈、生气和其他不开心。
 
-在耳语里，表达不是点一下“发送”。你会写、折、封、揉、按住，再把一件东西放进容器。留下的内容会变成共同房间里看得见的积累，不会被新的消息推走。
+在耳语里，表达不是点一下“发送”。你会写、折、封、揉、按住，再把它亲手放进去。留下的内容会变成共同房间里看得见的积累，不会被新的消息推走。
 
 主要功能：
 
@@ -63,11 +89,13 @@
 • 星星瓶、胶囊盒和纸团篓三种表达方式
 • 通过 Apple iCloud 邀请另一位伴侣加入
 • 本机离线保存，联网后通过 CloudKit 同步
-• 通知只提示容器发生变化，不展示内容正文
+• 通知只提示空间有了变化，不展示内容正文
 • 不使用广告追踪或第三方分析 SDK
 • 支持简体中文、English、日本語和 한국어
 
 每个人使用自己的 Apple 账号。双人共享需要登录 iCloud。耳语支持 iOS 17 或更高版本的 iPhone 与 iPad。
+
+免费下载，无广告、无订阅。免费空间最多同时保留 10 条内容，删除后释放额度；¥18 一次买断永久版后，一人购买，当前双人空间中的两个人都可不限量使用。实际支付价格以 App Store 购买界面为准。
 
 ### 关键词
 
@@ -85,17 +113,17 @@ A quiet space for two
 
 ### Promotional text
 
-Leave words, photos, and voice notes in three shared vessels. No chat feed, unread pressure, or streaks.
+Leave words, photos, and voice notes in a shared Star Jar, Capsule Box, and Paper Bin. No chat feed, unread pressure, or streaks.
 
 ### Description
 
 Between us is a private space made for two people.
 
-It is not a chat feed. You leave words, photos, and voice notes inside three vessels you care for together, then open them when the other person is ready.
+It is not a chat feed. You leave words, photos, and voice notes in a Star Jar, Capsule Box, and Paper Bin you care for together, then open them when the other person is ready.
 
 The Star Jar holds affection, gratitude, and small things worth sharing. The Capsule Box keeps conversations that deserve time and attention. The Paper Basket gives difficult feelings somewhere safe to land.
 
-There is no Send button. You write, fold, seal, crumple, hold, and place something into a vessel. What you leave becomes a visible part of your shared room instead of another message pushed up a timeline.
+There is no Send button. You write, fold, seal, crumple, hold, and place it inside by hand. What you leave becomes a visible part of your shared room instead of another message pushed up a timeline.
 
 Features:
 
@@ -108,6 +136,8 @@ Features:
 • Simplified Chinese, English, Japanese, and Korean
 
 Each person uses their own Apple Account. Shared spaces require iCloud. Between us supports iPhone and iPad running iOS 17 or later.
+
+Free to download, with no ads or subscriptions. A free space keeps up to 10 items at once, and deleting an item frees a place. A one-time US$2.99 Lifetime purchase by either person removes the item limit for both people in the current space. The App Store purchase sheet shows the applicable local price before confirmation.
 
 ### Keywords
 
@@ -149,6 +179,8 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 それぞれが自分のApple Accountを使います。共有にはiCloudへのサインインが必要です。iOS 17以降のiPhoneとiPadに対応しています。
 
+ダウンロードは無料で、広告もサブスクリプションもありません。無料スペースに保存できるのは10件までで、削除するとその分の枠が空きます。買い切り版はUS$2.99で、どちらか一人が購入すると、現在の共有スペースをふたりとも件数制限なく利用できます。実際の決済価格は、確定前にApp Storeの購入画面へ表示されます。
+
 ### キーワード
 
 ふたり,カップル,関係,日記,気持ち,音声,写真,共有,iCloud
@@ -189,6 +221,8 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 각자 자신의 Apple Account를 사용합니다. 공간에는 iCloud 로그인이 필요합니다. iOS 17 이상이 설치된 iPhone과 iPad를 지원합니다.
 
+무료로 다운로드할 수 있으며 광고와 구독이 없습니다. 무료 공간에는 최대 10개를 동시에 보관할 수 있고, 삭제하면 해당 자리가 비워집니다. 평생 이용권은 US$2.99이며, 두 사람 중 한 명이 구매하면 현재 공유 공간을 둘 다 개수 제한 없이 이용할 수 있습니다. 실제 결제 가격은 확정 전 App Store 구매 화면에 표시됩니다.
+
 ### 키워드
 
 커플,연인,관계,일기,감정,음성,사진,공유,iCloud
@@ -200,7 +234,7 @@ Between us uses Apple iCloud and CloudKit for its two-person space. The app does
 
 To review the core experience without a second device or Apple Account:
 1. On the first screen, tap “Local Preview”.
-2. The preview loads sample content into all three vessels.
+2. The preview fills the Star Jar, Capsule Box, and Paper Bin with content that can be opened.
 3. Reviewers can open existing items, add text or a photo, record a voice note, inspect the drawer and settings, and leave the preview.
 
 Local Preview stores data only on the review device, does not sync to iCloud, and does not enforce the space quota.
@@ -219,11 +253,12 @@ Microphone permission is requested only after the reviewer chooses the voice mod
 | 数据类型 | 用途 | 与用户关联 | 用于追踪 |
 |---|---|---:|---:|
 | 用户 ID（CloudKit 用户记录标识） | App 功能 | 是 | 否 |
+| 购买记录（永久版产品与解锁时间） | App 功能 | 是 | 否 |
 | 其他用户内容（文字） | App 功能 | 是 | 否 |
 | 照片或视频 | App 功能 | 是 | 否 |
 | 音频数据 | App 功能 | 是 | 否 |
 
-不申报广告、营销、第三方分析、跨 App 追踪、联系人、位置、健康、支付或浏览历史。
+不申报广告、营销、第三方分析、跨 App 追踪、联系人、位置、健康、支付信息或浏览历史。永久版状态属于购买记录，不属于支付信息。
 
 ## 年龄分级填写底稿
 
@@ -239,7 +274,7 @@ Microphone permission is requested only after the reviewer chooses the voice mod
 
 商店截图必须重新从当前应用以 App Store 接受的原始设备分辨率截取，不使用官网的 `804 × 1748` WebP 放大。
 
-1. 首页：三个容器，不是一串消息
+1. 首页：星星、胶囊和纸团，不是一串消息
 2. 星星瓶：把喜欢折成一颗星星
 3. 胶囊盒：把认真沟通装进胶囊
 4. 纸团篓：让难说的话有地方落下

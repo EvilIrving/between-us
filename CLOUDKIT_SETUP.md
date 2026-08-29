@@ -70,7 +70,7 @@ DEVELOPMENT_TEAM_ID = QZZ878S3NS
 | `BetweenUsItem` | `duration` | Double，可选，语音时长 |
 | `BetweenUsItem` | `byteCount` | Int64，可选，附件字节数 |
 
-`CKShare` 是 CloudKit 系统记录，不能在 Console 中手工创建；工程第一次在 Development 环境成功创建空间后，CloudKit 会生成对应的 `cloudkit.share` 系统类型。正文等字段通过 `CKRecord.encryptedValues` 写入，CloudKit Console 中的字段表现应与普通未加密字段不同。永久权益字段不包含正文、购买者身份、交易号或付款资料，只用于让被邀请的一方读取“当前空间已解锁”；被邀请者不需要拥有或恢复购买。
+`CKShare` 是 CloudKit 系统记录，不能在 Console 中手工创建；工程第一次在 Development 环境成功创建空间后，CloudKit 会生成对应的 `cloudkit.share` 系统类型。正文等字段通过 `CKRecord.encryptedValues` 写入，CloudKit Console 中的字段表现应与普通未加密字段不同。永久权益字段只记录产品和解锁时间，不包含付款人身份、交易号或付款资料；被邀请的一方读取空间已解锁状态即可使用，不需要拥有或恢复购买。
 
 ## 五、双人分享测试
 

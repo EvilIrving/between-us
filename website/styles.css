@@ -351,21 +351,22 @@ h1 {
 .vessel-card:nth-child(2) { transform: translateY(34px); }
 .vessel-number { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.16em; }
 
-.vessel-symbol {
-  width: 128px;
-  height: 128px;
-  margin: 48px auto 46px;
-  display: grid;
-  place-items: center;
-  border-radius: 42% 42% 38% 38%;
-  font-family: var(--serif);
-  font-size: 3.8rem;
+.vessel-art {
+  aspect-ratio: 3 / 2;
+  margin: 24px 0 26px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #f8f5ed;
+  box-shadow: 0 18px 38px rgba(87, 67, 48, 0.1);
 }
 
-.star-symbol { color: #ffcc62; background: linear-gradient(145deg, #d88929, #a8601d); box-shadow: inset 0 3px 4px rgba(255,255,255,0.3), 0 20px 40px rgba(180, 102, 24, 0.2); }
-.capsule-symbol { background: #f6f1df; box-shadow: inset 0 0 0 9px var(--sage), 0 20px 40px rgba(77, 102, 78, 0.18); }
-.capsule-symbol i { width: 76px; height: 32px; border-radius: 999px; background: linear-gradient(90deg, var(--sage) 0 50%, #f3e8ca 50%); transform: rotate(-32deg); box-shadow: inset 0 0 0 2px rgba(55,65,56,0.12); }
-.paper-symbol { color: #f6f0e8; background: linear-gradient(145deg, #a9a099, #77706c); box-shadow: inset 0 3px 5px rgba(255,255,255,0.28), 0 20px 40px rgba(83, 76, 72, 0.18); }
+.vessel-art img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 12%;
+}
 
 .vessel-card h3 { margin: 0; font: 600 1.5rem var(--serif); }
 .vessel-card p { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.94rem; line-height: 1.75; }
@@ -510,6 +511,9 @@ footer p { margin: 0; }
 .policy-main .meta { margin-top: 1rem; color: var(--amber-deep); font-size: 0.76rem; }
 .policy-main .back-link { display: inline-flex; margin-bottom: 2rem; color: var(--muted); text-decoration: none; font-size: 0.85rem; }
 .policy-main .notice { margin-top: 2.2rem; padding: 1.2rem 1.35rem; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.4); }
+.policy-links { display: flex; flex-wrap: wrap; gap: 0.7rem 1.25rem; margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.policy-links a { color: var(--muted); font-size: 0.84rem; text-decoration: none; }
+.policy-links a:hover { color: var(--amber-deep); }
 
 .download-page { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
 .download-main { width: min(660px, calc(100% - 40px)); margin: auto; padding: 70px 0 120px; text-align: center; }
@@ -532,7 +536,7 @@ footer p { margin: 0; }
   .home-shot, .paper-shot, .reveal-shot { transform: none; }
   .vessel-card { min-height: 360px; }
   .vessel-card:nth-child(2) { transform: none; }
-  .vessel-symbol { margin-block: 35px; }
+  .vessel-art { margin-block: 22px 24px; }
   .ritual, .availability-section { grid-template-columns: 1fr; }
   .ritual-visual { order: 2; min-height: 460px; }
   footer { grid-template-columns: 1fr auto; }

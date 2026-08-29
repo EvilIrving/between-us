@@ -9,6 +9,8 @@ The language menu uses `zh`, `en`, `ja`, and `ko`. It follows the browser langua
 - Landing page: `https://betweenus.onecat.dev/`
 - Download redirect: `https://betweenus.onecat.dev/download/`
 - Privacy policy: `https://betweenus.onecat.dev/privacy/`
+- Terms of use: `https://betweenus.onecat.dev/terms/`
+- Purchases and refunds: `https://betweenus.onecat.dev/purchases/`
 - Support: `https://betweenus.onecat.dev/support/`
 
 ## Publish a TestFlight or App Store release
