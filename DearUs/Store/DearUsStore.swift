@@ -241,7 +241,7 @@ final actor DearUsStore: Sendable, ObservableObject {
     func prepareShareSheet() async {
         if appData.isLocalPreview {
             await showNotice(
-                title: "预览房间",
+                title: "本机预览",
                 message: "这里只是本机看看，还没有真正的共同空间，也不能邀请。"
             )
             return

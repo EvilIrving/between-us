@@ -12,31 +12,37 @@ struct VoiceHoldRecorderView: View {
 
     @State private var fingerDown = false
     @State private var dragX: CGFloat = 0
+    @State private var dragY: CGFloat = 0
+    @State private var isLocked = false
+    @State private var gestureBeganLocked = false
+    @State private var didUnlockDuringGesture = false
     @State private var crossedCancelThreshold = false
     @State private var currentSessionID: UUID?
 
     private let cancelDistance: CGFloat = 96
+    private let lockDistance: CGFloat = 78
     private let minimumDuration: TimeInterval = 0.65
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 14) {
             recordingStatus
 
             LiveVoiceWaveform(
                 level: recorder.level,
-                isActive: recorder.isRecording,
+                isActive: recorder.isRecording && !recorder.isPaused,
                 tint: cancelProgress >= 1 ? AppTheme.secondaryText : kind.tint
             )
-            .frame(height: 66)
+            .frame(height: 48)
             .padding(.horizontal, 16)
 
             ZStack {
                 cancelTrail
+                lockTrail
 
                 voicePad
-                    .offset(x: dragX)
+                    .offset(x: dragX, y: dragY * 0.22)
             }
-            .frame(height: 150)
+            .frame(height: 124)
 
             VStack(spacing: 6) {
                 Text(instructionTitle)
@@ -55,22 +61,22 @@ struct VoiceHoldRecorderView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("语音输入")
         .accessibilityValue(accessibilityValue)
-        .accessibilityHint("可按住说话，也可使用辅助功能动作开始、完成或取消录音")
+        .accessibilityHint("按住说话，上滑可锁定录音；也可使用辅助功能动作开始、完成或取消")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "开始录音") {
             guard !isDisabled, !fingerDown, !recorder.isRecording else { return }
             beginRecordingGesture()
         }
         .accessibilityAction(named: "完成并放入") {
-            guard fingerDown || recorder.isRecording else { return }
+            guard fingerDown || isLocked || recorder.isRecording else { return }
             finishRecordingGesture(cancelled: false)
         }
         .accessibilityAction(named: "取消录音") {
-            guard fingerDown || recorder.isRecording else { return }
+            guard fingerDown || isLocked || recorder.isRecording else { return }
             finishRecordingGesture(cancelled: true)
         }
         .onChange(of: recorder.isRecording) { wasRecording, isRecording in
-            guard wasRecording, !isRecording, fingerDown else { return }
+            guard wasRecording, !isRecording, (fingerDown || isLocked) else { return }
             resetGestureState()
         }
     }
@@ -78,6 +84,7 @@ struct VoiceHoldRecorderView: View {
 
     private var accessibilityValue: String {
         if recorder.isPreparing { return "正在准备录音" }
+        if recorder.isPaused { return "录音已暂停，时长 \(recorder.duration.formattedRecordingDuration)" }
         if recorder.isRecording { return "正在录音，时长 \(recorder.duration.formattedRecordingDuration)" }
         return "尚未开始录音"
     }
@@ -85,9 +92,9 @@ struct VoiceHoldRecorderView: View {
     private var recordingStatus: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(recorder.isRecording ? Color.red : AppTheme.secondaryText.opacity(0.22))
+                .fill(recorder.isRecording && !recorder.isPaused ? Color.red : AppTheme.secondaryText.opacity(0.22))
                 .frame(width: 8, height: 8)
-                .shadow(color: recorder.isRecording ? Color.red.opacity(0.38) : .clear, radius: 6)
+                .shadow(color: recorder.isRecording && !recorder.isPaused ? Color.red.opacity(0.38) : .clear, radius: 6)
 
             if recorder.isPreparing {
                 Text("正在听见你……")
@@ -114,16 +121,29 @@ struct VoiceHoldRecorderView: View {
         .animation(.easeOut(duration: 0.16), value: cancelProgress)
     }
 
+    private var lockTrail: some View {
+        VStack(spacing: 3) {
+            Image(systemName: isLocked ? "lock.open.fill" : (lockProgress >= 1 ? "lock.fill" : "arrow.up"))
+                .font(.system(size: 14, weight: .bold))
+            Text(isLocked ? "再上滑解锁" : (lockProgress >= 1 ? "松手继续录音" : "上滑锁定"))
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle((isLocked || lockProgress >= 1) ? kind.tint : AppTheme.secondaryText.opacity(0.50))
+        .opacity(isLocked ? 0.78 : (fingerDown ? max(0.42, lockProgress) : 0))
+        .offset(y: -53)
+        .animation(.easeOut(duration: 0.16), value: lockProgress)
+    }
+
     private var voicePad: some View {
         ZStack {
             Circle()
                 .fill(kind.tint.opacity(fingerDown ? 0.19 : 0.10))
-                .frame(width: 142, height: 142)
+                .frame(width: 92, height: 92)
                 .blur(radius: fingerDown ? 0 : 3)
 
             Circle()
                 .fill(Color.white.opacity(fingerDown ? 0.78 : 0.58))
-                .frame(width: 112, height: 112)
+                .frame(width: 70, height: 70)
                 .overlay {
                     Circle()
                         .stroke(
@@ -137,10 +157,10 @@ struct VoiceHoldRecorderView: View {
                 ProgressView()
                     .tint(kind.tint)
             } else {
-                Image(systemName: recorder.isRecording ? "waveform" : "mic.fill")
-                    .font(.system(size: 33, weight: .semibold))
+                Image(systemName: voicePadSymbol)
+                    .font(.system(size: 23, weight: .semibold))
                     .foregroundStyle(cancelProgress >= 1 ? AppTheme.secondaryText : kind.tint)
-                    .symbolEffect(.variableColor.iterative, isActive: recorder.isRecording)
+                    .symbolEffect(.variableColor.iterative, isActive: recorder.isRecording && !recorder.isPaused && !isLocked)
             }
         }
         .scaleEffect(fingerDown ? 1.06 : 1)
@@ -148,7 +168,15 @@ struct VoiceHoldRecorderView: View {
         .highPriorityGesture(recordingGesture, including: isDisabled ? .none : .all)
     }
 
+    private var voicePadSymbol: String {
+        if recorder.isPaused { return "play.fill" }
+        if isLocked && recorder.isRecording { return "pause.fill" }
+        return recorder.isRecording ? "waveform" : "mic.fill"
+    }
+
     private var instructionTitle: String {
+        if recorder.isPaused { return "录音已暂停" }
+        if isLocked { return "录音已锁定" }
         if cancelProgress >= 1 { return "松开，这段就不会留下" }
         if recorder.isPreparing { return "保持按住" }
         if recorder.isRecording { return "正在录音" }
@@ -156,14 +184,21 @@ struct VoiceHoldRecorderView: View {
     }
 
     private var instructionDetail: String {
-        if recorder.isRecording {
-            return "松开后会直接封好并放进\(kind.title)，不再出现确认按钮"
+        if isLocked {
+            return recorder.isPreparing ? "正在准备，松手也会继续" : "轻点暂停 · 左滑取消 · 再上滑解锁"
         }
-        return "长按开始 · 向左滑取消 · 松开完成"
+        if recorder.isRecording {
+            return "上滑锁定 · 左滑取消 · 松开完成"
+        }
+        return "长按开始 · 上滑锁定 · 左滑取消"
     }
 
     private var cancelProgress: CGFloat {
         min(max(-dragX / cancelDistance, 0), 1)
+    }
+
+    private var lockProgress: CGFloat {
+        min(max(-dragY / lockDistance, 0), 1)
     }
 
     private var recordingGesture: some Gesture {
@@ -171,10 +206,38 @@ struct VoiceHoldRecorderView: View {
             .onChanged { value in
                 guard !isDisabled else { return }
                 if !fingerDown {
-                    beginRecordingGesture()
+                    if isLocked {
+                        fingerDown = true
+                        gestureBeganLocked = true
+                        didUnlockDuringGesture = false
+                        crossedCancelThreshold = false
+                    } else {
+                        beginRecordingGesture()
+                    }
                 }
                 dragX = min(0, value.translation.width)
-                let shouldCancel = -value.translation.width >= cancelDistance
+                dragY = min(0, value.translation.height)
+                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                let shouldCancel = isHorizontal && -value.translation.width >= cancelDistance
+                let shouldLock = !isHorizontal && -value.translation.height >= lockDistance
+
+                if gestureBeganLocked {
+                    if shouldLock {
+                        isLocked = false
+                        gestureBeganLocked = false
+                        didUnlockDuringGesture = true
+                        dragX = 0
+                        dragY = 0
+                        RitualHaptics.selection()
+                        return
+                    }
+                } else if shouldLock, !isLocked, !didUnlockDuringGesture {
+                    isLocked = true
+                    dragX = 0
+                    dragY = 0
+                    RitualHaptics.success()
+                    return
+                }
                 if shouldCancel, !crossedCancelThreshold {
                     crossedCancelThreshold = true
                     RitualHaptics.warning()
@@ -185,13 +248,40 @@ struct VoiceHoldRecorderView: View {
             }
             .onEnded { value in
                 guard fingerDown else { return }
-                finishRecordingGesture(cancelled: -value.translation.width >= cancelDistance)
+                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                let shouldCancel = isHorizontal && -value.translation.width >= cancelDistance
+
+                if gestureBeganLocked, isLocked {
+                    fingerDown = false
+                    dragX = 0
+                    dragY = 0
+                    gestureBeganLocked = false
+                    crossedCancelThreshold = false
+                    if shouldCancel {
+                        finishRecordingGesture(cancelled: true)
+                    } else if hypot(value.translation.width, value.translation.height) < 12 {
+                        recorder.togglePause()
+                        RitualHaptics.selection()
+                    }
+                    return
+                }
+                if isLocked {
+                    fingerDown = false
+                    dragX = 0
+                    dragY = 0
+                    return
+                }
+                finishRecordingGesture(cancelled: shouldCancel)
             }
     }
 
     private func beginRecordingGesture() {
         fingerDown = true
         dragX = 0
+        dragY = 0
+        isLocked = false
+        gestureBeganLocked = false
+        didUnlockDuringGesture = false
         crossedCancelThreshold = false
         let sessionID = UUID()
         currentSessionID = sessionID
@@ -199,7 +289,7 @@ struct VoiceHoldRecorderView: View {
 
         Task { @MainActor in
             let started = await recorder.start()
-            guard currentSessionID == sessionID, fingerDown else {
+            guard currentSessionID == sessionID, (fingerDown || isLocked) else {
                 if started { recorder.discard() }
                 return
             }
@@ -215,19 +305,25 @@ struct VoiceHoldRecorderView: View {
     private func resetGestureState() {
         fingerDown = false
         dragX = 0
+        dragY = 0
+        isLocked = false
+        gestureBeganLocked = false
+        didUnlockDuringGesture = false
         crossedCancelThreshold = false
         currentSessionID = nil
     }
 
     private func finishRecordingGesture(cancelled: Bool) {
+        let wasActive = recorder.isRecording || recorder.isPreparing
         resetGestureState()
 
-        guard recorder.isRecording else { return }
         if cancelled {
             recorder.discard()
-            onCancelled()
+            if wasActive { onCancelled() }
             return
         }
+
+        guard recorder.isRecording else { return }
 
         guard recorder.duration >= minimumDuration else {
             recorder.discard()

@@ -6,6 +6,7 @@ import Foundation
 final class AudioRecorder: NSObject, ObservableObject {
     @Published private(set) var isPreparing = false
     @Published private(set) var isRecording = false
+    @Published private(set) var isPaused = false
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var level: Double = 0
     @Published private(set) var errorMessage: String?
@@ -72,6 +73,7 @@ final class AudioRecorder: NSObject, ObservableObject {
             self.recorder = recorder
             fileURL = url
             isRecording = true
+            isPaused = false
             duration = 0
             level = 0
             startTimer()
@@ -92,6 +94,7 @@ final class AudioRecorder: NSObject, ObservableObject {
         self.fileURL = nil
         recordingSessionID = nil
         isRecording = false
+        isPaused = false
         duration = recordedDuration
         level = 0
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -110,6 +113,7 @@ final class AudioRecorder: NSObject, ObservableObject {
         recorder = nil
         stopTimer()
         isRecording = false
+        isPaused = false
         duration = 0
         level = 0
         if let fileURL {
@@ -117,6 +121,21 @@ final class AudioRecorder: NSObject, ObservableObject {
         }
         fileURL = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    func togglePause() {
+        guard isRecording, let recorder else { return }
+        if isPaused {
+            guard recorder.record() else {
+                errorMessage = "录音无法继续。"
+                return
+            }
+            isPaused = false
+        } else {
+            recorder.pause()
+            isPaused = true
+            level = 0
+        }
     }
 
     private func startTimer() {

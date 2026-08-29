@@ -27,7 +27,7 @@ struct ContainerDetailShell<Content: View>: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
-                        SceneCloseControl(label: "回到共同房间") {
+                        SceneCloseControl(label: "回到首页") {
                             dismiss()
                         }
 

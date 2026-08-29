@@ -7,23 +7,20 @@ import UIKit
 
 enum ComposeMode: String, CaseIterable, Identifiable {
     case text
-    case photo
     case voice
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .text: return "写"
-        case .photo: return "照片"
+        case .text: return "写与照片"
         case .voice: return "语音"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .text: return "pencil.line"
-        case .photo: return "photo"
+        case .text: return "photo.on.rectangle.angled"
         case .voice: return "waveform"
         }
     }
@@ -90,7 +87,7 @@ struct ComposeSheet: View {
                             .padding(.top, 12)
                             .padding(.bottom, 6)
                         } else {
-                            Text("松手即保存")
+                            Text("上滑锁定后可松手")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
                                 .frame(height: 38)
@@ -188,13 +185,6 @@ struct ComposeSheet: View {
     private var content: some View {
         switch mode {
         case .text:
-            WhisperPaperEditor(
-                kind: kind,
-                text: $text,
-                isFocused: $isFocused,
-                maxLength: maxLength
-            )
-        case .photo:
             PhotoRitualEditor(
                 kind: kind,
                 text: $text,
@@ -261,9 +251,7 @@ struct ComposeSheet: View {
         }
         switch mode {
         case .text:
-            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .photo:
-            return !imageDrafts.isEmpty
+            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageDrafts.isEmpty
         case .voice:
             return attachmentDraft?.kind == .audio
         }
@@ -275,8 +263,7 @@ struct ComposeSheet: View {
         }
         if canSave { return "向上拖动放入" }
         switch mode {
-        case .text: return "先写下内容"
-        case .photo: return "先选择照片"
+        case .text: return "先写下内容或选择照片"
         case .voice: return "按住开始录音"
         }
     }
@@ -289,7 +276,7 @@ struct ComposeSheet: View {
         if snapshot.attachment?.kind == .image {
             imageDrafts = snapshot.attachment.map { [$0] } ?? []
             attachmentDraft = nil
-            mode = .photo
+            mode = .text
         } else if snapshot.attachment?.kind == .audio {
             mode = .voice
             text = ""
@@ -373,7 +360,7 @@ struct ComposeSheet: View {
         guard canSave else { return }
         isFocused = false
         isSaving = true
-        let drafts = mode == .photo ? imageDrafts : (attachmentDraft.map { [$0] } ?? [])
+        let drafts = mode == .text ? imageDrafts : (attachmentDraft.map { [$0] } ?? [])
         attachmentDraft = nil
         imageDrafts = []
 
@@ -390,7 +377,7 @@ struct ComposeSheet: View {
                         dismiss()
                     }
                 } else {
-                    if mode == .photo {
+                    if mode == .text {
                         imageDrafts = drafts
                     } else {
                         attachmentDraft = drafts.first
@@ -440,11 +427,6 @@ struct ComposeSheet: View {
             }
             imageDrafts.append(contentsOf: imported)
             RitualHaptics.selection()
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 160_000_000)
-                guard mode == .photo, !imageDrafts.isEmpty else { return }
-                isFocused = true
-            }
         } catch {
             for draft in imported { cleanupTemporaryDraft(draft) }
             localNotice = LocalNotice(title: "无法读取照片", message: error.localizedDescription)
@@ -570,13 +552,7 @@ private struct PhotoRitualEditor: View {
     let remove: (Int) -> Void
 
     var body: some View {
-        Group {
-            if drafts.isEmpty {
-                emptyPicker
-            } else {
-                selectedPhotos
-            }
-        }
+        photoContent
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.vertical, 6)
         .opacity(isLoading ? 0.48 : 1)
@@ -592,70 +568,19 @@ private struct PhotoRitualEditor: View {
         .allowsHitTesting(!isLoading)
     }
 
-    private var emptyPicker: some View {
-        photoPicker {
-            VStack(spacing: 13) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 34, weight: .light))
-                    .foregroundStyle(kind.tint)
+    private var photoContent: some View {
+        VStack(spacing: 0) {
+            TextField("这一刻的想法...", text: $text, axis: .vertical)
+                .focused(isFocused)
+                .lineLimit(1...3)
+                .font(.system(size: 18, weight: .regular, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .tint(kind.tint)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
 
-                Text("选择照片")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-
-                Text("一次最多选择 9 张")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(kind.tint.opacity(0.045))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(kind.tint.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [6, 7]))
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        }
-    }
-
-    private var selectedPhotos: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .top, spacing: 9) {
-                Image(systemName: "pencil.line")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(kind.tint.opacity(0.72))
-                    .padding(.top, 3)
-
-                TextField("继续写点什么…", text: $text, axis: .vertical)
-                    .focused(isFocused)
-                    .lineLimit(1...3)
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(kind.tint.opacity(0.16))
-                    .frame(height: 1)
-            }
-
-            HStack(spacing: 12) {
-                Text("\(drafts.count) 张照片")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-
-                Spacer()
-
-                if drafts.count < 9 {
-                    photoPicker {
-                        Label("添加照片", systemImage: "plus")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(kind.tint)
-                            .frame(height: 30)
-                    }
-                }
-            }
+            Color.clear
+                .frame(height: 96)
 
             LazyVGrid(columns: gridColumns, alignment: .center, spacing: 8) {
                 ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
@@ -665,22 +590,30 @@ private struct PhotoRitualEditor: View {
                         remove: remove
                     )
                 }
+
+                if drafts.count < 9 {
+                    photoPicker {
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.46))
+                            Image(systemName: "plus")
+                                .font(.system(size: 32, weight: .ultraLight))
+                                .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
+                        }
+                        .aspectRatio(1, contentMode: .fit)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel("添加照片，最多 9 张")
+                    }
+                }
             }
             .frame(maxWidth: .infinity)
         }
     }
 
     private var gridColumns: [GridItem] {
-        let columnCount = min(3, max(1, drafts.count))
-        let maximumWidth: CGFloat
-        switch columnCount {
-        case 1: maximumWidth = 236
-        case 2: maximumWidth = 150
-        default: maximumWidth = 96
-        }
         return Array(
-            repeating: GridItem(.flexible(minimum: 64, maximum: maximumWidth), spacing: 8),
-            count: columnCount
+            repeating: GridItem(.flexible(minimum: 64, maximum: 104), spacing: 8),
+            count: 3
         )
     }
 
@@ -715,21 +648,21 @@ private struct PhotoDraftTile: View {
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.36))
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipped()
             .overlay(alignment: .topTrailing) {
                 Button {
                     RitualHaptics.selection()
                     remove(index)
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(Color.black.opacity(0.46))
+                        .frame(width: 18, height: 18)
+                        .background(Color.black.opacity(0.34))
                         .clipShape(Circle())
                 }
                 .buttonStyle(SoftScaleButtonStyle())
-                .padding(6)
+                .padding(5)
                 .accessibilityLabel("移除第 \(index + 1) 张照片")
             }
     }

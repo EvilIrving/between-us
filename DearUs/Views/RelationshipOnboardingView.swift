@@ -108,7 +108,7 @@ struct ICloudRequiredView: View {
                     }
 
                     VStack(spacing: 9) {
-                        Text("共同房间暂时没有打开")
+                        Text("共同空间暂时无法打开")
                             .font(.title2.bold())
                             .foregroundStyle(AppTheme.primaryText)
                         Text(message)
@@ -168,7 +168,7 @@ private struct LookAroundEntry: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityHint("进入本机预览房间")
+        .accessibilityHint("进入本机预览")
     }
 }
 

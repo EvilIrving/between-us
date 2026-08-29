@@ -14,7 +14,7 @@ struct SettingsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
                     HStack {
-                        SceneCloseControl(label: "回到共同房间") { dismiss() }
+                        SceneCloseControl(label: "回到首页") { dismiss() }
                         Spacer()
                     }
 
@@ -24,12 +24,6 @@ struct SettingsView: View {
 
                     SettingsSection(title: "共同空间") {
                         if isLocalPreview {
-                            SettingsFactRow(
-                                systemName: "eye",
-                                title: "当前房间",
-                                value: "本机预览"
-                            )
-
                             SettingsActionRow(
                                 systemName: "arrow.clockwise.circle",
                                 title: "补充演示内容",
