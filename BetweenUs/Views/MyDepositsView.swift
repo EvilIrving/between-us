@@ -403,7 +403,9 @@ private struct DrawerItemLeadingVisual: View {
 private struct DrawerItemDetailView: View {
     let item: SecretItem
     let section: DrawerSection
+    @EnvironmentObject private var store: BetweenUsStore
     @Environment(\.dismiss) private var dismiss
+    @State private var isDeleting = false
 
     var body: some View {
         ZStack {
@@ -452,6 +454,8 @@ private struct DrawerItemDetailView: View {
                             .stroke(Color.white.opacity(0.68), lineWidth: 1)
                     }
                     .shadow(color: Color.black.opacity(0.06), radius: 24, y: 12)
+
+                    deleteControl
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 9)
@@ -470,6 +474,66 @@ private struct DrawerItemDetailView: View {
         case .openedFromOther:
             guard let openedAt = item.openedAt else { return "已打开".localized }
             return "打开于 %@".localized(openedAt.formatted(date: .abbreviated, time: .shortened))
+        }
+    }
+
+    private var deleteControl: some View {
+        HoldToCompleteSurface(
+            duration: 1.5,
+            isEnabled: !isDeleting,
+            isWorking: isDeleting,
+            onComplete: startDeletion
+        ) { progress, _ in
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.red.opacity(0.045))
+
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.red.opacity(0.13))
+                        .frame(width: proxy.size.width * progress)
+
+                    HStack(spacing: 8) {
+                        if isDeleting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.red)
+                        } else {
+                            Image(systemName: "trash")
+                        }
+                        Text(isDeleting ? "正在删除".localized : "按住删除".localized)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.red.opacity(0.78))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.red.opacity(0.12), lineWidth: 1)
+                }
+            }
+        }
+        .frame(height: 50)
+        .accessibilityLabel("按住删除".localized)
+        .accessibilityHint("持续按住完成，松开取消".localized)
+        .accessibilityAction {
+            guard !isDeleting else { return }
+            startDeletion()
+        }
+        .padding(.top, 8)
+    }
+
+    private func startDeletion() {
+        isDeleting = true
+        Task {
+            let deleted = await store.deleteItem(id: item.id)
+            isDeleting = false
+            if deleted {
+                RitualHaptics.success()
+                dismiss()
+            } else {
+                RitualHaptics.warning()
+            }
         }
     }
 }

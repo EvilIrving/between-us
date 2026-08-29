@@ -79,6 +79,7 @@ struct AttachmentDraftPreview: View {
 struct AttachmentContentView: View {
     let attachment: AttachmentMetadata
     var tint: Color = ContainerKind.capsule.tint
+    var openMedia: (() -> Void)?
 
     private let mediaStore = MediaFileStore()
 
@@ -90,9 +91,9 @@ struct AttachmentContentView: View {
             } else {
                 switch attachment.kind {
                 case .image:
-                    ImageAttachmentView(url: url)
+                    ImageAttachmentView(url: url, openImage: openMedia)
                 case .video:
-                    VideoAttachmentView(url: url)
+                    VideoAttachmentView(url: url, openVideo: openMedia)
                 case .audio:
                     AudioAttachmentView(url: url, expectedDuration: attachment.duration, tint: tint)
                 }
@@ -126,62 +127,124 @@ struct AttachmentCollectionView: View {
     var tint: Color = ContainerKind.capsule.tint
 
     private let mediaStore = MediaFileStore()
+    @State private var mediaViewerRequest: MediaViewerRequest?
 
     var body: some View {
         let images = attachments.filter { $0.kind == .image }
-        if images.count == attachments.count, images.count > 1 {
-            let columns = Array(
-                repeating: GridItem(.flexible(), spacing: 7),
-                count: images.count == 2 ? 2 : 3
-            )
-            LazyVGrid(columns: columns, spacing: 7) {
-                ForEach(Array(images.enumerated()), id: \.offset) { _, attachment in
-                    SavedImageTile(
-                        image: UIImage(contentsOfFile: mediaStore.url(for: attachment).path)
-                    )
+        let visualMedia = attachments.filter { $0.kind == .image || $0.kind == .video }
+        Group {
+            if images.count == attachments.count, images.count > 1 {
+                let columns = Array(
+                    repeating: GridItem(.flexible(), spacing: 7),
+                    count: images.count == 2 ? 2 : 3
+                )
+                LazyVGrid(columns: columns, spacing: 7) {
+                    ForEach(Array(images.enumerated()), id: \.offset) { index, attachment in
+                        SavedImageTile(
+                            image: UIImage(contentsOfFile: mediaStore.url(for: attachment).path),
+                            index: index,
+                            open: { openMedia(at: index) }
+                        )
+                    }
                 }
-            }
-        } else {
-            VStack(spacing: 10) {
-                ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
-                    AttachmentContentView(attachment: attachment, tint: tint)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(attachments.enumerated()), id: \.offset) { attachmentIndex, attachment in
+                        AttachmentContentView(
+                            attachment: attachment,
+                            tint: tint,
+                            openMedia: attachment.kind == .image || attachment.kind == .video ? {
+                                let mediaIndex = attachments[..<attachmentIndex]
+                                    .filter { $0.kind == .image || $0.kind == .video }
+                                    .count
+                                openMedia(at: mediaIndex)
+                            } : nil
+                        )
+                    }
                 }
             }
         }
+        .fullScreenCover(item: $mediaViewerRequest) { request in
+            FullScreenMediaViewer(
+                items: visualMedia.enumerated().map { index, attachment in
+                    MediaViewerItem(
+                        id: index,
+                        kind: attachment.kind,
+                        url: mediaStore.url(for: attachment)
+                    )
+                },
+                initialIndex: request.initialIndex
+            )
+        }
+    }
+
+    private func openMedia(at index: Int) {
+        RitualHaptics.selection()
+        mediaViewerRequest = MediaViewerRequest(initialIndex: index)
     }
 }
 
 private struct SavedImageTile: View {
     let image: UIImage?
+    let index: Int
+    let open: () -> Void
 
     var body: some View {
-        Color.clear
-            .aspectRatio(1, contentMode: .fit)
-            .overlay {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+        Button(action: open) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.title2)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+                    }
                 }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Color.black.opacity(0.32))
+                        .clipShape(Circle())
+                        .padding(7)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("查看第 %d 张照片".localized(index + 1))
     }
 }
 
 private struct ImageAttachmentView: View {
     let url: URL
+    let openImage: (() -> Void)?
 
+    @ViewBuilder
     var body: some View {
         if let image = UIImage(contentsOfFile: url.path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: 430)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if let openImage {
+                Button(action: openImage) {
+                    displayedImage(image)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(Color.black.opacity(0.34))
+                                .clipShape(Circle())
+                                .padding(10)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("放大查看照片".localized)
+            } else {
+                displayedImage(image)
+            }
         } else {
             VStack(spacing: 10) {
                 Image(systemName: "photo")
@@ -191,6 +254,291 @@ private struct ImageAttachmentView: View {
             }
             .foregroundStyle(AppTheme.secondaryText)
             .frame(maxWidth: .infinity, minHeight: 170)
+        }
+    }
+
+    private func displayedImage(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity, maxHeight: 430)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct MediaViewerRequest: Identifiable {
+    let id = UUID()
+    let initialIndex: Int
+}
+
+private struct MediaViewerItem: Identifiable {
+    let id: Int
+    let kind: AttachmentKind
+    let url: URL
+}
+
+private struct FullScreenMediaViewer: View {
+    let items: [MediaViewerItem]
+    let initialIndex: Int
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedIndex: Int
+    @State private var controlsVisible = true
+    @State private var isCurrentImageZoomed = false
+    @State private var dismissOffset: CGFloat = 0
+
+    init(items: [MediaViewerItem], initialIndex: Int) {
+        self.items = items
+        self.initialIndex = initialIndex
+        _selectedIndex = State(initialValue: initialIndex)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .opacity(max(0.32, 1 - abs(dismissOffset) / 560))
+                .ignoresSafeArea()
+
+            TabView(selection: $selectedIndex) {
+                ForEach(items.indices, id: \.self) { index in
+                    mediaPage(item: items[index], isActive: selectedIndex == index)
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .offset(y: dismissOffset)
+            .scaleEffect(1 - min(abs(dismissOffset) / 2400, 0.08))
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(Color.white.opacity(0.14))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(SoftScaleButtonStyle())
+                    .accessibilityLabel("关闭".localized)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+
+                Spacer()
+
+                VStack(spacing: 7) {
+                    if items.count > 1 {
+                        Text("\(selectedIndex + 1) / \(items.count)")
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                    }
+                    Text(currentHint)
+                        .font(.caption2)
+                        .opacity(0.64)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.34))
+                .clipShape(Capsule())
+                .padding(.bottom, 12)
+            }
+            .opacity(controlsVisible ? 1 : 0)
+            .allowsHitTesting(controlsVisible)
+        }
+        .statusBarHidden(true)
+        .simultaneousGesture(dismissGesture)
+        .onChange(of: selectedIndex) { _, _ in
+            isCurrentImageZoomed = false
+            withAnimation(.easeOut(duration: 0.16)) {
+                controlsVisible = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mediaPage(item: MediaViewerItem, isActive: Bool) -> some View {
+        switch item.kind {
+        case .image:
+            if let image = UIImage(contentsOfFile: item.url.path) {
+                ZoomableImageView(
+                    image: image,
+                    onSingleTap: toggleControls,
+                    onZoomChanged: { isCurrentImageZoomed = $0 }
+                )
+                .ignoresSafeArea()
+            } else {
+                unavailablePhoto
+            }
+        case .video:
+            FullScreenVideoPage(
+                url: item.url,
+                isActive: isActive,
+                controlsVisible: controlsVisible,
+                toggleControls: toggleControls
+            )
+            .ignoresSafeArea()
+        case .audio:
+            EmptyView()
+        }
+    }
+
+    private var unavailablePhoto: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "photo")
+                .font(.system(size: 30, weight: .light))
+            Text("照片暂时无法显示".localized)
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(.white.opacity(0.72))
+    }
+
+    private var currentHint: String {
+        guard items.indices.contains(selectedIndex) else { return "" }
+        return items[selectedIndex].kind == .video
+            ? "轻点显示或隐藏控制".localized
+            : "双指缩放 · 双击放大".localized
+    }
+
+    private func toggleControls() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            controlsVisible.toggle()
+        }
+    }
+
+    private var dismissGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                guard !isCurrentImageZoomed,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                dismissOffset = value.translation.height
+            }
+            .onEnded { value in
+                guard !isCurrentImageZoomed,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                let projected = value.predictedEndTranslation.height
+                if abs(value.translation.height) > 120 || abs(projected) > 260 {
+                    RitualHaptics.soft()
+                    if reduceMotion {
+                        dismiss()
+                    } else {
+                        let target = value.translation.height < 0 ? -760.0 : 760.0
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            dismissOffset = target
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                            dismiss()
+                        }
+                    }
+                } else {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.34, dampingFraction: 0.84)) {
+                        dismissOffset = 0
+                    }
+                }
+            }
+    }
+}
+
+private struct ZoomableImageView: UIViewRepresentable {
+    let image: UIImage
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = 1
+        scrollView.maximumZoomScale = 5
+        scrollView.bouncesZoom = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.backgroundColor = .clear
+        scrollView.panGestureRecognizer.isEnabled = false
+
+        let imageView = UIImageView(image: image)
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        imageView.frame = scrollView.bounds
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.addSubview(imageView)
+        context.coordinator.imageView = imageView
+        context.coordinator.scrollView = scrollView
+
+        let doubleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleDoubleTap(_:))
+        )
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.imageView?.image = image
+        if scrollView.zoomScale == scrollView.minimumZoomScale {
+            context.coordinator.imageView?.frame = scrollView.bounds
+            scrollView.contentSize = scrollView.bounds.size
+        }
+        context.coordinator.centerImage()
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        weak var scrollView: UIScrollView?
+        weak var imageView: UIImageView?
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            imageView
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            scrollView.panGestureRecognizer.isEnabled = scrollView.zoomScale > 1.01
+            centerImage()
+        }
+
+        func centerImage() {
+            guard let scrollView, let imageView else { return }
+            let boundsSize = scrollView.bounds.size
+            var center = CGPoint(
+                x: scrollView.contentSize.width / 2,
+                y: scrollView.contentSize.height / 2
+            )
+            if scrollView.contentSize.width < boundsSize.width {
+                center.x = boundsSize.width / 2
+            }
+            if scrollView.contentSize.height < boundsSize.height {
+                center.y = boundsSize.height / 2
+            }
+            imageView.center = center
+        }
+
+        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+            guard let scrollView, let imageView else { return }
+            if scrollView.zoomScale > scrollView.minimumZoomScale + 0.01 {
+                scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                return
+            }
+
+            let targetScale = min(2.5, scrollView.maximumZoomScale)
+            let location = gesture.location(in: imageView)
+            let zoomSize = CGSize(
+                width: scrollView.bounds.width / targetScale,
+                height: scrollView.bounds.height / targetScale
+            )
+            let zoomRect = CGRect(
+                x: location.x - zoomSize.width / 2,
+                y: location.y - zoomSize.height / 2,
+                width: zoomSize.width,
+                height: zoomSize.height
+            )
+            scrollView.zoom(to: zoomRect, animated: true)
         }
     }
 }

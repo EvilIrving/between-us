@@ -39,6 +39,7 @@
 		30E5D03AE5E5816874CED689 /* RevealSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */; };
 		6D817E658D0A2B12B5E1AB2F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */; };
 		4304686EF989AABCFF8299C7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */; };
+		B20000000000000000000001 /* LifetimeUnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* LifetimeUnlockView.swift */; };
 		A07C41C93BB9C913A732AC25 /* StarJarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF2E8E3546A398934A9B701 /* StarJarView.swift */; };
 		13DBC37767BCFA95D0D47E4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17051CE815BBC1BA56D2673D /* Assets.xcassets */; };
 		29F7805612C29CE3C25353D0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1EAC603F8BA05554DF4AEBD9 /* PrivacyInfo.xcprivacy */; };
@@ -94,6 +95,7 @@
 		AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RevealSheet.swift"; sourceTree = "<group>"; };
 		76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RootView.swift"; sourceTree = "<group>"; };
 		E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
+		B20000000000000000000002 /* LifetimeUnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LifetimeUnlockView.swift"; sourceTree = "<group>"; };
 		BEF2E8E3546A398934A9B701 /* StarJarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarJarView.swift"; sourceTree = "<group>"; };
 		C86DDE73043ED07505514CFE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
 		1EAC603F8BA05554DF4AEBD9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "PrivacyInfo.xcprivacy"; sourceTree = "<group>"; };
@@ -225,6 +227,7 @@
 				AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */,
 				76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */,
 				E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */,
+				B20000000000000000000002 /* LifetimeUnlockView.swift */,
 				BEF2E8E3546A398934A9B701 /* StarJarView.swift */,
 			);
 			path = "Views";
@@ -349,6 +352,7 @@
 				30E5D03AE5E5816874CED689 /* RevealSheet.swift in Sources */,
 				6D817E658D0A2B12B5E1AB2F /* RootView.swift in Sources */,
 				4304686EF989AABCFF8299C7 /* SettingsView.swift in Sources */,
+				B20000000000000000000001 /* LifetimeUnlockView.swift in Sources */,
 				A07C41C93BB9C913A732AC25 /* StarJarView.swift in Sources */,
 			); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */

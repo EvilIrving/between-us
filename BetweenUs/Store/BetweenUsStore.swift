@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import OSLog
+import StoreKit
 
 final actor BetweenUsStore: Sendable, ObservableObject {
     static let container = CKContainer.default()
@@ -23,6 +24,11 @@ final actor BetweenUsStore: Sendable, ObservableObject {
     private var sharedSyncEngine: CKSyncEngine?
     private var syncEngineScopes: [ObjectIdentifier: CKDatabase.Scope] = [:]
     private var relationshipOperation: RelationshipOperation?
+    private var lifetimeProduct: Product?
+    private var ownedLifetimeTransaction: Transaction?
+    private var purchaseActivity: PurchaseActivity = .idle
+    private var productLoadFailed = false
+    private var transactionListenerTask: Task<Void, Never>?
     private var didStart = false
 
     private let logger = Logger(
@@ -48,8 +54,10 @@ final actor BetweenUsStore: Sendable, ObservableObject {
     func start() async {
         guard !didStart else { return }
         didStart = true
+        beginObservingStoreKitTransactions()
 
         await publishData()
+        Task { await self.prepareCommerce() }
         await setPhase(.loading)
         await installSystemEventHandlers()
         if appData.isLocalPreview {
@@ -70,6 +78,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await start()
             return
         }
+        Task { await self.refreshOwnedLifetimePurchase() }
         if appData.isLocalPreview {
             await presentLocalPreview()
             return
@@ -161,7 +170,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func createRelationship() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
             return
         }
         relationshipOperation = .creating
@@ -194,7 +203,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 recordType: "BetweenUsRelationship",
                 recordID: relationshipRecordID
             )
-            relationshipRecord["schemaVersion"] = 1 as CKRecordValue
+            relationshipRecord["schemaVersion"] = 2 as CKRecordValue
             relationshipRecord["createdAt"] = Date() as CKRecordValue
             relationshipRecord.encryptedValues["ownerID"] = appData.currentUserID as CKRecordValue
 
@@ -215,6 +224,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 createdAt: Date()
             )
             appData.items = [:]
+            appData.sharedSpaceEntitlement = nil
             appData.dirtyRecordNames = []
             appData.privateSyncState = nil
             privateSyncEngine = nil
@@ -223,6 +233,9 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await publishData()
             await setPhase(.ready)
             await setSyncStatus(.upToDate(Date()))
+            if let ownedLifetimeTransaction {
+                _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)
+            }
             await presentShareSheet(share)
         } catch {
             if let createdZoneID {
@@ -231,7 +244,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             appData = originalData
             privateSyncEngine = nil
             sharedSyncEngine = nil
-            _ = await persistOrReport(context: "恢复创建共同空间前的本机状态")
+            _ = await persistOrReport(context: "恢复创建空间前的本机状态")
             await publishData()
             await setPhase(.needsRelationship)
             logger.error("Failed to create relationship: \(error.localizedDescription, privacy: .public)")
@@ -291,7 +304,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func acceptShare(_ metadata: CKShare.Metadata) async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
             return
         }
         relationshipOperation = .accepting
@@ -309,8 +322,8 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 return
             }
             await showNotice(
-                title: "已有共同空间",
-                message: "一次只能加入一个共同空间。请先在设置中退出或删除当前空间。"
+                title: "已有空间",
+                message: "一次只能加入一个空间。请先在设置中退出或删除当前空间。"
             )
             return
         }
@@ -338,6 +351,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 createdAt: Date()
             )
             appData.items = [:]
+            appData.sharedSpaceEntitlement = nil
             appData.dirtyRecordNames = []
             appData.sharedSyncState = nil
             sharedSyncEngine = nil
@@ -363,13 +377,16 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 logger.info("Share accepted; initial sync deferred: \(error.localizedDescription, privacy: .public)")
                 await setSyncStatus(.attention("已加入，网络恢复后会继续同步"))
             }
+            if let ownedLifetimeTransaction {
+                _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)
+            }
         } catch {
             logger.error("Failed to accept share: \(error.localizedDescription, privacy: .public)")
             if didAcceptShare, appData.relationship != nil {
                 await publishData()
                 await setPhase(.ready)
                 await showNotice(
-                    title: "已加入共同空间",
+                    title: "已加入空间",
                     message: "本机状态尚未完整保存。重新打开应用后会继续从 iCloud 同步。"
                 )
             } else {
@@ -382,13 +399,18 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         kind: ContainerKind,
         text: String,
         attachments drafts: [AttachmentDraft] = []
-    ) async -> Bool {
+    ) async -> AddItemResult {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count <= 4_000,
               (!trimmed.isEmpty || !drafts.isEmpty),
               drafts.count <= 9,
               let relationship = appData.relationship,
-              !appData.currentUserID.isEmpty else { return false }
+              !appData.currentUserID.isEmpty else { return .failed }
+
+        guard hasUnlimitedContent
+                || appData.items.count < CommerceConfiguration.freeItemLimit else {
+            return .quotaReached
+        }
 
         let itemID = UUID()
         let attachments: [AttachmentMetadata]
@@ -398,7 +420,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             }
         } catch {
             await showNotice(title: "附件添加失败", message: error.localizedDescription)
-            return false
+            return .failed
         }
 
         let item = SecretItem(
@@ -421,7 +443,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 Task { await self.sendQueuedChanges(scope: scope) }
             }
             for draft in drafts { cleanupTemporaryDraft(draft) }
-            return true
+            return .success
         } catch {
             appData.items[item.recordName] = nil
             appData.dirtyRecordNames.remove(item.recordName)
@@ -429,7 +451,154 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 try? mediaStore.remove(attachment)
             }
             await showNotice(title: "保存失败", message: "无法写入本机存储，请稍后重试。")
+            return .failed
+        }
+    }
+
+    func deleteItem(id: UUID) async -> Bool {
+        guard let relationship = appData.relationship,
+              let item = appData.items.values.first(where: { $0.id == id }) else {
             return false
+        }
+
+        let recordName = item.recordName
+        let wasDirty = appData.dirtyRecordNames.contains(recordName)
+        appData.items[recordName] = nil
+        appData.dirtyRecordNames.remove(recordName)
+
+        do {
+            try persist()
+        } catch {
+            appData.items[recordName] = item
+            if wasDirty { appData.dirtyRecordNames.insert(recordName) }
+            await showNotice(title: "删除失败", message: "无法写入本机存储，请稍后重试。")
+            return false
+        }
+
+        if !appData.isLocalPreview {
+            let scope = relationship.scope.databaseScope
+            queueDeletes([item.recordID(in: relationship)], scope: scope)
+            Task { await self.sendQueuedChanges(scope: scope) }
+        }
+
+        for attachment in item.allAttachments {
+            do {
+                try mediaStore.remove(attachment)
+            } catch {
+                logger.error("Failed to remove deleted attachment: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        await publishData()
+        return true
+    }
+
+    func loadLifetimeProduct() async {
+        guard lifetimeProduct == nil else {
+            await publishPurchaseState()
+            return
+        }
+        guard purchaseActivity != .purchasing, purchaseActivity != .restoring else { return }
+
+        purchaseActivity = .loadingProduct
+        productLoadFailed = false
+        await publishPurchaseState()
+
+        do {
+            let products = try await Product.products(
+                for: [CommerceConfiguration.lifetimeProductID]
+            )
+            lifetimeProduct = products.first(where: { $0.type == .nonConsumable })
+            productLoadFailed = lifetimeProduct == nil
+        } catch {
+            productLoadFailed = true
+            logger.info("StoreKit product load deferred: \(error.localizedDescription, privacy: .public)")
+        }
+
+        purchaseActivity = .idle
+        await publishPurchaseState()
+    }
+
+    func purchaseLifetime() async {
+        guard !hasUnlimitedContent else {
+            await showNotice(title: "已经解锁", message: "这个空间的内容数量不再受限。")
+            return
+        }
+        guard SKPaymentQueue.canMakePayments() else {
+            await showNotice(title: "无法购买", message: "这台设备目前不允许 App 内购买。")
+            return
+        }
+
+        if lifetimeProduct == nil {
+            await loadLifetimeProduct()
+        }
+        guard let lifetimeProduct else {
+            await showNotice(title: "暂时无法连接 App Store", message: "请检查网络后再试。")
+            return
+        }
+
+        purchaseActivity = .purchasing
+        await publishPurchaseState()
+
+        do {
+            switch try await lifetimeProduct.purchase() {
+            case .success(let verification):
+                switch verification {
+                case .verified(let transaction):
+                    await handleVerifiedLifetimeTransaction(transaction, announce: true)
+                case .unverified:
+                    purchaseActivity = .idle
+                    await publishPurchaseState()
+                    await showNotice(
+                        title: "无法确认购买",
+                        message: "App Store 无法验证这次交易，未收取或恢复权益。"
+                    )
+                }
+
+            case .pending:
+                purchaseActivity = .pending
+                await publishPurchaseState()
+                await showNotice(
+                    title: "购买等待确认",
+                    message: "完成 App Store 的确认后，永久版会自动解锁。"
+                )
+
+            case .userCancelled:
+                purchaseActivity = .idle
+                await publishPurchaseState()
+
+            @unknown default:
+                purchaseActivity = .idle
+                await publishPurchaseState()
+            }
+        } catch {
+            purchaseActivity = .idle
+            await publishPurchaseState()
+            logger.info("StoreKit purchase failed: \(error.localizedDescription, privacy: .public)")
+            await showNotice(title: "购买未完成", message: "请稍后再试。")
+        }
+    }
+
+    func restoreLifetimePurchase() async {
+        guard purchaseActivity != .purchasing, purchaseActivity != .restoring else { return }
+
+        purchaseActivity = .restoring
+        await publishPurchaseState()
+        do {
+            try await AppStore.sync()
+            await refreshOwnedLifetimePurchase()
+            purchaseActivity = .idle
+            await publishPurchaseState()
+
+            if ownedLifetimeTransaction != nil {
+                await showNotice(title: "购买已恢复", message: "当前空间已解锁永久版。")
+            } else {
+                await showNotice(title: "没有可恢复的购买", message: "请确认使用了购买时的 Apple Account。")
+            }
+        } catch {
+            purchaseActivity = .idle
+            await publishPurchaseState()
+            logger.info("StoreKit restore failed: \(error.localizedDescription, privacy: .public)")
+            await showNotice(title: "恢复未完成", message: "请稍后再试。")
         }
     }
 
@@ -460,7 +629,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func endRelationship() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
             return
         }
         relationshipOperation = .ending
@@ -472,7 +641,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func clearAllContent() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
             return
         }
         guard !appData.items.isEmpty else {
@@ -521,7 +690,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await publishData()
         await showNotice(
             title: "已清空",
-            message: "三个容器里的内容已删除，共同空间仍然保留。"
+            message: "三个容器里的内容已删除，空间仍然保留。"
         )
     }
 
@@ -562,7 +731,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             try? mediaStore.removeAll()
             composeDraftRepository.clearAll()
             initializeSyncEnginesIfNeeded()
-            _ = await persistRelationshipRemoval(context: "保存结束共同空间后的本机状态")
+            _ = await persistRelationshipRemoval(context: "保存结束空间后的本机状态")
             await publishData()
             await setPhase(.needsRelationship)
             await setSyncStatus(.idle)
@@ -770,8 +939,18 @@ private extension BetweenUsStore {
 
         for modification in event.modifications {
             let record = modification.record
-            guard record.recordID.zoneID == relationship.zoneID,
-                  record.recordType == SecretItem.recordType else { continue }
+            guard record.recordID.zoneID == relationship.zoneID else { continue }
+
+            if record.recordType == "BetweenUsRelationship" {
+                let entitlement = sharedEntitlement(from: record)
+                if entitlement != appData.sharedSpaceEntitlement {
+                    appData.sharedSpaceEntitlement = entitlement
+                    changed = true
+                }
+                continue
+            }
+
+            guard record.recordType == SecretItem.recordType else { continue }
 
             let recordName = record.recordID.recordName.lowercased()
             if var local = appData.items[recordName] {
@@ -842,15 +1021,15 @@ private extension BetweenUsStore {
         sharedSyncEngine = nil
         try? mediaStore.removeAll()
         composeDraftRepository.clearAll()
-        _ = await persistRelationshipRemoval(context: "保存远端共同空间删除")
+        _ = await persistRelationshipRemoval(context: "保存远端空间删除")
         await publishData()
         await setPhase(.needsRelationship)
         await setSyncStatus(.idle)
         await showNotice(
-            title: "共同空间已结束",
+            title: "空间已结束",
             message: relationship.isOwner
-                ? "共同空间已从 iCloud 删除。"
-                : "邀请方已停止共享，或你已被移出共同空间。"
+                ? "空间已从 iCloud 删除。"
+                : "邀请方已停止共享，或你已被移出空间。"
         )
     }
 
@@ -896,8 +1075,8 @@ private extension BetweenUsStore {
                     retryRecordChanges.append(.saveRecord(record.recordID))
                 } else {
                     await showNotice(
-                        title: "共同空间不可用",
-                        message: "共同空间已被删除，或当前账号没有写入权限。"
+                        title: "空间不可用",
+                        message: "空间已被删除，或当前账号没有写入权限。"
                     )
                 }
 
@@ -918,7 +1097,7 @@ private extension BetweenUsStore {
             case .permissionFailure:
                 await showNotice(
                     title: "没有写入权限",
-                    message: "请让共同空间的创建者把权限设为“可更改”。"
+                    message: "请让空间的创建者把权限设为“可更改”。"
                 )
 
             case .networkFailure, .networkUnavailable, .zoneBusy,
@@ -928,6 +1107,27 @@ private extension BetweenUsStore {
 
             default:
                 logger.error("Unresolved CloudKit save error: \(failedSave.error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        for (recordID, error) in event.failedRecordDeletes {
+            switch error.code {
+            case .unknownItem:
+                break
+
+            case .networkFailure, .networkUnavailable, .zoneBusy,
+                 .serviceUnavailable, .notAuthenticated, .operationCancelled,
+                 .requestRateLimited:
+                retryRecordChanges.append(.deleteRecord(recordID))
+
+            case .permissionFailure:
+                await showNotice(
+                    title: "没有删除权限",
+                    message: "请让共同空间的创建者把权限设为“可更改”。"
+                )
+
+            default:
+                logger.error("Unresolved CloudKit delete error: \(error.localizedDescription, privacy: .public)")
             }
         }
 
@@ -965,6 +1165,210 @@ private extension BetweenUsStore {
             await setSyncStatus(.idle)
         @unknown default:
             break
+        }
+    }
+}
+
+// MARK: - StoreKit and shared entitlement
+
+private extension BetweenUsStore {
+    enum EntitlementRecordField {
+        static let productID = "lifetimeProductID"
+        static let unlockedAt = "lifetimeUnlockedAt"
+    }
+
+    var hasUnlimitedContent: Bool {
+        appData.isLocalPreview
+            || ownedLifetimeTransaction != nil
+            || appData.sharedSpaceEntitlement != nil
+    }
+
+    func beginObservingStoreKitTransactions() {
+        guard transactionListenerTask == nil else { return }
+        transactionListenerTask = Task(priority: .background) { [weak self] in
+            for await verification in Transaction.updates {
+                guard let self else { return }
+                await self.handleStoreKitUpdate(verification)
+            }
+        }
+    }
+
+    func prepareCommerce() async {
+        await refreshOwnedLifetimePurchase()
+        await loadLifetimeProduct()
+    }
+
+    func refreshOwnedLifetimePurchase() async {
+        var newestTransaction: Transaction?
+
+        for await verification in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = verification,
+                  transaction.productID == CommerceConfiguration.lifetimeProductID,
+                  transaction.revocationDate == nil else { continue }
+
+            if newestTransaction == nil
+                || transaction.purchaseDate > (newestTransaction?.purchaseDate ?? .distantPast) {
+                newestTransaction = transaction
+            }
+        }
+
+        ownedLifetimeTransaction = newestTransaction
+        if purchaseActivity == .pending {
+            purchaseActivity = .idle
+        }
+        await publishPurchaseState()
+
+        if let newestTransaction {
+            _ = await syncLifetimeEntitlementToCurrentSpace(using: newestTransaction)
+        }
+    }
+
+    func handleStoreKitUpdate(_ verification: VerificationResult<Transaction>) async {
+        switch verification {
+        case .verified(let transaction):
+            guard transaction.productID == CommerceConfiguration.lifetimeProductID else { return }
+            if transaction.revocationDate != nil {
+                ownedLifetimeTransaction = nil
+                purchaseActivity = .idle
+                await publishPurchaseState()
+                await revokeSharedLifetimeEntitlement(matching: transaction)
+                await transaction.finish()
+                return
+            }
+            await handleVerifiedLifetimeTransaction(transaction, announce: purchaseActivity == .pending)
+
+        case .unverified:
+            logger.error("StoreKit delivered an unverified lifetime transaction")
+        }
+    }
+
+    func handleVerifiedLifetimeTransaction(
+        _ transaction: Transaction,
+        announce: Bool
+    ) async {
+        guard transaction.productID == CommerceConfiguration.lifetimeProductID,
+              transaction.revocationDate == nil else { return }
+
+        ownedLifetimeTransaction = transaction
+        purchaseActivity = .idle
+        await publishPurchaseState()
+
+        let sharedWithSpace = await syncLifetimeEntitlementToCurrentSpace(using: transaction)
+        await transaction.finish()
+
+        guard announce else { return }
+        if sharedWithSpace {
+            await showNotice(
+                title: "空间已解锁",
+                message: "一次购买已经生效，两个人都可以不限数量地留下内容。"
+            )
+        } else {
+            await showNotice(
+                title: "永久版已解锁",
+                message: "这台设备已生效；恢复 iCloud 连接后会继续同步给空间。"
+            )
+        }
+    }
+
+    func syncLifetimeEntitlementToCurrentSpace(using transaction: Transaction) async -> Bool {
+        guard let relationship = appData.relationship else { return false }
+        guard !appData.isLocalPreview else { return true }
+        if appData.sharedSpaceEntitlement != nil { return true }
+
+        let entitlement = SharedSpaceEntitlement(
+            productID: CommerceConfiguration.lifetimeProductID,
+            unlockedAt: transaction.purchaseDate
+        )
+        let recordID = CKRecord.ID(recordName: "relationship", zoneID: relationship.zoneID)
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+
+        do {
+            var record = try await database.record(for: recordID)
+            if let existing = sharedEntitlement(from: record) {
+                await adoptSharedEntitlement(existing, context: "保存空间永久权益")
+                return true
+            }
+
+            for attempt in 0..<2 {
+                apply(entitlement, to: record)
+                do {
+                    let savedRecord = try await database.save(record)
+                    let savedEntitlement = sharedEntitlement(from: savedRecord) ?? entitlement
+                    await adoptSharedEntitlement(savedEntitlement, context: "保存空间永久权益")
+                    return true
+                } catch let error as CKError
+                    where error.code == .serverRecordChanged && attempt == 0 {
+                    guard let serverRecord = error.serverRecord else { throw error }
+                    if let existing = sharedEntitlement(from: serverRecord) {
+                        await adoptSharedEntitlement(existing, context: "保存空间永久权益")
+                        return true
+                    }
+                    record = serverRecord
+                }
+            }
+        } catch {
+            logger.info("Shared lifetime entitlement sync deferred: \(error.localizedDescription, privacy: .public)")
+        }
+        return false
+    }
+
+    func apply(_ entitlement: SharedSpaceEntitlement, to record: CKRecord) {
+        record[EntitlementRecordField.productID] = entitlement.productID as CKRecordValue
+        record[EntitlementRecordField.unlockedAt] = entitlement.unlockedAt as CKRecordValue
+    }
+
+    func revokeSharedLifetimeEntitlement(matching transaction: Transaction) async {
+        guard let relationship = appData.relationship,
+              let sharedEntitlement = appData.sharedSpaceEntitlement,
+              sharedEntitlement.productID == transaction.productID,
+              abs(sharedEntitlement.unlockedAt.timeIntervalSince(transaction.purchaseDate)) < 2,
+              !appData.isLocalPreview else { return }
+
+        let recordID = CKRecord.ID(recordName: "relationship", zoneID: relationship.zoneID)
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+        do {
+            let record = try await database.record(for: recordID)
+            record[EntitlementRecordField.productID] = nil
+            record[EntitlementRecordField.unlockedAt] = nil
+            _ = try await database.save(record)
+            appData.sharedSpaceEntitlement = nil
+            _ = await persistOrReport(context: "保存空间权益撤销")
+            await publishData()
+        } catch {
+            logger.info("Shared lifetime entitlement revocation deferred: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func sharedEntitlement(from record: CKRecord) -> SharedSpaceEntitlement? {
+        guard record.recordType == "BetweenUsRelationship",
+              let productID = record[EntitlementRecordField.productID] as? String,
+              productID == CommerceConfiguration.lifetimeProductID,
+              let unlockedAt = record[EntitlementRecordField.unlockedAt] as? Date else {
+            return nil
+        }
+        return SharedSpaceEntitlement(
+            productID: productID,
+            unlockedAt: unlockedAt
+        )
+    }
+
+    func adoptSharedEntitlement(_ entitlement: SharedSpaceEntitlement, context: String) async {
+        guard appData.sharedSpaceEntitlement != entitlement else { return }
+        appData.sharedSpaceEntitlement = entitlement
+        _ = await persistOrReport(context: context)
+        await publishData()
+    }
+
+    func publishPurchaseState() async {
+        let state = PurchaseViewState(
+            displayPrice: lifetimeProduct?.displayPrice,
+            ownsLifetimePurchase: ownedLifetimeTransaction != nil,
+            canMakePayments: SKPaymentQueue.canMakePayments(),
+            activity: purchaseActivity,
+            productLoadFailed: productLoadFailed
+        )
+        await MainActor.run {
+            self.viewModel.purchase = state
         }
     }
 }
@@ -1050,6 +1454,9 @@ private extension BetweenUsStore {
             try persist()
             await publishData()
             await setPhase(appData.relationship == nil ? .needsRelationship : .ready)
+            if appData.relationship != nil, let ownedLifetimeTransaction {
+                _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)
+            }
             return true
         } catch {
             await setPhase(.needsICloud(message: cloudFriendlyMessage(for: error)))
@@ -1062,6 +1469,7 @@ private extension BetweenUsStore {
             if let privateRelationship = try await discoverRelationship(in: .private) {
                 appData.relationship = privateRelationship
                 appData.items = [:]
+                appData.sharedSpaceEntitlement = nil
                 appData.dirtyRecordNames = []
                 appData.privateSyncState = nil
                 privateSyncEngine = nil
@@ -1070,6 +1478,7 @@ private extension BetweenUsStore {
             if let sharedRelationship = try await discoverRelationship(in: .shared) {
                 appData.relationship = sharedRelationship
                 appData.items = [:]
+                appData.sharedSpaceEntitlement = nil
                 appData.dirtyRecordNames = []
                 appData.sharedSyncState = nil
                 sharedSyncEngine = nil
@@ -1216,7 +1625,7 @@ private extension BetweenUsStore {
             logger.fault("\(context, privacy: .public) failed completely: \(error.localizedDescription, privacy: .public)")
             await showNotice(
                 title: "本机清理未完成",
-                message: "共同空间已结束，但本机数据未能清除。请重新打开应用。"
+                message: "空间已结束，但本机数据未能清除。请重新打开应用。"
             )
             return false
         }
@@ -1379,7 +1788,7 @@ private extension BetweenUsStore {
         case .serviceUnavailable, .zoneBusy, .requestRateLimited:
             return "iCloud 正忙，请稍后再试。".localized
         case .permissionFailure:
-            return "当前账号没有访问这个共同空间的权限。".localized
+            return "当前账号没有访问这个空间的权限。".localized
         case .quotaExceeded:
             return "iCloud 储存空间不足。".localized
         default:

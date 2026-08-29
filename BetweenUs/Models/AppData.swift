@@ -1,9 +1,42 @@
 import CloudKit
 import Foundation
 
+enum CommerceConfiguration {
+    static let lifetimeProductID = "cain.com.between-us.lifetime"
+    static let freeItemLimit = 10
+}
+
+struct SharedSpaceEntitlement: Codable, Equatable, Sendable {
+    var productID: String
+    var unlockedAt: Date
+}
+
+enum AddItemResult: Sendable {
+    case success
+    case quotaReached
+    case failed
+}
+
+enum PurchaseActivity: Equatable, Sendable {
+    case idle
+    case loadingProduct
+    case purchasing
+    case restoring
+    case pending
+}
+
+struct PurchaseViewState: Equatable, Sendable {
+    var displayPrice: String?
+    var ownsLifetimePurchase = false
+    var canMakePayments = true
+    var activity: PurchaseActivity = .idle
+    var productLoadFailed = false
+}
+
 struct AppData: Codable, Sendable {
     var items: [String: SecretItem] = [:]
     var relationship: RelationshipLocator?
+    var sharedSpaceEntitlement: SharedSpaceEntitlement?
     var currentUserRecordName: String?
     var privateSyncState: CKSyncEngine.State.Serialization?
     var sharedSyncState: CKSyncEngine.State.Serialization?
@@ -15,6 +48,7 @@ struct AppData: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case items
         case relationship
+        case sharedSpaceEntitlement
         case currentUserRecordName
         case privateSyncState
         case sharedSyncState
@@ -27,6 +61,7 @@ struct AppData: Codable, Sendable {
     init(
         items: [String: SecretItem] = [:],
         relationship: RelationshipLocator? = nil,
+        sharedSpaceEntitlement: SharedSpaceEntitlement? = nil,
         currentUserRecordName: String? = nil,
         privateSyncState: CKSyncEngine.State.Serialization? = nil,
         sharedSyncState: CKSyncEngine.State.Serialization? = nil,
@@ -37,6 +72,7 @@ struct AppData: Codable, Sendable {
     ) {
         self.items = items
         self.relationship = relationship
+        self.sharedSpaceEntitlement = sharedSpaceEntitlement
         self.currentUserRecordName = currentUserRecordName
         self.privateSyncState = privateSyncState
         self.sharedSyncState = sharedSyncState
@@ -50,6 +86,10 @@ struct AppData: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         items = try container.decodeIfPresent([String: SecretItem].self, forKey: .items) ?? [:]
         relationship = try container.decodeIfPresent(RelationshipLocator.self, forKey: .relationship)
+        sharedSpaceEntitlement = try container.decodeIfPresent(
+            SharedSpaceEntitlement.self,
+            forKey: .sharedSpaceEntitlement
+        )
         currentUserRecordName = try container.decodeIfPresent(String.self, forKey: .currentUserRecordName)
         privateSyncState = try container.decodeIfPresent(
             CKSyncEngine.State.Serialization.self,
@@ -74,6 +114,7 @@ struct AppData: Codable, Sendable {
     mutating func removeRelationshipData() {
         items = [:]
         relationship = nil
+        sharedSpaceEntitlement = nil
         dirtyRecordNames = []
         lastSuccessfulSyncAt = nil
         hasCompletedInitialSync = false
@@ -440,7 +481,18 @@ struct AppViewModel: Sendable {
     var data = AppData()
     var phase: AppPhase = .loading
     var syncStatus: CloudSyncStatus = .idle
+    var purchase = PurchaseViewState()
     var isPerformingAction = false
     var shareSheet: ShareSheetPayload?
     var notice: AppNotice?
+
+    var hasUnlimitedContent: Bool {
+        data.isLocalPreview
+            || purchase.ownsLifetimePurchase
+            || data.sharedSpaceEntitlement != nil
+    }
+
+    var canAddContent: Bool {
+        hasUnlimitedContent || data.items.count < CommerceConfiguration.freeItemLimit
+    }
 }

@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var notificationState: NotificationAuthorizationState = .notDetermined
     @State private var isClearingContent = false
     @State private var didCopyFeedbackEmail = false
+    @State private var isShowingLifetimeUnlock = false
+    @State private var releaseUpdateState: ReleaseUpdateState = .idle
 
     var body: some View {
         ZStack {
@@ -18,18 +20,8 @@ struct SettingsView: View {
                 VStack(spacing: 20) {
                     settingsHeader
 
-                    SettingsSection(title: "共同空间") {
-                        if isLocalPreview {
-                            SettingsActionRow(
-                                systemName: "arrow.clockwise.circle",
-                                title: "恢复数据",
-                                value: nil,
-                                tint: ContainerKind.star.tint
-                            ) {
-                                Task { await store.replenishLocalPreview() }
-                            }
-
-                        } else {
+                    SettingsSection(title: "") {
+                        if !isLocalPreview {
                             SettingsFactRow(
                                 systemName: "person.2",
                                 title: "身份",
@@ -57,6 +49,44 @@ struct SettingsView: View {
                                 tint: Color(red: 0.44, green: 0.58, blue: 0.66)
                             ) {
                                 Task { await store.refresh() }
+                            }
+                        }
+                    }
+
+                    if isLocalPreview {
+                        SettingsSection(title: "测试功能") {
+                            SettingsActionRow(
+                                systemName: "arrow.clockwise.circle",
+                                title: "恢复数据",
+                                value: nil,
+                                tint: ContainerKind.star.tint
+                            ) {
+                                Task { await store.replenishLocalPreview() }
+                            }
+
+                            SettingsRowDivider()
+
+                            SettingsActionRow(
+                                systemName: "rectangle.portrait.and.arrow.right",
+                                title: "离开预览",
+                                value: nil,
+                                tint: Color.red.opacity(0.72)
+                            ) {
+                                Task { await store.endRelationship() }
+                            }
+                            .disabled(store.viewModel.isPerformingAction)
+                        }
+                    }
+
+                    if !isLocalPreview {
+                        SettingsSection(title: "内容空间") {
+                            SettingsActionRow(
+                                systemName: store.viewModel.hasUnlimitedContent ? "infinity" : "tray.full",
+                                title: store.viewModel.hasUnlimitedContent ? "永久版" : "免费版",
+                                value: contentPlanDetail,
+                                tint: ContainerKind.star.tint
+                            ) {
+                                isShowingLifetimeUnlock = true
                             }
                         }
                     }
@@ -89,14 +119,6 @@ struct SettingsView: View {
                             tint: Color(red: 0.48, green: 0.55, blue: 0.57)
                         )
 
-                        SettingsRowDivider()
-
-                        SettingsFactRow(
-                            systemName: "app.badge",
-                            title: "耳语 · Between us",
-                            value: versionText,
-                            tint: ContainerKind.paper.tint
-                        )
                     }
 
                     SettingsSection(title: "关于") {
@@ -142,6 +164,28 @@ struct SettingsView: View {
                         ) {
                             copyFeedbackEmail()
                         }
+
+                        SettingsRowDivider()
+
+                        SettingsActionRow(
+                            systemName: releaseUpdateSystemName,
+                            title: releaseUpdateTitle,
+                            value: releaseUpdateDetail,
+                            tint: Color(red: 0.50, green: 0.54, blue: 0.72),
+                            showsProgress: releaseUpdateState.isChecking
+                        ) {
+                            handleReleaseUpdateAction()
+                        }
+                        .disabled(releaseUpdateState.isChecking)
+
+                        SettingsRowDivider()
+
+                        SettingsFactRow(
+                            systemName: "app.badge",
+                            title: "耳语 · Between us",
+                            value: versionText,
+                            tint: ContainerKind.paper.tint
+                        )
                     }
 
                     if !isLocalPreview {
@@ -159,6 +203,9 @@ struct SettingsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             notificationState = await store.notificationAuthorizationStatus()
+        }
+        .sheet(isPresented: $isShowingLifetimeUnlock) {
+            LifetimeUnlockView(context: .settings)
         }
     }
 
@@ -179,22 +226,7 @@ struct SettingsView: View {
 
     private var dangerZone: some View {
         Group {
-            if isLocalPreview {
-                Button {
-                    RitualHaptics.selection()
-                    Task { await store.endRelationship() }
-                } label: {
-                    Text("离开预览".localized)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.red.opacity(0.78))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.red.opacity(0.045))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(SoftScaleButtonStyle())
-                .disabled(store.viewModel.isPerformingAction)
-            } else {
+            if !isLocalPreview {
                 protectedEndSpaceZone
             }
         }
@@ -314,6 +346,16 @@ struct SettingsView: View {
         }
     }
 
+    private var contentPlanDetail: String {
+        if store.viewModel.hasUnlimitedContent {
+            return "内容不限".localized
+        }
+        return "%d / %d 条".localized(
+            store.viewModel.data.items.count,
+            CommerceConfiguration.freeItemLimit
+        )
+    }
+
     private var formattedStorage: String {
         ByteCountFormatter.string(
             fromByteCount: store.viewModel.data.totalAttachmentBytes,
@@ -322,24 +364,66 @@ struct SettingsView: View {
     }
 
     private var versionText: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.1"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "\(version) (\(build))"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+        return version
+    }
+
+    private var releaseUpdateSystemName: String {
+        switch releaseUpdateState {
+        case .upToDate:
+            return "checkmark.circle"
+        case .available:
+            return "arrow.down.circle"
+        case .comingSoon:
+            return "clock"
+        case .failed:
+            return "wifi.exclamationmark"
+        case .idle, .checking:
+            return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var releaseUpdateTitle: String {
+        switch releaseUpdateState {
+        case .available:
+            return "发现新版本"
+        case .comingSoon:
+            return "新版本即将开放"
+        default:
+            return "检查更新"
+        }
+    }
+
+    private var releaseUpdateDetail: String? {
+        switch releaseUpdateState {
+        case .idle:
+            return nil
+        case .checking:
+            return "正在检查"
+        case .upToDate:
+            return "已是最新版本"
+        case .available(let version, _):
+            return version
+        case .comingSoon(let version):
+            return version
+        case .failed:
+            return "稍后重试"
+        }
     }
 
     private var endSpaceTitle: String {
         if isLocalPreview { return "离开预览".localized }
-        return relationship?.isOwner == true ? "删除共同空间".localized : "退出共同空间".localized
+        return relationship?.isOwner == true ? "删除空间".localized : "退出空间".localized
     }
 
     private var clearContentExplanation: String {
         let count = Int64(store.viewModel.data.items.count)
-        return "当前共 %lld 条；清空后双方都无法恢复，但共同空间会保留。".localized(count)
+        return "当前共 %lld 条；清空后双方都无法恢复，但空间会保留。".localized(count)
     }
 
     private var endSpaceActionTitle: String {
         if isLocalPreview { return "按住离开预览".localized }
-        return relationship?.isOwner == true ? "按住删除共同空间".localized : "按住退出共同空间".localized
+        return relationship?.isOwner == true ? "按住删除空间".localized : "按住退出空间".localized
     }
 
     private var endSpaceExplanation: String {
@@ -368,6 +452,30 @@ struct SettingsView: View {
     private func openWebsite(_ path: String) {
         guard let url = URL(string: "https://betweenus.onecat.dev/\(path)") else { return }
         openURL(url)
+    }
+
+    private func handleReleaseUpdateAction() {
+        if case .available(_, let downloadURL) = releaseUpdateState {
+            openURL(downloadURL)
+            return
+        }
+
+        releaseUpdateState = .checking
+        Task { @MainActor in
+            do {
+                let result = try await ReleaseUpdateService().check(currentVersion: versionText)
+                switch result {
+                case .upToDate:
+                    releaseUpdateState = .upToDate
+                case .available(let version, let downloadURL):
+                    releaseUpdateState = .available(version: version, downloadURL: downloadURL)
+                case .comingSoon(let version):
+                    releaseUpdateState = .comingSoon(version: version)
+                }
+            } catch {
+                releaseUpdateState = .failed
+            }
+        }
     }
 
     private func copyFeedbackEmail() {
@@ -495,12 +603,14 @@ private struct SettingsSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(title.localized)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
-                .textCase(.uppercase)
-                .tracking(0.8)
-                .padding(.horizontal, 5)
+            if !title.isEmpty {
+                Text(title.localized)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .padding(.horizontal, 5)
+            }
 
             VStack(spacing: 0) {
                 content
@@ -547,6 +657,7 @@ private struct SettingsActionRow: View {
     let title: String
     let value: String?
     let tint: Color
+    var showsProgress = false
     let action: () -> Void
 
     var body: some View {
@@ -570,9 +681,15 @@ private struct SettingsActionRow: View {
                         .lineLimit(1)
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.28))
+                if showsProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(tint)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(AppTheme.secondaryText.opacity(0.28))
+                }
             }
             .padding(.vertical, 11)
             .contentShape(Rectangle())
@@ -643,5 +760,84 @@ private struct SettingsRowDivider: View {
             .fill(AppTheme.primaryText.opacity(0.055))
             .frame(height: 1)
             .padding(.leading, 51)
+    }
+}
+
+private enum ReleaseUpdateState {
+    case idle
+    case checking
+    case upToDate
+    case available(version: String, downloadURL: URL)
+    case comingSoon(version: String)
+    case failed
+
+    var isChecking: Bool {
+        if case .checking = self { return true }
+        return false
+    }
+}
+
+private struct ReleaseManifest: Decodable {
+    let latestVersion: String
+    let downloadURL: String
+    let isDownloadOpen: Bool
+}
+
+private enum ReleaseCheckResult {
+    case upToDate
+    case available(version: String, downloadURL: URL)
+    case comingSoon(version: String)
+}
+
+private enum ReleaseUpdateError: Error {
+    case invalidResponse
+}
+
+private struct ReleaseUpdateService {
+    private let manifestURL = URL(string: "https://betweenus.onecat.dev/release.json")!
+    private let allowedDownloadHosts = ["testflight.apple.com", "apps.apple.com"]
+
+    func check(currentVersion: String) async throws -> ReleaseCheckResult {
+        var components = URLComponents(url: manifestURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970)))
+        ]
+
+        guard let requestURL = components?.url else {
+            throw ReleaseUpdateError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 10
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse,
+              response.statusCode == 200 else {
+            throw ReleaseUpdateError.invalidResponse
+        }
+
+        let manifest = try JSONDecoder().decode(ReleaseManifest.self, from: data)
+        let hasNewVersion = manifest.latestVersion.compare(
+            currentVersion,
+            options: .numeric
+        ) == .orderedDescending
+
+        guard hasNewVersion else {
+            return .upToDate
+        }
+
+        guard manifest.isDownloadOpen else {
+            return .comingSoon(version: manifest.latestVersion)
+        }
+
+        guard let downloadURL = URL(string: manifest.downloadURL),
+              downloadURL.scheme == "https",
+              let host = downloadURL.host?.lowercased(),
+              allowedDownloadHosts.contains(host) else {
+            throw ReleaseUpdateError.invalidResponse
+        }
+
+        return .available(version: manifest.latestVersion, downloadURL: downloadURL)
     }
 }

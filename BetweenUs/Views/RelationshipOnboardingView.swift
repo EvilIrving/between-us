@@ -129,7 +129,7 @@ struct ICloudRequiredView: View {
                     }
 
                     VStack(spacing: 9) {
-                        Text("无法打开共同空间")
+                        Text("无法打开空间")
                             .font(.title2.bold())
                             .foregroundStyle(AppTheme.primaryText)
                         Text(message)

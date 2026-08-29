@@ -20,6 +20,7 @@ struct ComposeSheet: View {
     @State private var localNotice: LocalNotice?
     @State private var didRestoreDraft = false
     @State private var didSave = false
+    @State private var isShowingLifetimeUnlock = false
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var selectedDetent: PresentationDetent = .fraction(0.44)
     @FocusState private var isFocused: Bool
@@ -119,6 +120,9 @@ struct ComposeSheet: View {
             recorder.discard()
             cleanupTemporaryDraft(attachmentDraft)
             for draft in mediaDrafts { cleanupTemporaryDraft(draft) }
+        }
+        .sheet(isPresented: $isShowingLifetimeUnlock) {
+            LifetimeUnlockView(context: .quotaReached)
         }
         .interactiveDismissDisabled(isSaving || recorder.isRecording)
     }
@@ -264,6 +268,12 @@ struct ComposeSheet: View {
 
     private func save() {
         guard canSave else { return }
+        guard store.viewModel.canAddContent else {
+            isFocused = false
+            RitualHaptics.warning()
+            isShowingLifetimeUnlock = true
+            return
+        }
         isFocused = false
         isSaving = true
         let audioDrafts = attachmentDraft?.kind == .audio
@@ -274,9 +284,10 @@ struct ComposeSheet: View {
         mediaDrafts = []
 
         Task {
-            let success = await store.add(kind: kind, text: text, attachments: drafts)
+            let result = await store.add(kind: kind, text: text, attachments: drafts)
             await MainActor.run {
-                if success {
+                switch result {
+                case .success:
                     didSave = true
                     draftSaveTask?.cancel()
                     draftRepository.clear(spaceID: draftSpaceID, kind: kind)
@@ -285,7 +296,15 @@ struct ComposeSheet: View {
                         try? await Task.sleep(nanoseconds: 160_000_000)
                         dismiss()
                     }
-                } else {
+
+                case .quotaReached:
+                    attachmentDraft = drafts.first(where: { $0.kind == .audio })
+                    mediaDrafts = drafts.filter { $0.kind == .image || $0.kind == .video }
+                    isSaving = false
+                    RitualHaptics.warning()
+                    isShowingLifetimeUnlock = true
+
+                case .failed:
                     attachmentDraft = drafts.first(where: { $0.kind == .audio })
                     mediaDrafts = drafts.filter { $0.kind == .image || $0.kind == .video }
                     isSaving = false

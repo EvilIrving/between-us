@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var store: BetweenUsStore
     @State private var composeKind: ContainerKind?
+    @State private var isShowingLifetimeUnlock = false
 
     var body: some View {
         NavigationStack {
@@ -32,6 +33,9 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $composeKind) { kind in
                 ComposeSheet(kind: kind)
+            }
+            .sheet(isPresented: $isShowingLifetimeUnlock) {
+                LifetimeUnlockView(context: .quotaReached)
             }
         }
     }
@@ -173,7 +177,12 @@ struct HomeView: View {
 
             Button {
                 RitualHaptics.selection()
-                composeKind = kind
+                if store.viewModel.canAddContent {
+                    composeKind = kind
+                } else {
+                    RitualHaptics.warning()
+                    isShowingLifetimeUnlock = true
+                }
             } label: {
                 Text(kind.homeActionTitle)
                     .font(.caption2.weight(.semibold))
