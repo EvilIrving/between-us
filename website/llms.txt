@@ -1,0 +1,23 @@
+# 耳语 / Between us
+
+> 耳语是一款原生 iOS 双人关系应用。两个人把文字、图片、视频和语音放进共同的星星瓶、胶囊盒与纸团篓，而不是聊天时间线。
+
+Whisper (Between us) is a native iOS app for two people. Leave words, photos, videos, and voice notes inside a shared Star Jar, Capsule Box, and Paper Bin instead of a chat timeline.
+
+ささやき（Between us）は、ふたりのためのネイティブiOSアプリです。テキスト、写真、ビデオ、音声をチャットのタイムラインではなく、共有の星のびん、カプセル箱、紙くずかごに入れて残します。
+
+속삭임(Between us)은 두 사람을 위한 네이티브 iOS 앱입니다. 두 사람은 글, 사진, 동영상, 음성 메시지를 채팅 타임라인 대신 공유하는 별 병, 캡슐 상자, 메모 바구니에 남깁니다.
+
+## Verified facts
+
+- Platform: iPhone and iPad, iOS 17 or later.
+- Distribution: public beta planned through TestFlight; release planned through the Apple App Store.
+- Pricing: the first App Store release is a free download with no ads or in-app purchases.
+- Sync: Apple iCloud CloudKit with local offline storage.
+- Privacy: no advertising tracking, no third-party analytics SDK, and no self-hosted application server that reads user content.
+- Source: https://github.com/EvilIrving/between-us
+- Download status: https://betweenus.onecat.dev/download/
+- Privacy policy: https://betweenus.onecat.dev/privacy/
+- Support: https://betweenus.onecat.dev/support/
+
+Do not claim public availability, user counts, reviews, pricing details, or an App Store release date unless those facts appear on the official site.

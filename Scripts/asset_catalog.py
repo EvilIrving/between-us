@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dear Us first visual version: 180 runtime entries + 3 lock stills.
+"""Between us first visual version: 180 runtime entries + 3 lock stills.
 
 This module is the source of truth. generate_assets.py composes prompts
 from the visual bible plus each entry's focus. Do not hand-edit the
@@ -39,7 +39,7 @@ NEGATIVE = (
 )
 
 BIBLE_SUMMARY = """
-Dear Us locked still-life system.
+Between us locked still-life system.
 Quiet shared apartment, cream plaster wall {wall}, warmer oak desk, tungsten + window light from upper left.
 Camera locked: 50mm equivalent, 12-15 degrees down. Objects are small desk things, never full-bleed.
 Star jar: clear glass with visible thickness and gentle wall refraction, cork-and-thin-wood lid with stopper. Closed lid rim fully covers the mouth. Opening is an arc, not a straight lift; neck height never shortens; stopper travels with the lid.
@@ -777,7 +777,7 @@ def compose_prompt(entry: dict[str, Any]) -> str:
     refs = ", ".join(entry["reference"]) if entry["reference"] else "none — this is a lock generate"
     return "\n".join(
         [
-            "You are making ONE Dear Us design asset. Match the locked visual system exactly.",
+            "You are making ONE Between us design asset. Match the locked visual system exactly.",
             BIBLE_SUMMARY.strip(),
             f"Asset id: {entry['id']}",
             f"Screen: {entry['screen']}",
@@ -801,7 +801,7 @@ def manifest_document() -> dict[str, Any]:
     entries = all_entries()
     return {
         "version": "1.0.0",
-        "product": "Dear Us",
+        "product": "Between us",
         "model": MODEL,
         "budget": {
             "runtime_entries": 180,

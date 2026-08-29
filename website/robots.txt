@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://betweenus.onecat.dev/sitemap.xml

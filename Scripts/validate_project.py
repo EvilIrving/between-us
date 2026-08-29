@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static validation for the Dear Us Xcode source package."""
+"""Static validation for the Between us Xcode source package."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "DearUs"
-PROJECT = ROOT / "DearUs.xcodeproj" / "project.pbxproj"
-SCHEME = ROOT / "DearUs.xcodeproj" / "xcshareddata" / "xcschemes" / "DearUs.xcscheme"
+APP = ROOT / "BetweenUs"
+PROJECT = ROOT / "BetweenUs.xcodeproj" / "project.pbxproj"
+SCHEME = ROOT / "BetweenUs.xcodeproj" / "xcshareddata" / "xcschemes" / "BetweenUs.xcscheme"
 
 
 def fail(message: str) -> None:
@@ -40,7 +40,7 @@ def png_dimensions(path: Path) -> tuple[int, int]:
 
 def main() -> int:
     info = parse_plist(APP / "Info.plist")
-    entitlements = parse_plist(APP / "DearUs.entitlements")
+    entitlements = parse_plist(APP / "BetweenUs.entitlements")
     privacy = parse_plist(APP / "PrivacyInfo.xcprivacy")
 
     if info.get("CFBundleShortVersionString") != "$(MARKETING_VERSION)":
@@ -92,10 +92,10 @@ def main() -> int:
         fail("Marketing version is not 1.1.0")
     if "CURRENT_PROJECT_VERSION = 2;" not in pbx:
         fail("Build number is not 2")
-    if 'PRODUCT_NAME = "Dear Us";' not in pbx:
-        fail("English product name is not Dear Us")
-    if 'BuildableName="Dear Us.app"' not in SCHEME.read_text(encoding="utf-8"):
-        fail("Scheme product name is not Dear Us.app")
+    if 'PRODUCT_NAME = "Between us";' not in pbx:
+        fail("English product name is not Between us")
+    if 'BuildableName="Between us.app"' not in SCHEME.read_text(encoding="utf-8"):
+        fail("Scheme product name is not Between us.app")
     if "IPHONEOS_DEPLOYMENT_TARGET = 17.0;" not in pbx:
         fail("Deployment target is not iOS 17.0")
 
@@ -123,7 +123,7 @@ def main() -> int:
     if found_ui:
         fail(f"Traditional core UI patterns remain in Views: {found_ui}")
 
-    forbidden = ["dearUsCloudKitPushReceived", "TODO:", "FIXME:", "松开发送"]
+    forbidden = ["betweenUsCloudKitPushReceived", "TODO:", "FIXME:", "松开发送"]
     found = [token for token in forbidden if token in source_text]
     if found:
         fail(f"Stale source markers found: {found}")

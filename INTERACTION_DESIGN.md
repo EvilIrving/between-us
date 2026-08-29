@@ -1,4 +1,6 @@
-# Dear Us 1.1.0 交互设计说明
+# Between us 交互设计说明
+
+> 更新：2026-08-30
 
 ## 设计目标
 
@@ -29,7 +31,7 @@
 
 ### 制作场景
 
-文字、照片和语音不是三个附件按钮，而是三种不同的创作姿态。模式切换会移除当前媒体草稿，避免一条内容叠加复杂附件。
+文字、图片/视频和语音不是三个附件按钮，而是三种不同的创作姿态。模式切换会移除当前媒体草稿，避免一条内容叠加复杂附件。
 
 ## 文字状态机
 
@@ -41,7 +43,7 @@ empty → editing → ready → dragging → thresholdReached → saving → dis
 
 向上拖动未超过阈值时不保存；越过阈值时触发一次中等触觉反馈，松手后执行 Store 写入。
 
-## 照片状态机
+## 图片与视频状态机
 
 ```text
 empty → systemPhotoPicker → importing → preview → ready → dragging → saving
@@ -49,7 +51,7 @@ empty → systemPhotoPicker → importing → preview → ready → dragging →
                                             ↘ saveFailed → preview
 ```
 
-系统 PhotosPicker 是必要的系统数据入口，但选择完成后立即回到自定义相纸场景。1.1 只选择图片。
+系统 PhotosPicker 用于选择图片和视频，选择完成后立即回到自定义媒体场景。图片使用相纸预览，视频使用明确的播放标识。
 
 ## 语音状态机
 
@@ -130,3 +132,10 @@ idle → pressing → progress → completed → storeOpen → unsealAnimation �
 - 跳转系统设置。
 
 核心流程不使用系统 Alert、confirmationDialog、Form、分段 Picker、标准提交按钮或消息式回复框。制作场景允许在小屏和键盘出现时滚动，但放入与录音手势优先于滚动识别。
+
+## 本地化
+
+- 界面支持简体中文、英文、日文和韩文，并可跟随系统语言。
+- 用户在设置中切换语言后立即刷新当前界面，不要求重启 App。
+- 功能状态与操作标签优先保持短句；布局必须允许英文、日文和韩文自然伸缩，不依赖固定中文字符宽度。
+- 麦克风权限说明等系统文案与应用内语言资源保持同一组语言覆盖。

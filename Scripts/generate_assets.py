@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Temporary Dear Us image harness.
+"""Temporary Between us image harness.
 
 gpt-image-2 via https://api.shu.cool/v1
 Rate limit: 5 calls/minute, 3 concurrent.
@@ -160,7 +160,7 @@ def post_json(url: str, payload: dict, key: str) -> dict:
 
 
 def encode_multipart(fields: dict[str, str], files: list[tuple[str, str, bytes]]) -> tuple[bytes, str]:
-    boundary = f"----dearUs{int(time.time() * 1000)}"
+    boundary = f"----betweenUs{int(time.time() * 1000)}"
     chunks: list[bytes] = []
     for name, value in fields.items():
         chunks.append(f"--{boundary}\r\n".encode())
@@ -517,7 +517,7 @@ def cmd_generate(doc: dict, args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Dear Us gpt-image-2 harness")
+    parser = argparse.ArgumentParser(description="Between us gpt-image-2 harness")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("dump-manifest", help="写出 asset_manifest.json")
