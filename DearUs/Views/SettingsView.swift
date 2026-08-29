@@ -198,12 +198,13 @@ private struct CompactHoldAction: View {
     let isWorking: Bool
     let action: () -> Void
 
-    @State private var isPressing = false
-    @State private var pressedAt: Date?
-    @State private var activationTask: Task<Void, Never>?
-
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+        HoldToCompleteSurface(
+            duration: duration,
+            isEnabled: isEnabled,
+            isWorking: isWorking,
+            onComplete: action
+        ) { progress, _ in
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -211,7 +212,7 @@ private struct CompactHoldAction: View {
 
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color.red.opacity(0.14))
-                        .frame(width: proxy.size.width * progress(at: context.date))
+                        .frame(width: proxy.size.width * progress)
 
                     HStack(spacing: 8) {
                         if isWorking {
@@ -233,53 +234,16 @@ private struct CompactHoldAction: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(Color.red.opacity(0.16), lineWidth: 1)
                 }
-                .contentShape(Rectangle())
-                .highPriorityGesture(holdGesture, including: isEnabled && !isWorking ? .all : .none)
             }
         }
         .frame(height: 52)
-        .onDisappear { cancel() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityHint("持续按住完成，松开取消")
-    }
-
-    private var holdGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { _ in beginIfNeeded() }
-            .onEnded { _ in cancel() }
-    }
-
-    private func progress(at date: Date) -> CGFloat {
-        guard isPressing, let pressedAt else { return 0 }
-        return min(max(date.timeIntervalSince(pressedAt) / duration, 0), 1)
-    }
-
-    private func beginIfNeeded() {
-        guard isEnabled, !isWorking, !isPressing else { return }
-        isPressing = true
-        pressedAt = Date()
-        RitualHaptics.soft()
-        activationTask?.cancel()
-        activationTask = Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            } catch {
-                return
-            }
-            guard isPressing, isEnabled, !isWorking else { return }
-            isPressing = false
-            pressedAt = nil
-            RitualHaptics.success()
+        .accessibilityAction {
+            guard isEnabled, !isWorking else { return }
             action()
         }
-    }
-
-    private func cancel() {
-        isPressing = false
-        pressedAt = nil
-        activationTask?.cancel()
-        activationTask = nil
     }
 }
 

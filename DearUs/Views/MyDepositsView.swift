@@ -78,6 +78,7 @@ struct MyDepositsView: View {
         HStack(spacing: 8) {
             DrawerFilterToken(
                 title: "全部",
+                kind: nil,
                 systemImage: "circle.grid.3x3.fill",
                 tint: AppTheme.primaryText,
                 isSelected: selectedKind == nil
@@ -88,7 +89,8 @@ struct MyDepositsView: View {
             ForEach(ContainerKind.allCases) { kind in
                 DrawerFilterToken(
                     title: shortTitle(for: kind),
-                    systemImage: filterSymbol(for: kind),
+                    kind: kind,
+                    systemImage: nil,
                     tint: kind.tint,
                     isSelected: selectedKind == kind
                 ) {
@@ -115,13 +117,6 @@ struct MyDepositsView: View {
         }
     }
 
-    private func filterSymbol(for kind: ContainerKind) -> String {
-        switch kind {
-        case .star: return "star.fill"
-        case .capsule: return "capsule.fill"
-        case .paper: return "doc.fill"
-        }
-    }
 }
 
 private enum DrawerSection: String, CaseIterable, Identifiable {
@@ -176,7 +171,8 @@ private struct DrawerSectionToken: View {
 
 private struct DrawerFilterToken: View {
     let title: String
-    let systemImage: String
+    let kind: ContainerKind?
+    let systemImage: String?
     let tint: Color
     let isSelected: Bool
     let action: () -> Void
@@ -187,8 +183,13 @@ private struct DrawerFilterToken: View {
             action()
         } label: {
             VStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
+                if let kind {
+                    RitualObjectGlyph(kind: kind, size: 28, filled: true)
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(height: 28)
+                }
                 Text(title)
                     .font(.caption2.weight(.semibold))
             }

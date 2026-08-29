@@ -9,25 +9,13 @@ struct HomeView: View {
                 AmbientRoomBackground()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 16) {
                         header
                             .padding(.horizontal, 20)
-                            .padding(.top, 10)
-
-                        VStack(spacing: 7) {
-                            Text("耳语")
-                                .font(.system(size: 36, weight: .bold, design: .rounded))
-                                .foregroundStyle(AppTheme.primaryText)
-
-                            Text(roomWhisper)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.secondaryText.opacity(0.78))
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.top, 2)
+                            .padding(.top, 8)
 
                         sharedRoom
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, 20)
                             .padding(.bottom, 26)
                     }
                     .frame(maxWidth: 640)
@@ -42,8 +30,19 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Spacer()
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("耳语")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text(roomWhisper)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.70))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
 
             NavigationLink {
                 MyDepositsView()
@@ -161,7 +160,7 @@ private struct RoomObject: View {
         Group {
             if scale == .large {
                 HStack(spacing: 16) {
-                    containerGlyph(size: 64)
+                    containerGlyph(size: 86)
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(kind.title)
@@ -177,11 +176,11 @@ private struct RoomObject: View {
                     countView
                 }
                 .padding(.horizontal, 18)
-                .frame(height: 116)
+                .frame(height: 134)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        containerGlyph(size: 48)
+                        containerGlyph(size: 72)
                         Spacer()
                         countView
                     }
@@ -198,15 +197,22 @@ private struct RoomObject: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 154)
+                .frame(height: 178)
             }
         }
-        .background(kind.tint.opacity(waiting > 0 ? 0.13 : 0.07))
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.38), kind.tint.opacity(waiting > 0 ? 0.15 : 0.07)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(kind.tint.opacity(waiting > 0 ? 0.42 : 0.20), lineWidth: waiting > 0 ? 1.5 : 1)
         }
+        .shadow(color: kind.tint.opacity(waiting > 0 ? 0.09 : 0.04), radius: 18, y: 10)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(kind.title)，\(quietText)")
@@ -225,12 +231,17 @@ private struct RoomObject: View {
     }
 
     private func containerGlyph(size: CGFloat) -> some View {
-        Image(systemName: symbolName)
-            .font(.system(size: size * 0.40, weight: .semibold))
-            .foregroundStyle(kind.tint)
-            .frame(width: size, height: size)
-            .background(kind.tint.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+        ZStack {
+            AppTheme.glow(for: kind)
+            ContainerVisual(
+                kind: kind,
+                count: count,
+                style: .room,
+                isActive: waiting > 0
+            )
+            .padding(kind == .capsule ? 2 : 5)
+        }
+            .frame(width: size, height: kind == .capsule ? size * 0.76 : size * 1.06)
             .overlay(alignment: .topTrailing) {
                 if waiting > 0 {
                     Circle()
@@ -240,14 +251,6 @@ private struct RoomObject: View {
                 }
             }
     }
-
-    private var symbolName: String {
-        switch kind {
-        case .star: return "star.fill"
-        case .capsule: return "capsule.fill"
-        case .paper: return "doc.fill"
-        }
-    }
 }
 
 private struct HomeCornerControl: View {
@@ -255,17 +258,18 @@ private struct HomeCornerControl: View {
     let title: String
 
     var body: some View {
-        VStack(spacing: 3) {
+        HStack(spacing: 6) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppTheme.primaryText.opacity(0.70))
-                .frame(width: 36, height: 36)
-                .background(Color.white.opacity(0.28))
-                .clipShape(Circle())
+                .font(.system(size: 13, weight: .semibold))
             Text(title)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+                .font(.caption2.weight(.semibold))
         }
+        .foregroundStyle(AppTheme.primaryText.opacity(0.66))
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(Color.white.opacity(0.36))
+        .clipShape(Capsule())
+        .overlay { Capsule().stroke(Color.white.opacity(0.60), lineWidth: 1) }
         .accessibilityElement(children: .combine)
     }
 }

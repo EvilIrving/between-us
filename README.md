@@ -79,12 +79,14 @@ DearUs/
 └── Design/       场景色彩、材质与光影
 ```
 
-视觉与动效的长期标准见 [VISUAL_MOTION_DESIGN.md](VISUAL_MOTION_DESIGN.md)。核心物件必须先作为代码外的人工美术资产成立，SwiftUI Path、基础 Shape 和程序生成 SVG 只可用于占位或交互验证，不作为最终视觉。
+视觉与动效的长期标准见 [VISUAL_MOTION_DESIGN.md](VISUAL_MOTION_DESIGN.md)。核心物件采用程序化视觉系统：共享的参数曲线负责轮廓，统一材质模型负责光影，交互状态直接驱动盖口、内容物与容器形变；外部美术资源只作为背景或未来可替换增强层。
 
 核心交互组件包括：
 
 - `RitualDepositControl`：向上推入容器的提交手势。
-- `HoldToOpenControl`：带连续进度与中途松手取消的打开手势。
+- `HoldToCompleteSurface`：长按进度、取消、完成和辅助操作的共享状态机。
+- `ParametricGeometry`：圆角星形、超椭圆、胶囊体、对称剖面与有机纸形的共享数学内核。
+- `ContainerVisual`：首页、详情、引导与加载共同使用的参数化容器渲染器。
 - `VoiceHoldRecorderView`：按住录音、左滑取消和松手完成。
 - `AmbientRoomBackground`：共同房间与各容器场景的统一环境层。
 - `WhisperNoticeBanner`：替代核心流程中的系统 Alert。

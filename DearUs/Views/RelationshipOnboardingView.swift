@@ -15,7 +15,7 @@ struct RelationshipOnboardingView: View {
                     ZStack {
                         AppTheme.glow(for: .star)
                             .frame(width: 300, height: 260)
-                        FunctionalContainerPlaceholder(kind: .star, count: 0, compact: true)
+                        ContainerVisual(kind: .star, count: 0, style: .compact)
                             .frame(width: 184, height: 208)
                     }
 

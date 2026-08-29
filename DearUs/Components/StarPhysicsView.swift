@@ -22,16 +22,22 @@ struct StarPhysicsView: View {
 private struct BottleOverlay: View {
     var body: some View {
         ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+            ProfiledShape(profile: ParametricPreset.bottleProfile, tension: 0.73)
+                .fill(
+                    LinearGradient(
+                        colors: [ContainerKind.star.tint.opacity(0.18), Color.brown.opacity(0.10)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .stroke(Color.white.opacity(0.68), lineWidth: 2)
+                    ProfiledShape(profile: ParametricPreset.bottleProfile, tension: 0.73)
+                        .stroke(ContainerKind.star.tint.opacity(0.54), lineWidth: 2)
                 }
                 .padding(.horizontal, 14)
-                .padding(.top, 34)
+                .padding(.vertical, 18)
 
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            SuperellipseShape(exponent: ParametricPreset.keepsakeBoxExponent)
                 .fill(Color(red: 0.55, green: 0.38, blue: 0.23))
                 .frame(width: 126, height: 42)
                 .padding(.top, 8)
@@ -77,7 +83,12 @@ private final class StarPhysicsScene: SKScene {
         let boundary = SKNode()
         boundary.name = "boundary"
         let insetFrame = CGRect(x: 22, y: 18, width: max(10, size.width - 44), height: max(10, size.height - 70))
-        boundary.physicsBody = SKPhysicsBody(edgeLoopFrom: insetFrame)
+        let bottlePath = ParametricGeometry.mirroredProfile(
+            in: insetFrame,
+            profile: ParametricPreset.bottleProfile,
+            tension: 0.73
+        )
+        boundary.physicsBody = SKPhysicsBody(edgeLoopFrom: bottlePath.cgPath)
         boundary.physicsBody?.friction = 0.4
         boundary.physicsBody?.restitution = 0.34
         addChild(boundary)
@@ -122,15 +133,10 @@ private final class StarPhysicsScene: SKScene {
     }
 
     private func starPath(radius: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        let inner = radius * 0.46
-        for index in 0..<10 {
-            let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
-            let r = index.isMultiple(of: 2) ? radius : inner
-            let point = CGPoint(x: cos(angle) * r, y: sin(angle) * r)
-            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
-        }
-        path.closeSubpath()
-        return path
+        ParametricGeometry.roundedStar(
+            in: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2),
+            innerRatio: ParametricPreset.starInnerRatio,
+            roundness: ParametricPreset.starRoundness
+        ).cgPath
     }
 }

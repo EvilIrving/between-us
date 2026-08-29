@@ -248,25 +248,36 @@ private struct LiveVoiceWaveform: View {
     let isActive: Bool
     let tint: Color
 
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate * 6.5
-            HStack(alignment: .center, spacing: 4) {
-                ForEach(0..<25, id: \.self) { index in
-                    let wave = (sin(phase + Double(index) * 0.72) + 1) / 2
-                    let centerWeight = 1 - abs(Double(index) - 12) / 18
-                    let liveLevel = isActive ? max(0.10, min(1, level * 1.65)) : 0.06
-                    let height = 7 + 43 * liveLevel * (0.32 + wave * 0.68) * centerWeight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-                    Capsule()
-                        .fill(tint.opacity(isActive ? 0.70 : 0.24))
-                        .frame(width: 3.5, height: height)
+    var body: some View {
+        Group {
+            if isActive, !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { context in
+                    waveform(phase: context.date.timeIntervalSinceReferenceDate * 6.5, active: true)
                 }
+            } else {
+                waveform(phase: 0, active: isActive)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .animation(.easeOut(duration: 0.12), value: level)
         .accessibilityHidden(true)
+    }
+
+    private func waveform(phase: Double, active: Bool) -> some View {
+        HStack(alignment: .center, spacing: 4) {
+            ForEach(0..<25, id: \.self) { index in
+                let wave = (sin(phase + Double(index) * 0.72) + 1) / 2
+                let centerWeight = 1 - abs(Double(index) - 12) / 18
+                let liveLevel = active ? max(0.10, min(1, level * 1.65)) : 0.06
+                let height = 7 + 43 * liveLevel * (0.32 + wave * 0.68) * centerWeight
+
+                Capsule()
+                    .fill(tint.opacity(active ? 0.70 : 0.24))
+                    .frame(width: 3.5, height: height)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

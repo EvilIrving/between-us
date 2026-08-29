@@ -35,17 +35,26 @@ struct AmbientRoomBackground: View {
             ZStack {
                 AppTheme.backgroundGradient(for: kind)
 
-                Ellipse()
-                    .fill((kind?.tint ?? AppTheme.warmLight).opacity(0.07))
-                    .frame(width: proxy.size.width * 1.08, height: proxy.size.width * 0.74)
-                    .blur(radius: 32)
-                    .offset(x: -proxy.size.width * 0.28, y: -proxy.size.height * 0.30)
+                RadialGradient(
+                    colors: [
+                        Color.white.opacity(0.48),
+                        (kind?.tint ?? AppTheme.warmLight).opacity(0.055),
+                        .clear
+                    ],
+                    center: .topLeading,
+                    startRadius: 4,
+                    endRadius: proxy.size.width * 1.18
+                )
 
-                Ellipse()
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: proxy.size.width * 0.88, height: proxy.size.width * 0.62)
-                    .blur(radius: 38)
-                    .offset(x: proxy.size.width * 0.34, y: proxy.size.height * 0.30)
+                RadialGradient(
+                    colors: [
+                        (kind?.tint ?? AppTheme.warmLight).opacity(0.045),
+                        .clear
+                    ],
+                    center: .bottomTrailing,
+                    startRadius: 8,
+                    endRadius: proxy.size.width * 1.28
+                )
             }
         }
         .ignoresSafeArea()
@@ -82,11 +91,16 @@ struct SceneCloseControl: View {
 }
 
 struct SoftScaleButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.82 : 1)
-            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: AppMotion.pressDuration),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -103,21 +117,16 @@ struct RitualObjectGlyph: View {
 
             switch kind {
             case .star:
-                StarShape()
-                    .fill(filled ? kind.tint : Color.white.opacity(0.92))
-                    .overlay { StarShape().stroke(kind.tint.opacity(0.32), lineWidth: 1) }
+                ParametricTokenView(kind: kind, seed: 2, filled: filled)
                     .frame(width: size * 0.53, height: size * 0.53)
                     .rotationEffect(.degrees(-8))
             case .capsule:
-                Capsule()
-                    .fill(filled ? kind.tint : Color.white.opacity(0.92))
-                    .overlay { Capsule().stroke(kind.tint.opacity(0.36), lineWidth: 1) }
+                ParametricTokenView(kind: kind, seed: 1, filled: filled)
                     .frame(width: size * 0.64, height: size * 0.27)
                     .rotationEffect(.degrees(-18))
             case .paper:
-                CrumpledPaper(index: filled ? 3 : 1)
+                ParametricTokenView(kind: kind, seed: filled ? 3 : 1, filled: filled)
                     .frame(width: size * 0.56, height: size * 0.56)
-                    .opacity(filled ? 1 : 0.78)
             }
         }
         .accessibilityHidden(true)
@@ -135,21 +144,36 @@ struct RitualActionToken: View {
             RitualHaptics.selection()
             action()
         } label: {
-            VStack(spacing: 8) {
-                RitualObjectGlyph(kind: kind, size: 62, filled: false)
+            HStack(spacing: 13) {
+                RitualObjectGlyph(kind: kind, size: 52, filled: false)
 
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
 
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.78))
-                        .multilineTextAlignment(.center)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
+                    }
                 }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.38))
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
+            .background(Color.white.opacity(0.34))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(kind.tint.opacity(0.16), lineWidth: 1)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
@@ -244,44 +268,49 @@ struct RitualDepositControl: View {
     @State private var crossedThreshold = false
 
     private var progress: CGFloat {
-        min(max(-dragY / 112, 0), 1)
+        min(max(-dragY / 72, 0), 1)
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack(spacing: 5) {
-                ZStack {
-                    Capsule()
-                        .stroke(kind.tint.opacity(0.20 + progress * 0.44), lineWidth: 1.5)
-                        .frame(width: 74 + progress * 18, height: 27 + progress * 6)
-                        .blur(radius: progress * 1.5)
-
-                    Image(systemName: "arrow.up")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(kind.tint.opacity(0.45 + progress * 0.45))
-                        .offset(y: -1)
-                }
-
-                Text(isWorking ? "正在放进去……" : instruction)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppTheme.secondaryText.opacity(isEnabled ? 0.80 : 0.42))
-            }
-            .frame(maxWidth: .infinity, alignment: .top)
-
-            RitualObjectGlyph(kind: kind, size: 72, filled: true)
-                .scaleEffect(1 - progress * 0.18)
+        HStack(spacing: 12) {
+            RitualObjectGlyph(kind: kind, size: 48, filled: true)
+                .scaleEffect(1 - progress * 0.10)
                 .rotationEffect(.degrees(rotationForProgress))
-                .offset(y: dragY)
-                .shadow(color: kind.tint.opacity(0.14 + progress * 0.22), radius: 14 + progress * 14)
-                .opacity(isWorking ? 0.40 : (isEnabled ? 1 : 0.35))
-                .overlay {
-                    if isWorking {
-                        ProgressView()
-                            .tint(kind.tint)
-                    }
-                }
+
+            Text(isWorking ? "正在放进去……" : instruction)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(
+                    isEnabled
+                        ? AppTheme.primaryText
+                        : AppTheme.secondaryText.opacity(0.46)
+                )
+
+            Spacer(minLength: 8)
+
+            if isWorking {
+                ProgressView()
+                    .tint(kind.tint)
+            } else {
+                Image(systemName: "arrow.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(kind.tint.opacity(isEnabled ? 0.78 : 0.28))
+                    .frame(width: 30, height: 30)
+                    .background(kind.tint.opacity(isEnabled ? 0.10 : 0.04))
+                    .clipShape(Circle())
+            }
         }
-        .frame(height: 142)
+        .padding(.horizontal, 14)
+        .frame(height: 68)
+        .background(Color.white.opacity(isEnabled ? 0.46 : 0.28))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(kind.tint.opacity(isEnabled ? 0.24 : 0.10), lineWidth: 1)
+        }
+        .offset(y: dragY * 0.14)
+        .scaleEffect(1 - progress * 0.025)
+        .opacity(isWorking ? 0.62 : 1)
+        .shadow(color: kind.tint.opacity(progress * 0.18), radius: progress * 14, y: 6)
         .contentShape(Rectangle())
         .highPriorityGesture(dragGesture, including: isEnabled && !isWorking ? .all : .none)
         .accessibilityElement(children: .ignore)
@@ -311,7 +340,7 @@ struct RitualDepositControl: View {
             .onChanged { value in
                 guard isEnabled, !isWorking else { return }
                 onGestureBegan?()
-                let currentProgress = min(max(-value.translation.height / 112, 0), 1)
+                let currentProgress = min(max(-value.translation.height / 72, 0), 1)
                 if currentProgress >= 0.84, !crossedThreshold {
                     crossedThreshold = true
                     RitualHaptics.medium()
@@ -321,7 +350,7 @@ struct RitualDepositControl: View {
             }
             .onEnded { value in
                 guard isEnabled, !isWorking else { return }
-                let finalProgress = min(max(-value.translation.height / 112, 0), 1)
+                let finalProgress = min(max(-value.translation.height / 72, 0), 1)
                 crossedThreshold = false
                 if finalProgress >= 0.84 {
                     RitualHaptics.success()
@@ -331,104 +360,68 @@ struct RitualDepositControl: View {
     }
 }
 
-struct HoldToOpenControl: View {
-    let kind: ContainerKind
-    let title: String
-    let inactiveTitle: String
+struct HoldToCompleteSurface<Content: View>: View {
     let duration: TimeInterval
     let isEnabled: Bool
     let isWorking: Bool
     let onComplete: () -> Void
+    let content: (CGFloat, Bool) -> Content
 
+    @State private var progress: CGFloat = 0
     @State private var isPressing = false
-    @State private var pressedAt: Date?
-    @State private var activationTask: Task<Void, Never>?
     @State private var didComplete = false
+    @State private var activationTask: Task<Void, Never>?
+
+    init(
+        duration: TimeInterval,
+        isEnabled: Bool,
+        isWorking: Bool,
+        onComplete: @escaping () -> Void,
+        @ViewBuilder content: @escaping (CGFloat, Bool) -> Content
+    ) {
+        self.duration = duration
+        self.isEnabled = isEnabled
+        self.isWorking = isWorking
+        self.onComplete = onComplete
+        self.content = content
+    }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            let progress = progress(at: context.date)
-
-            VStack(spacing: 11) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.46), lineWidth: 7)
-                        .frame(width: 92, height: 92)
-
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(
-                            kind.tint,
-                            style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                        )
-                        .frame(width: 92, height: 92)
-                        .rotationEffect(.degrees(-90))
-                        .shadow(color: kind.tint.opacity(0.28), radius: 8)
-
-                    Circle()
-                        .fill(Color.white.opacity(isPressing ? 0.66 : 0.46))
-                        .frame(width: 74, height: 74)
-                        .overlay { Circle().stroke(Color.white.opacity(0.72), lineWidth: 1) }
-
-                    if isWorking {
-                        ProgressView()
-                            .tint(kind.tint)
-                    } else {
-                        Image(systemName: kind == .paper ? "hand.raised.fill" : "hand.tap.fill")
-                            .font(.system(size: 25, weight: .semibold))
-                            .foregroundStyle(isEnabled ? kind.tint : AppTheme.secondaryText.opacity(0.36))
-                            .scaleEffect(isPressing ? 0.90 : 1)
-                    }
-                }
-
-                Text(isEnabled ? title : inactiveTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
-                    .multilineTextAlignment(.center)
-
-                if isEnabled, !isWorking {
-                    Text("持续按住 · 松开取消")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .frame(maxWidth: .infinity)
+        content(progress, isPressing)
             .contentShape(Rectangle())
             .highPriorityGesture(pressGesture, including: isEnabled && !isWorking ? .all : .none)
-            .animation(.easeOut(duration: 0.10), value: isPressing)
-        }
-        .onDisappear { cancelPress() }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("持续按住完成")
-        .accessibilityAction {
-            guard isEnabled, !isWorking else { return }
-            onComplete()
-        }
+            .onDisappear { cancelPress() }
+            .onChange(of: isWorking) { working in
+                if working {
+                    activationTask?.cancel()
+                    activationTask = nil
+                    isPressing = false
+                } else if !isPressing {
+                    resetProgress()
+                }
+            }
+            .onChange(of: isEnabled) { enabled in
+                if !enabled, !isWorking, !didComplete {
+                    cancelPress()
+                }
+            }
     }
 
     private var pressGesture: some Gesture {
         DragGesture(minimumDistance: 0)
-            .onChanged { _ in
-                beginPressIfNeeded()
-            }
-            .onEnded { _ in
-                endPress()
-            }
-    }
-
-    private func progress(at date: Date) -> CGFloat {
-        guard isPressing, let pressedAt else { return didComplete ? 1 : 0 }
-        return min(max(date.timeIntervalSince(pressedAt) / duration, 0), 1)
+            .onChanged { _ in beginPressIfNeeded() }
+            .onEnded { _ in endPress() }
     }
 
     private func beginPressIfNeeded() {
-        guard isEnabled, !isWorking, !isPressing else { return }
+        guard isEnabled, !isWorking, !isPressing, !didComplete else { return }
         isPressing = true
-        didComplete = false
-        pressedAt = Date()
+        progress = 0
         RitualHaptics.soft()
+
+        withAnimation(.linear(duration: max(0.1, duration))) {
+            progress = 1
+        }
 
         activationTask?.cancel()
         activationTask = Task { @MainActor in
@@ -446,27 +439,98 @@ struct HoldToOpenControl: View {
 
     private func endPress() {
         isPressing = false
-        pressedAt = nil
         activationTask?.cancel()
         activationTask = nil
-        if !didComplete {
-            withAnimation(.easeOut(duration: 0.16)) {
-                didComplete = false
-            }
-        } else {
-            Task { @MainActor in
+        if didComplete {
+            activationTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 220_000_000)
-                didComplete = false
+                guard !Task.isCancelled, !isWorking else { return }
+                resetProgress()
+                activationTask = nil
             }
+            return
+        }
+        resetProgress()
+    }
+
+    private func resetProgress() {
+        didComplete = false
+        withAnimation(.easeOut(duration: AppMotion.resetDuration)) {
+            progress = 0
         }
     }
 
     private func cancelPress() {
-        isPressing = false
-        pressedAt = nil
         activationTask?.cancel()
         activationTask = nil
+        isPressing = false
         didComplete = false
+        progress = 0
+    }
+}
+
+struct HoldToOpenControl: View {
+    let kind: ContainerKind
+    let title: String
+    let inactiveTitle: String
+    let duration: TimeInterval
+    let isEnabled: Bool
+    let isWorking: Bool
+    let onComplete: () -> Void
+
+    var body: some View {
+        HoldToCompleteSurface(
+            duration: duration,
+            isEnabled: isEnabled,
+            isWorking: isWorking,
+            onComplete: onComplete
+        ) { progress, isPressing in
+            HStack(spacing: 14) {
+                RitualObjectGlyph(kind: kind, size: 54, filled: true)
+                    .scaleEffect(isPressing ? 0.94 : 1)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(isEnabled ? title : inactiveTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
+
+                    Text(isWorking ? "正在完成" : "持续按住 · 松开取消")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText.opacity(isEnabled ? 0.66 : 0.40))
+                }
+
+                Spacer(minLength: 8)
+
+                if isWorking {
+                    ProgressView()
+                        .tint(kind.tint)
+                } else {
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(kind.tint.opacity(0.13))
+                        Capsule()
+                            .fill(kind.tint)
+                            .scaleEffect(x: progress, anchor: .leading)
+                    }
+                    .frame(width: 44, height: 5)
+                }
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(Color.white.opacity(isPressing ? 0.52 : 0.34))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(kind.tint.opacity(isPressing ? 0.34 : 0.16), lineWidth: 1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("持续按住完成")
+        .accessibilityAction {
+            guard isEnabled, !isWorking else { return }
+            onComplete()
+        }
     }
 }
 

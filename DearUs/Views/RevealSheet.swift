@@ -4,6 +4,7 @@ struct RevealSheet: View {
     let item: SecretItem
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnsealed = false
     @State private var contentAppears = false
     @State private var showResponseComposer = false
@@ -97,9 +98,14 @@ struct RevealSheet: View {
             .simultaneousGesture(dismissGesture)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.16)) {
+            if reduceMotion {
                 isUnsealed = true
                 contentAppears = true
+            } else {
+                withAnimation(.easeOut(duration: AppMotion.modeDuration)) {
+                    isUnsealed = true
+                    contentAppears = true
+                }
             }
         }
         .fullScreenCover(isPresented: $showResponseComposer) {
@@ -120,7 +126,7 @@ struct RevealSheet: View {
                     RitualHaptics.soft()
                     dismiss()
                 } else {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : AppMotion.settle) {
                         dragOffset = 0
                     }
                 }
@@ -133,6 +139,8 @@ private struct RevealObjectAnimation: View {
     let kind: ContainerKind
     let isUnsealed: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             AppTheme.glow(for: kind)
@@ -141,23 +149,34 @@ private struct RevealObjectAnimation: View {
 
             switch kind {
             case .star:
-                StarShape()
-                    .fill(kind.tint)
-                    .overlay { StarShape().stroke(Color.white.opacity(0.42), lineWidth: 1.5) }
+                ParametricTokenView(kind: .star, seed: 4, filled: true)
                     .frame(width: isUnsealed ? 88 : 58, height: isUnsealed ? 88 : 58)
                     .rotationEffect(.degrees(isUnsealed ? 22 : -42))
                     .shadow(color: kind.tint.opacity(0.28), radius: 18)
 
             case .capsule:
                 ZStack {
-                    Capsule()
-                        .fill(kind.tint)
-                        .frame(width: 72, height: 34)
+                    SpherocylinderShape()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(red: 0.72, green: 0.80, blue: 0.73), kind.tint],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay { SpherocylinderShape().stroke(kind.tint.opacity(0.44), lineWidth: 1) }
+                        .frame(width: 48, height: 34)
                         .offset(x: isUnsealed ? -33 : 0)
-                    Capsule()
-                        .fill(Color.white.opacity(0.92))
-                        .overlay { Capsule().stroke(kind.tint.opacity(0.34), lineWidth: 1) }
-                        .frame(width: 72, height: 34)
+                    SpherocylinderShape()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.96), AppTheme.paper],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay { SpherocylinderShape().stroke(kind.tint.opacity(0.30), lineWidth: 1) }
+                        .frame(width: 48, height: 34)
                         .offset(x: isUnsealed ? 33 : 0)
                 }
                 .rotationEffect(.degrees(-15))
@@ -169,7 +188,7 @@ private struct RevealObjectAnimation: View {
                         .fill(AppTheme.paper)
                         .frame(width: 112, height: 92)
                         .overlay {
-                            PaperRevealCreases()
+                            PaperCreaseShape(seed: 11)
                                 .stroke(AppTheme.secondaryText.opacity(0.10), lineWidth: 1)
                                 .padding(10)
                         }
@@ -182,7 +201,10 @@ private struct RevealObjectAnimation: View {
                 }
             }
         }
-        .animation(.spring(response: 0.64, dampingFraction: 0.68), value: isUnsealed)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.64, dampingFraction: 0.68),
+            value: isUnsealed
+        )
         .accessibilityHidden(true)
     }
 }
@@ -208,24 +230,5 @@ private struct RevealPaperShape: Shape {
             path.closeSubpath()
             return path
         }
-    }
-}
-
-private struct PaperRevealCreases: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.height * 0.28))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.height * 0.40),
-            control1: CGPoint(x: rect.width * 0.26, y: rect.height * 0.12),
-            control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.55)
-        )
-        path.move(to: CGPoint(x: rect.width * 0.30, y: rect.minY))
-        path.addCurve(
-            to: CGPoint(x: rect.width * 0.45, y: rect.maxY),
-            control1: CGPoint(x: rect.width * 0.54, y: rect.height * 0.32),
-            control2: CGPoint(x: rect.width * 0.17, y: rect.height * 0.70)
-        )
-        return path
     }
 }

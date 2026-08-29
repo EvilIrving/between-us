@@ -56,20 +56,19 @@ struct ComposeSheet: View {
             AmbientRoomBackground(kind: kind)
 
             GeometryReader { proxy in
+                let editorHeight = min(430, max(300, proxy.size.height - 312))
+
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         header
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
 
-                        DepositTargetView(kind: kind, isActive: isSaving)
-                            .frame(height: 78)
-                            .padding(.top, 2)
-
                         content
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: editorHeight)
                             .padding(.horizontal, 20)
-                            .padding(.top, 4)
+                            .padding(.top, 14)
 
                         modeSelector
                             .padding(.horizontal, 26)
@@ -87,6 +86,7 @@ struct ComposeSheet: View {
                                 onCommit: save
                             )
                             .padding(.horizontal, 28)
+                            .padding(.top, 12)
                             .padding(.bottom, 6)
                         } else {
                             Text("松手即保存")
@@ -239,9 +239,9 @@ struct ComposeSheet: View {
         }
         .padding(.vertical, 9)
         .padding(.horizontal, 8)
-        .background(Color.white.opacity(0.24))
+        .background(Color.white.opacity(0.38))
         .clipShape(Capsule())
-        .overlay { Capsule().stroke(Color.white.opacity(0.45), lineWidth: 1) }
+        .overlay { Capsule().stroke(Color.white.opacity(0.70), lineWidth: 1) }
     }
 
     private var draftSpaceID: String {
@@ -467,31 +467,6 @@ struct ComposeSheet: View {
     }
 }
 
-private struct DepositTargetView: View {
-    let kind: ContainerKind
-    let isActive: Bool
-
-    var body: some View {
-        ZStack {
-            Ellipse()
-                .fill(kind.tint.opacity(isActive ? 0.26 : 0.10))
-                .frame(width: isActive ? 126 : 96, height: isActive ? 38 : 26)
-                .blur(radius: isActive ? 11 : 7)
-
-            Capsule()
-                .stroke(kind.tint.opacity(isActive ? 0.60 : 0.26), lineWidth: 1.5)
-                .frame(width: 84, height: 24)
-
-            Image(systemName: isActive ? "sparkles" : "arrow.up")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(kind.tint.opacity(isActive ? 0.92 : 0.48))
-        }
-        .scaleEffect(isActive ? 1.04 : 1)
-        .animation(.easeOut(duration: 0.16), value: isActive)
-        .accessibilityHidden(true)
-    }
-}
-
 private struct WhisperPaperEditor: View {
     let kind: ContainerKind
     @Binding var text: String
@@ -541,7 +516,7 @@ private struct WhisperPaperEditor: View {
             }
 
             if kind == .paper {
-                PaperCreaseOverlay()
+                PaperCreaseShape(seed: 7)
                     .stroke(AppTheme.secondaryText.opacity(0.07), lineWidth: 1)
                     .padding(12)
                     .allowsHitTesting(false)
@@ -716,25 +691,6 @@ private struct SavingRitualOverlay: View {
             }
         }
         .allowsHitTesting(true)
-    }
-}
-
-private struct PaperCreaseOverlay: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + 8, y: rect.height * 0.28))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX - 12, y: rect.height * 0.36),
-            control1: CGPoint(x: rect.width * 0.30, y: rect.height * 0.18),
-            control2: CGPoint(x: rect.width * 0.66, y: rect.height * 0.46)
-        )
-        path.move(to: CGPoint(x: rect.width * 0.22, y: rect.minY + 8))
-        path.addCurve(
-            to: CGPoint(x: rect.width * 0.32, y: rect.maxY - 10),
-            control1: CGPoint(x: rect.width * 0.44, y: rect.height * 0.28),
-            control2: CGPoint(x: rect.width * 0.12, y: rect.height * 0.70)
-        )
-        return path
     }
 }
 

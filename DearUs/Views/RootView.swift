@@ -65,7 +65,7 @@ private struct LoadingView: View {
             AmbientRoomBackground(kind: .star)
 
             VStack(spacing: 20) {
-                FunctionalContainerPlaceholder(kind: .star, count: 5, compact: true, isActive: true)
+                ContainerVisual(kind: .star, count: 5, style: .compact, isActive: true)
                     .frame(width: 142, height: 164)
 
                 VStack(spacing: 8) {
