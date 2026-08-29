@@ -30,6 +30,14 @@ struct SettingsView: View {
                                 value: "本机预览"
                             )
 
+                            SettingsActionRow(
+                                systemName: "arrow.clockwise.circle",
+                                title: "补充演示内容",
+                                subtitle: "让三个容器都可以打开"
+                            ) {
+                                Task { await store.replenishLocalPreview() }
+                            }
+
                         } else {
                             SettingsFactRow(
                                 systemName: "person.2",

@@ -26,13 +26,23 @@ enum AppTheme {
         )
     }
 
-    static func glow(for kind: ContainerKind) -> RadialGradient {
-        RadialGradient(
-            colors: [kind.tint.opacity(0.28), kind.tint.opacity(0.02), .clear],
-            center: .center,
-            startRadius: 2,
-            endRadius: 160
-        )
+    static func glow(for kind: ContainerKind) -> some View {
+        GeometryReader { proxy in
+            let shortEdge = min(proxy.size.width, proxy.size.height)
+
+            RadialGradient(
+                stops: [
+                    .init(color: kind.tint.opacity(0.22), location: 0),
+                    .init(color: kind.tint.opacity(0.08), location: 0.46),
+                    .init(color: kind.tint.opacity(0.018), location: 0.76),
+                    .init(color: .clear, location: 1)
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: shortEdge * 0.38
+            )
+        }
+        .allowsHitTesting(false)
     }
 }
 

@@ -13,6 +13,7 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
     var openedByID: String?
     var openedAt: Date?
     var attachment: AttachmentMetadata?
+    var additionalAttachments: [AttachmentMetadata]?
     var lastKnownRecordData: Data?
 
     init(
@@ -25,6 +26,7 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
         openedByID: String? = nil,
         openedAt: Date? = nil,
         attachment: AttachmentMetadata? = nil,
+        additionalAttachments: [AttachmentMetadata]? = nil,
         lastKnownRecordData: Data? = nil
     ) {
         self.id = id
@@ -36,18 +38,26 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
         self.openedByID = openedByID
         self.openedAt = openedAt
         self.attachment = attachment
+        self.additionalAttachments = additionalAttachments
         self.lastKnownRecordData = lastKnownRecordData
     }
 
     var recordName: String { id.uuidString.lowercased() }
 
     var hasContent: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachment != nil
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !allAttachments.isEmpty
     }
 
     var previewText: String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? (attachment?.kind.title ?? "一段内容") : trimmed
+        if !trimmed.isEmpty { return trimmed }
+        let images = allAttachments.filter { $0.kind == .image }
+        if !images.isEmpty { return images.count == 1 ? "一张照片" : "\(images.count) 张照片" }
+        return attachment?.kind.title ?? "一段内容"
+    }
+
+    var allAttachments: [AttachmentMetadata] {
+        (attachment.map { [$0] } ?? []) + (additionalAttachments ?? [])
     }
 }
 
@@ -167,6 +177,7 @@ extension SecretItem {
 
     mutating func mergeFromServerRecord(_ record: CKRecord, mediaStore: MediaFileStore) -> Bool {
         guard var remote = SecretItem(record: record, mediaStore: mediaStore) else { return false }
+        remote.additionalAttachments = additionalAttachments
 
         // Opening an item only changes its open metadata. If a transient CKAsset download
         // fails during that merge, keep the valid local copy instead of accidentally

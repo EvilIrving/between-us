@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MyDepositsView: View {
     @EnvironmentObject private var store: DearUsStore
@@ -253,7 +254,7 @@ private struct DrawerItemCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            ContainerItemIcon(kind: item.kind)
+            DrawerItemLeadingVisual(item: item)
                 .frame(width: 54, height: 54)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -261,10 +262,10 @@ private struct DrawerItemCard: View {
                     Text(item.kind.title)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(item.kind.tint)
-                    if let attachment = item.attachment {
-                        Image(systemName: attachment.kind.systemImage)
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+                    if let attachmentSummary {
+                        Label(attachmentSummary.text, systemImage: attachmentSummary.systemImage)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
                     }
                 }
 
@@ -308,6 +309,17 @@ private struct DrawerItemCard: View {
         section == .openedFromOther || item.openedAt != nil
     }
 
+    private var attachmentSummary: (text: String, systemImage: String)? {
+        let images = item.allAttachments.filter { $0.kind == .image }
+        if !images.isEmpty {
+            return (images.count == 1 ? "照片" : "\(images.count) 张", images.count == 1 ? "photo" : "photo.stack")
+        }
+        if let audio = item.allAttachments.first(where: { $0.kind == .audio }) {
+            return ((audio.duration ?? 0).formattedDuration, "waveform")
+        }
+        return nil
+    }
+
     private var statusText: String {
         switch section {
         case .leftByMe: return item.openedAt == nil ? "等着" : "看过"
@@ -317,6 +329,57 @@ private struct DrawerItemCard: View {
 
     private var rotation: Double {
         Double(abs(item.id.uuidString.hashValue % 5) - 2) * 0.22
+    }
+}
+
+private struct DrawerItemLeadingVisual: View {
+    let item: SecretItem
+    private let mediaStore = MediaFileStore()
+
+    var body: some View {
+        let images = item.allAttachments.filter { $0.kind == .image }
+        if images.count > 1 {
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(Array(images.prefix(9).enumerated()), id: \.offset) { _, attachment in
+                    if let image = UIImage(contentsOfFile: mediaStore.url(for: attachment).path) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .aspectRatio(1, contentMode: .fill)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        } else if let attachment = images.first,
+           let image = UIImage(contentsOfFile: mediaStore.url(for: attachment).path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.74), lineWidth: 1)
+                }
+        } else if item.attachment?.kind == .audio {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(item.kind.tint.opacity(0.11))
+                Image(systemName: "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .frame(width: 22, height: 22)
+                    .background(item.kind.tint.opacity(0.88))
+                    .clipShape(Circle())
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(item.kind.tint.opacity(0.16), lineWidth: 1)
+            }
+        } else {
+            ContainerItemIcon(kind: item.kind)
+        }
     }
 }
 
@@ -347,13 +410,14 @@ private struct DrawerItemDetailView: View {
                             Text(item.text)
                                 .font(.system(size: 20, weight: .medium, design: .rounded))
                                 .foregroundStyle(AppTheme.primaryText)
-                                .multilineTextAlignment(.center)
+                                .multilineTextAlignment(.leading)
                                 .lineSpacing(7)
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
-                        if let attachment = item.attachment {
-                            AttachmentContentView(attachment: attachment, tint: item.kind.tint)
+                        if !item.allAttachments.isEmpty {
+                            AttachmentCollectionView(attachments: item.allAttachments, tint: item.kind.tint)
                         }
 
                         Text(item.createdAt.formatted(date: .long, time: .shortened))

@@ -37,7 +37,8 @@ struct ComposeSheet: View {
     @StateObject private var recorder = AudioRecorder()
     @State private var mode: ComposeMode = .text
     @State private var text = ""
-    @State private var selectedMediaItem: PhotosPickerItem?
+    @State private var selectedMediaItems: [PhotosPickerItem] = []
+    @State private var imageDrafts: [AttachmentDraft] = []
     @State private var attachmentDraft: AttachmentDraft?
     @State private var isLoadingAttachment = false
     @State private var isSaving = false
@@ -125,9 +126,9 @@ struct ComposeSheet: View {
         }
         .animation(.easeOut(duration: 0.16), value: mode)
         .animation(.easeOut(duration: 0.22), value: localNotice?.id)
-        .onChange(of: selectedMediaItem) { _, newValue in
-            guard let newValue else { return }
-            Task { await importPickerItem(newValue) }
+        .onChange(of: selectedMediaItems) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            Task { await importPickerItems(newValue) }
         }
         .onChange(of: text) { _, newValue in
             if newValue.count > maxLength {
@@ -156,6 +157,7 @@ struct ComposeSheet: View {
             }
             recorder.discard()
             cleanupTemporaryDraft(attachmentDraft)
+            for draft in imageDrafts { cleanupTemporaryDraft(draft) }
         }
         .interactiveDismissDisabled(isSaving || isPreparingVoicePermission || recorder.isRecording || recorder.isPreparing)
     }
@@ -196,10 +198,11 @@ struct ComposeSheet: View {
             PhotoRitualEditor(
                 kind: kind,
                 text: $text,
-                selectedMediaItem: $selectedMediaItem,
-                draft: attachmentDraft,
+                selectedMediaItems: $selectedMediaItems,
+                drafts: imageDrafts,
                 isLoading: isLoadingAttachment,
-                remove: removeAttachment
+                isFocused: $isFocused,
+                remove: removeImage
             )
         case .voice:
             if let draft = attachmentDraft, draft.kind == .audio {
@@ -260,7 +263,7 @@ struct ComposeSheet: View {
         case .text:
             return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .photo:
-            return attachmentDraft?.kind == .image
+            return !imageDrafts.isEmpty
         case .voice:
             return attachmentDraft?.kind == .audio
         }
@@ -284,6 +287,8 @@ struct ComposeSheet: View {
         text = snapshot.text
         attachmentDraft = snapshot.attachment
         if snapshot.attachment?.kind == .image {
+            imageDrafts = snapshot.attachment.map { [$0] } ?? []
+            attachmentDraft = nil
             mode = .photo
         } else if snapshot.attachment?.kind == .audio {
             mode = .voice
@@ -316,7 +321,7 @@ struct ComposeSheet: View {
             draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
         }
         recorder.discard()
-        removeAttachment()
+        removeAllAttachments()
         let previousMode = mode
         mode = newMode
         if newMode == .voice {
@@ -368,11 +373,12 @@ struct ComposeSheet: View {
         guard canSave else { return }
         isFocused = false
         isSaving = true
-        let draft = attachmentDraft
+        let drafts = mode == .photo ? imageDrafts : (attachmentDraft.map { [$0] } ?? [])
         attachmentDraft = nil
+        imageDrafts = []
 
         Task {
-            let success = await store.add(kind: kind, text: text, attachment: draft)
+            let success = await store.add(kind: kind, text: text, attachments: drafts)
             await MainActor.run {
                 if success {
                     didSave = true
@@ -384,7 +390,11 @@ struct ComposeSheet: View {
                         dismiss()
                     }
                 } else {
-                    attachmentDraft = draft
+                    if mode == .photo {
+                        imageDrafts = drafts
+                    } else {
+                        attachmentDraft = drafts.first
+                    }
                     isSaving = false
                     RitualHaptics.warning()
                     localNotice = LocalNotice(
@@ -396,36 +406,47 @@ struct ComposeSheet: View {
         }
     }
 
-    private func importPickerItem(_ item: PhotosPickerItem) async {
+    private func importPickerItems(_ items: [PhotosPickerItem]) async {
         isFocused = false
         isLoadingAttachment = true
         defer {
             isLoadingAttachment = false
-            selectedMediaItem = nil
+            selectedMediaItems = []
         }
 
-        do {
-            guard let type = item.supportedContentTypes.first(where: { $0.conforms(to: .image) }),
-                  let data = try await item.loadTransferable(type: Data.self) else {
-                throw MediaImportError.unavailable
-            }
-            guard Int64(data.count) <= MediaFileStore.maximumAttachmentBytes else {
-                throw MediaFileError.fileTooLarge
-            }
+        let availableSlots = max(0, 9 - imageDrafts.count)
+        guard availableSlots > 0 else { return }
+        var imported: [AttachmentDraft] = []
 
-            let fileExtension = type.preferredFilenameExtension ?? "jpg"
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("dear-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
-            try data.write(to: url, options: .atomic)
-            guard replaceAttachment(
-                with: AttachmentDraft(
+        do {
+            for item in items.prefix(availableSlots) {
+                guard let type = item.supportedContentTypes.first(where: { $0.conforms(to: .image) }),
+                      let data = try await item.loadTransferable(type: Data.self) else {
+                    throw MediaImportError.unavailable
+                }
+                guard Int64(data.count) <= MediaFileStore.maximumAttachmentBytes else {
+                    throw MediaFileError.fileTooLarge
+                }
+
+                let fileExtension = type.preferredFilenameExtension ?? "jpg"
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("dear-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
+                try data.write(to: url, options: .atomic)
+                imported.append(AttachmentDraft(
                     kind: .image,
                     url: url,
                     originalFilename: "照片.\(fileExtension)"
-                )
-            ) else { return }
+                ))
+            }
+            imageDrafts.append(contentsOf: imported)
             RitualHaptics.selection()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 160_000_000)
+                guard mode == .photo, !imageDrafts.isEmpty else { return }
+                isFocused = true
+            }
         } catch {
+            for draft in imported { cleanupTemporaryDraft(draft) }
             localNotice = LocalNotice(title: "无法读取照片", message: error.localizedDescription)
         }
     }
@@ -456,6 +477,18 @@ struct ComposeSheet: View {
         draftRepository.removeAttachment(spaceID: draftSpaceID, kind: kind)
         cleanupTemporaryDraft(attachmentDraft)
         attachmentDraft = nil
+    }
+
+    private func removeImage(at index: Int) {
+        guard imageDrafts.indices.contains(index) else { return }
+        cleanupTemporaryDraft(imageDrafts.remove(at: index))
+    }
+
+    private func removeAllAttachments() {
+        removeAttachment()
+        for draft in imageDrafts { cleanupTemporaryDraft(draft) }
+        imageDrafts = []
+        selectedMediaItems = []
     }
 
     private func cleanupTemporaryDraft(_ draft: AttachmentDraft?) {
@@ -530,102 +563,175 @@ private struct WhisperPaperEditor: View {
 private struct PhotoRitualEditor: View {
     let kind: ContainerKind
     @Binding var text: String
-    @Binding var selectedMediaItem: PhotosPickerItem?
-    let draft: AttachmentDraft?
+    @Binding var selectedMediaItems: [PhotosPickerItem]
+    let drafts: [AttachmentDraft]
     let isLoading: Bool
-    let remove: () -> Void
+    var isFocused: FocusState<Bool>.Binding
+    let remove: (Int) -> Void
 
     var body: some View {
-        VStack(spacing: 13) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(AppTheme.paper.opacity(0.94))
-                    .shadow(color: Color.black.opacity(0.07), radius: 22, y: 12)
+        Group {
+            if drafts.isEmpty {
+                emptyPicker
+            } else {
+                selectedPhotos
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.vertical, 6)
+        .opacity(isLoading ? 0.48 : 1)
+        .overlay {
+            if isLoading {
+                ProgressView()
+                    .tint(kind.tint)
+                    .padding(16)
+                    .background(.thinMaterial)
+                    .clipShape(Circle())
+            }
+        }
+        .allowsHitTesting(!isLoading)
+    }
 
-                if let draft,
-                   draft.kind == .image,
-                   let image = UIImage(contentsOfFile: draft.url.path) {
+    private var emptyPicker: some View {
+        photoPicker {
+            VStack(spacing: 13) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(kind.tint)
+
+                Text("选择照片")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text("一次最多选择 9 张")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(kind.tint.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(kind.tint.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [6, 7]))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+
+    private var selectedPhotos: some View {
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "pencil.line")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(kind.tint.opacity(0.72))
+                    .padding(.top, 3)
+
+                TextField("继续写点什么…", text: $text, axis: .vertical)
+                    .focused(isFocused)
+                    .lineLimit(1...3)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(kind.tint.opacity(0.16))
+                    .frame(height: 1)
+            }
+
+            HStack(spacing: 12) {
+                Text("\(drafts.count) 张照片")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
+
+                Spacer()
+
+                if drafts.count < 9 {
+                    photoPicker {
+                        Label("添加照片", systemImage: "plus")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(kind.tint)
+                            .frame(height: 30)
+                    }
+                }
+            }
+
+            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 8) {
+                ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
+                    PhotoDraftTile(
+                        draft: draft,
+                        index: index,
+                        remove: remove
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var gridColumns: [GridItem] {
+        let columnCount = min(3, max(1, drafts.count))
+        let maximumWidth: CGFloat
+        switch columnCount {
+        case 1: maximumWidth = 236
+        case 2: maximumWidth = 150
+        default: maximumWidth = 96
+        }
+        return Array(
+            repeating: GridItem(.flexible(minimum: 64, maximum: maximumWidth), spacing: 8),
+            count: columnCount
+        )
+    }
+
+    private func photoPicker<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+        PhotosPicker(
+            selection: $selectedMediaItems,
+            maxSelectionCount: max(1, 9 - drafts.count),
+            matching: .images,
+            photoLibrary: .shared()
+        ) { label() }
+        .buttonStyle(SoftScaleButtonStyle())
+        .disabled(isLoading || drafts.count >= 9)
+    }
+}
+
+private struct PhotoDraftTile: View {
+    let draft: AttachmentDraft
+    let index: Int
+    let remove: (Int) -> Void
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image = UIImage(contentsOfFile: draft.url.path) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: 310)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .padding(12)
-                        .overlay(alignment: .topTrailing) {
-                            Button {
-                                RitualHaptics.selection()
-                                remove()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(AppTheme.primaryText.opacity(0.72))
-                                    .frame(width: 38, height: 38)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(SoftScaleButtonStyle())
-                            .padding(20)
-                            .accessibilityLabel("移除照片")
-                        }
                 } else {
-                    PhotosPicker(
-                        selection: $selectedMediaItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        VStack(spacing: 15) {
-                            ZStack {
-                                Circle()
-                                    .fill(kind.tint.opacity(0.12))
-                                    .frame(width: 86, height: 86)
-                                Image(systemName: "photo.on.rectangle.angled")
-                                    .font(.system(size: 30, weight: .light))
-                                    .foregroundStyle(kind.tint)
-                            }
-                            Text("选择照片")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.primaryText)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(SoftScaleButtonStyle())
-                    .disabled(isLoading)
-                }
-
-                if isLoading {
-                    ZStack {
-                        Color.white.opacity(0.58)
-                        ProgressView()
-                            .tint(kind.tint)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundStyle(AppTheme.secondaryText.opacity(0.36))
                 }
             }
-            .frame(minHeight: 250, maxHeight: 340)
-
-            if draft?.kind == .image {
-                HStack(alignment: .top, spacing: 9) {
-                    Image(systemName: "pencil.line")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(kind.tint.opacity(0.72))
-                        .padding(.top, 3)
-
-                    TextField("添加说明（可选）", text: $text, axis: .vertical)
-                        .lineLimit(1...3)
-                        .font(.system(.subheadline, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    RitualHaptics.selection()
+                    remove(index)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Color.black.opacity(0.46))
+                        .clipShape(Circle())
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(kind.tint.opacity(0.16))
-                        .frame(height: 1)
-                }
+                .buttonStyle(SoftScaleButtonStyle())
+                .padding(6)
+                .accessibilityLabel("移除第 \(index + 1) 张照片")
             }
-        }
-        .padding(.vertical, 6)
     }
 }
 

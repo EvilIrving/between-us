@@ -321,9 +321,9 @@ private struct CapsuleKeepsakeVisual: View {
     let shadowScale: CGFloat
 
     private let positions: [CGPoint] = [
-        .init(x: 0.30, y: 0.57), .init(x: 0.49, y: 0.56), .init(x: 0.68, y: 0.56),
-        .init(x: 0.35, y: 0.72), .init(x: 0.56, y: 0.71), .init(x: 0.72, y: 0.72),
-        .init(x: 0.27, y: 0.80), .init(x: 0.47, y: 0.82)
+        .init(x: 0.36, y: 0.54), .init(x: 0.55, y: 0.54), .init(x: 0.67, y: 0.60),
+        .init(x: 0.43, y: 0.63), .init(x: 0.58, y: 0.64), .init(x: 0.31, y: 0.63),
+        .init(x: 0.48, y: 0.56), .init(x: 0.70, y: 0.54)
     ]
 
     var body: some View {
@@ -332,58 +332,105 @@ private struct CapsuleKeepsakeVisual: View {
             let height = proxy.size.height
             let clampedProgress = min(max(progress, 0), 1)
             let shell = SuperellipseShape(exponent: ParametricPreset.keepsakeBoxExponent)
+            let reveal = pow(clampedProgress, 0.72)
 
             ZStack {
                 Ellipse()
-                    .fill(Color.black.opacity(0.10))
-                    .frame(width: width * 0.72, height: height * 0.10)
-                    .blur(radius: 8 * shadowScale)
-                    .offset(y: height * 0.35)
+                    .fill(Color.black.opacity(0.09))
+                    .frame(width: width * 0.66, height: height * 0.075)
+                    .blur(radius: 9 * shadowScale)
+                    .offset(y: height * 0.31)
 
                 ProceduralSurface(
                     shape: shell,
                     palette: .sageEnamel,
-                    edgeWidth: max(1.1, width * 0.007),
-                    shadowRadius: 11 * shadowScale,
-                    shadowY: 7 * shadowScale
+                    edgeWidth: max(1, width * 0.006),
+                    shadowRadius: 10 * shadowScale,
+                    shadowY: 6 * shadowScale
                 )
-                .frame(width: width * 0.82, height: height * 0.50)
-                .offset(y: height * 0.17)
+                .frame(width: width * 0.76, height: height * 0.37)
+                .offset(y: height * 0.12)
 
                 shell
-                    .fill(Color(red: 0.88, green: 0.84, blue: 0.74).opacity(0.70))
-                    .overlay { shell.stroke(Color.white.opacity(0.52), lineWidth: 1) }
-                    .frame(width: width * 0.71, height: height * 0.34)
-                    .offset(y: height * 0.14)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.91, green: 0.89, blue: 0.80),
+                                Color(red: 0.76, green: 0.78, blue: 0.68)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay {
+                        shell.stroke(Color.white.opacity(0.62), lineWidth: max(1, width * 0.005))
+                    }
+                    .frame(width: width * 0.66, height: height * 0.25)
+                    .offset(y: height * 0.085)
+                    .opacity(0.12 + reveal * 0.88)
+
+                HStack(spacing: 0) {
+                    Rectangle().fill(Color.white.opacity(0.42))
+                    Rectangle().fill(Color.white.opacity(0.24))
+                    Rectangle().fill(Color.white.opacity(0.34))
+                }
+                .frame(width: width * 0.50, height: 1)
+                .offset(y: height * 0.085)
+                .opacity(reveal * 0.55)
 
                 ForEach(0..<min(count, positions.count), id: \.self) { index in
                     let position = positions[index]
                     ParametricTokenView(kind: .capsule, seed: index)
-                        .frame(width: width * 0.18, height: width * 0.072)
+                        .frame(width: width * 0.15, height: width * 0.058)
                         .rotationEffect(.degrees(Double(index.isMultiple(of: 2) ? -15 : 13)))
                         .position(x: width * position.x, y: height * position.y)
-                        .offset(y: -clampedProgress * height * CGFloat(0.018 + Double(index % 3) * 0.005))
+                        .offset(y: -reveal * height * CGFloat(0.008 + Double(index % 3) * 0.004))
+                        .scaleEffect(0.88 + reveal * 0.12)
+                        .opacity(reveal)
                 }
 
-                ProceduralSurface(
-                    shape: shell,
-                    palette: .sageEnamel,
-                    edgeWidth: max(1.1, width * 0.007),
-                    highlightStrength: isActive ? 1 : 0.72,
-                    shadowRadius: 9 * shadowScale,
-                    shadowY: 5 * shadowScale
-                )
-                .frame(width: width * 0.82, height: height * 0.29)
-                .offset(
-                    x: clampedProgress * clampedProgress * width * 0.05,
-                    y: -height * 0.17 - sin(clampedProgress * .pi / 2) * height * 0.14
-                )
+                HStack(spacing: width * 0.25) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color(red: 0.66, green: 0.53, blue: 0.31).opacity(0.72))
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color(red: 0.66, green: 0.53, blue: 0.31).opacity(0.72))
+                }
+                .frame(width: width * 0.40, height: max(3, height * 0.018))
+                .offset(y: -height * 0.075)
+                .opacity(0.35 + reveal * 0.65)
+
+                ZStack {
+                    ProceduralSurface(
+                        shape: shell,
+                        palette: .sageEnamel,
+                        edgeWidth: max(1, width * 0.006),
+                        highlightStrength: isActive ? 1 : 0.76,
+                        shadowRadius: (7 + reveal * 6) * shadowScale,
+                        shadowY: (4 + reveal * 3) * shadowScale
+                    )
+
+                    shell
+                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                        .padding(width * 0.032)
+
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color(red: 0.72, green: 0.58, blue: 0.34).opacity(0.76))
+                        .frame(width: width * 0.09, height: max(3, height * 0.022))
+                        .offset(y: height * 0.15)
+                }
+                .frame(width: width * 0.76, height: height * 0.37)
+                .offset(y: height * (0.075 - clampedProgress * 0.012))
                 .rotation3DEffect(
-                    .degrees(5 + Double(clampedProgress) * 72),
+                    .degrees(-Double(clampedProgress) * 72),
                     axis: (x: 1, y: 0, z: 0),
-                    anchor: .bottom,
-                    perspective: 0.42
+                    anchor: .top,
+                    perspective: 0.55
                 )
+
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Color(red: 0.68, green: 0.54, blue: 0.31).opacity(0.76))
+                    .frame(width: width * 0.10, height: max(3, height * 0.022))
+                    .offset(y: height * 0.295)
             }
         }
     }
@@ -396,10 +443,10 @@ private struct PaperHolderVisual: View {
     let shadowScale: CGFloat
 
     private let paperPositions: [CGPoint] = [
-        .init(x: 0.38, y: 0.40), .init(x: 0.55, y: 0.42), .init(x: 0.66, y: 0.48),
-        .init(x: 0.31, y: 0.51), .init(x: 0.47, y: 0.53), .init(x: 0.62, y: 0.57),
-        .init(x: 0.39, y: 0.61), .init(x: 0.54, y: 0.64), .init(x: 0.68, y: 0.64),
-        .init(x: 0.31, y: 0.67), .init(x: 0.46, y: 0.70)
+        .init(x: 0.42, y: 0.72), .init(x: 0.55, y: 0.74), .init(x: 0.63, y: 0.69),
+        .init(x: 0.35, y: 0.77), .init(x: 0.49, y: 0.79), .init(x: 0.62, y: 0.78),
+        .init(x: 0.40, y: 0.67), .init(x: 0.54, y: 0.68), .init(x: 0.66, y: 0.73),
+        .init(x: 0.33, y: 0.71), .init(x: 0.48, y: 0.75)
     ]
 
     var body: some View {
@@ -435,9 +482,25 @@ private struct PaperHolderVisual: View {
                 ForEach(0..<min(count, paperPositions.count), id: \.self) { index in
                     let position = paperPositions[index]
                     ParametricTokenView(kind: .paper, seed: index)
-                        .frame(width: width * 0.16, height: width * 0.15)
-                        .position(x: width * position.x, y: height * position.y - clampedProgress * height * 0.025)
+                        .frame(width: width * 0.145, height: width * 0.14)
+                        .position(x: width * position.x, y: height * position.y - clampedProgress * height * 0.012)
                 }
+
+                bin
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.00),
+                                .init(color: .clear, location: 0.30),
+                                .init(color: ProceduralPalette.paperFiber.base.opacity(0.78), location: 0.52),
+                                .init(color: ProceduralPalette.paperFiber.shade.opacity(0.94), location: 1.00)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: width * 0.68, height: height * 0.66)
+                    .offset(y: height * 0.13)
 
                 SuperellipseShape(exponent: 3.2)
                     .stroke(ProceduralPalette.paperFiber.highlight.opacity(0.82), lineWidth: max(3, width * 0.025))

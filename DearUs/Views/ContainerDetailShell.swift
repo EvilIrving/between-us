@@ -45,14 +45,16 @@ struct ContainerDetailShell<Content: View>: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
 
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.76))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .padding(.horizontal, 30)
-                        .padding(.top, 7)
-                        .padding(.bottom, 3)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.76))
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .padding(.horizontal, 30)
+                            .padding(.top, 7)
+                            .padding(.bottom, 3)
+                    }
 
                     content
                         .padding(.horizontal, 20)
@@ -80,7 +82,7 @@ struct ContainerRitualScene: View {
         ContainerDetailShell(
             kind: kind,
             title: kind.title,
-            subtitle: sceneSubtitle
+            subtitle: ""
         ) {
             VStack(spacing: 14) {
                 ContainerHoldStage(
@@ -97,8 +99,7 @@ struct ContainerRitualScene: View {
                 ExchangeBalanceView(
                     kind: kind,
                     credits: credits,
-                    waiting: unopenedCount,
-                    status: balanceWhisper
+                    waiting: unopenedCount
                 )
 
                 RitualActionToken(
@@ -117,11 +118,17 @@ struct ContainerRitualScene: View {
             openingTask = nil
             isOpening = false
         }
-        .fullScreenCover(isPresented: $showCompose) {
+        .sheet(isPresented: $showCompose) {
             ComposeSheet(kind: kind)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(30)
         }
-        .fullScreenCover(item: $revealedItem) { item in
+        .sheet(item: $revealedItem) { item in
             RevealSheet(item: item)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(30)
         }
     }
 
@@ -130,20 +137,6 @@ struct ContainerRitualScene: View {
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: kind) }
     private var sharedCount: Int { data.count(kind: kind) }
     private var canOpen: Bool { credits > 0 && unopenedCount > 0 && !isOpening }
-
-    private var sceneSubtitle: String {
-        switch kind {
-        case .star, .capsule: return "留下一件，才能打开一件。"
-        case .paper: return "慢慢按住，确定后再打开。"
-        }
-    }
-
-    private var balanceWhisper: String {
-        if credits > 0, unopenedCount > 0 { return "可以打开一件" }
-        if credits == 0, unopenedCount > 0 { return "先留下一件" }
-        if credits > 0 { return "等待对方留下内容" }
-        return "还没有内容"
-    }
 
     private var unavailableWhisper: String {
         if credits == 0 { return "先留下一件" }
@@ -204,21 +197,10 @@ private struct ContainerHoldStage: View {
                     .padding(.vertical, 8)
                 }
 
-                HStack(spacing: 10) {
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(kind.tint.opacity(0.12))
-                        Capsule()
-                            .fill(kind.tint)
-                            .scaleEffect(x: progress, anchor: .leading)
-                    }
-                    .frame(width: 52, height: 5)
-
-                    Text(isWorking ? "正在打开" : title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.54))
-                }
-                .frame(height: 20)
+                Text(isWorking ? "正在打开" : title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(labelStyle(progress: progress))
+                    .frame(height: 20)
             }
             .contentShape(Rectangle())
         }
@@ -231,13 +213,47 @@ private struct ContainerHoldStage: View {
             onComplete()
         }
     }
+
+    private func labelStyle(progress: CGFloat) -> LinearGradient {
+        let restingColor = isEnabled
+            ? AppTheme.secondaryText.opacity(0.42)
+            : AppTheme.secondaryText.opacity(0.54)
+        let filledColor = isWorking ? kind.tint : kind.tint.opacity(0.96)
+        let fill = isWorking ? 1 : min(max(progress, 0), 1)
+
+        if !isEnabled || fill == 0 {
+            return LinearGradient(
+                colors: [restingColor, restingColor],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+
+        if fill == 1 {
+            return LinearGradient(
+                colors: [filledColor, filledColor],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+
+        return LinearGradient(
+            stops: [
+                .init(color: filledColor, location: 0),
+                .init(color: filledColor, location: fill),
+                .init(color: restingColor, location: min(fill + 0.018, 1)),
+                .init(color: restingColor, location: 1)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
 }
 
 struct ExchangeBalanceView: View {
     let kind: ContainerKind
     let credits: Int
     let waiting: Int
-    let status: String
 
     var body: some View {
         HStack(spacing: 0) {
@@ -246,24 +262,14 @@ struct ExchangeBalanceView: View {
                 .fill(AppTheme.border)
                 .frame(width: 1, height: 34)
             BalanceValue(value: waiting, label: "待打开", tint: kind.tint)
-
-            Rectangle()
-                .fill(AppTheme.border)
-                .frame(width: 1, height: 34)
-
-            Text(status)
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.70))
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 15)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 15)
         .padding(.vertical, 12)
         .background(Color.white.opacity(0.24))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("可打开 \(credits) 次，还有 \(waiting) 件内容等你打开。\(status)")
+        .accessibilityLabel("可打开 \(credits) 次，还有 \(waiting) 件内容等你打开")
     }
 }
 
@@ -281,7 +287,7 @@ private struct BalanceValue: View {
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
         }
-        .frame(width: 66)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel("\(label) \(value) 件")
     }
 }

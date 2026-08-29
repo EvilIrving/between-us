@@ -111,6 +111,115 @@ enum LocalPreview {
         )
     }
 
+    @discardableResult
+    static func replenishInteractiveContent(in data: inout AppData, minimum: Int = 2) -> Bool {
+        guard data.isLocalPreview else { return false }
+        var changed = false
+        let target = max(1, minimum)
+        let now = Date()
+
+        for kind in ContainerKind.allCases {
+            let creditShortfall = max(0, target - data.activeCredits(kind: kind))
+            let waitingShortfall = max(0, target - data.unopenedCountFromCounterpart(kind: kind))
+
+            for index in 0..<creditShortfall {
+                let item = SecretItem(
+                    kind: kind,
+                    authorID: currentUserID,
+                    text: previewText(for: kind, fromCounterpart: false, index: index),
+                    createdAt: now.addingTimeInterval(-Double(creditShortfall - index + 4) * 900),
+                    updatedAt: now.addingTimeInterval(-Double(creditShortfall - index + 4) * 900)
+                )
+                data.items[item.recordName] = item
+                changed = true
+            }
+
+            for index in 0..<waitingShortfall {
+                let item = SecretItem(
+                    kind: kind,
+                    authorID: counterpartID,
+                    text: previewText(for: kind, fromCounterpart: true, index: index),
+                    createdAt: now.addingTimeInterval(-Double(waitingShortfall - index + 1) * 600),
+                    updatedAt: now.addingTimeInterval(-Double(waitingShortfall - index + 1) * 600)
+                )
+                data.items[item.recordName] = item
+                changed = true
+            }
+        }
+
+        return changed
+    }
+
+    @discardableResult
+    static func installAttachmentDemos(
+        in data: inout AppData,
+        attachments: LocalPreviewAttachments
+    ) -> Bool {
+        guard data.isLocalPreview else { return false }
+        guard let firstImage = attachments.images.first else { return false }
+        let remainingImages = Array(attachments.images.dropFirst())
+        let now = Date()
+        let imageDate = Date(timeIntervalSince1970: 1_704_067_200)
+        let audioDate = imageDate.addingTimeInterval(60)
+        let demos = [
+            SecretItem(
+                id: UUID(uuidString: "56A0C0DE-0001-4000-8000-000000000001")!,
+                kind: .capsule,
+                authorID: currentUserID,
+                text: "下班路上，天刚好是这个颜色。",
+                createdAt: now.addingTimeInterval(-240),
+                updatedAt: now.addingTimeInterval(-240),
+                attachment: firstImage,
+                additionalAttachments: remainingImages
+            ),
+            SecretItem(
+                id: UUID(uuidString: "56A0C0DE-0002-4000-8000-000000000002")!,
+                kind: .capsule,
+                authorID: currentUserID,
+                text: "给你留了一小段语音。",
+                createdAt: now.addingTimeInterval(-120),
+                updatedAt: now.addingTimeInterval(-120),
+                attachment: attachments.audio
+            ),
+            SecretItem(
+                id: UUID(uuidString: "56A0C0DE-0003-4000-8000-000000000003")!,
+                kind: .capsule,
+                authorID: counterpartID,
+                text: "今天窗边的光很温柔，想让你也看看。",
+                createdAt: imageDate,
+                updatedAt: imageDate,
+                attachment: firstImage,
+                additionalAttachments: remainingImages
+            ),
+            SecretItem(
+                id: UUID(uuidString: "56A0C0DE-0004-4000-8000-000000000004")!,
+                kind: .capsule,
+                authorID: counterpartID,
+                text: "有句话想慢慢说给你听。",
+                createdAt: audioDate,
+                updatedAt: audioDate,
+                attachment: attachments.audio
+            )
+        ]
+
+        var changed = false
+        for demo in demos {
+            if var existing = data.items[demo.recordName] {
+                if existing.attachment != demo.attachment
+                    || existing.additionalAttachments != demo.additionalAttachments {
+                    existing.attachment = demo.attachment
+                    existing.additionalAttachments = demo.additionalAttachments
+                    data.items[demo.recordName] = existing
+                    changed = true
+                }
+            } else {
+                data.items[demo.recordName] = demo
+                changed = true
+            }
+        }
+        return changed
+    }
+
     private static func seededItems() -> [SecretItem] {
         let now = Date()
         func hoursAgo(_ hours: Double) -> Date {
@@ -177,6 +286,29 @@ enum LocalPreview {
                 updatedAt: hoursAgo(3)
             )
         ]
+    }
+
+    private static func previewText(
+        for kind: ContainerKind,
+        fromCounterpart: Bool,
+        index: Int
+    ) -> String {
+        let choices: [String]
+        switch (kind, fromCounterpart) {
+        case (.star, false):
+            choices = ["今天也有一个瞬间，想悄悄留给你。", "谢谢你愿意和我一起慢慢来。"]
+        case (.star, true):
+            choices = ["刚才想到你，心里亮了一小会儿。", "有些温柔很小，但我一直记得。"]
+        case (.capsule, false):
+            choices = ["别急着把今天做完，先照顾好自己。", "这件事可以慢一点，我们一起想。"]
+        case (.capsule, true):
+            choices = ["你已经做得很好了，不需要一直证明自己。", "如果累了就停一下，我会在这里。"]
+        case (.paper, false):
+            choices = ["今天有点难受，我想先把它说出来。", "这件事让我有些委屈，需要一点时间。"]
+        case (.paper, true):
+            choices = ["我刚才有点沉默，不是在怪你。", "心里还有一点乱，但我愿意慢慢告诉你。"]
+        }
+        return choices[index % choices.count]
     }
 }
 
@@ -251,7 +383,9 @@ extension AppData {
     }
 
     var totalAttachmentBytes: Int64 {
-        items.values.reduce(0) { $0 + ($1.attachment?.byteCount ?? 0) }
+        items.values.reduce(0) { total, item in
+            total + item.allAttachments.reduce(0) { $0 + $1.byteCount }
+        }
     }
 }
 

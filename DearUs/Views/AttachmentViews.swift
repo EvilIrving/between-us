@@ -121,6 +121,57 @@ struct AttachmentContentView: View {
     }
 }
 
+struct AttachmentCollectionView: View {
+    let attachments: [AttachmentMetadata]
+    var tint: Color = ContainerKind.capsule.tint
+
+    private let mediaStore = MediaFileStore()
+
+    var body: some View {
+        let images = attachments.filter { $0.kind == .image }
+        if images.count == attachments.count, images.count > 1 {
+            let columns = Array(
+                repeating: GridItem(.flexible(), spacing: 7),
+                count: images.count == 2 ? 2 : 3
+            )
+            LazyVGrid(columns: columns, spacing: 7) {
+                ForEach(Array(images.enumerated()), id: \.offset) { _, attachment in
+                    SavedImageTile(
+                        image: UIImage(contentsOfFile: mediaStore.url(for: attachment).path)
+                    )
+                }
+            }
+        } else {
+            VStack(spacing: 10) {
+                ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
+                    AttachmentContentView(attachment: attachment, tint: tint)
+                }
+            }
+        }
+    }
+}
+
+private struct SavedImageTile: View {
+    let image: UIImage?
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct ImageAttachmentView: View {
     let url: URL
 
@@ -130,14 +181,7 @@ private struct ImageAttachmentView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: 430)
-                .padding(7)
-                .background(Color.white.opacity(0.54))
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.72), lineWidth: 1)
-                }
-                .shadow(color: Color.black.opacity(0.07), radius: 20, y: 10)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         } else {
             VStack(spacing: 10) {
                 Image(systemName: "photo")
@@ -303,12 +347,6 @@ private struct AudioAttachmentView: View {
         }
         .padding(.horizontal, 17)
         .padding(.vertical, 18)
-        .background(Color.white.opacity(0.34))
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(Color.white.opacity(0.58), lineWidth: 1)
-        }
         .onDisappear { controller.stop() }
     }
 

@@ -5,6 +5,12 @@ import OSLog
 final actor DearUsStore: Sendable, ObservableObject {
     static let container = CKContainer.default()
 
+    private enum RelationshipOperation {
+        case creating
+        case accepting
+        case ending
+    }
+
     @MainActor @Published var viewModel = AppViewModel()
 
     private let repository: LocalStateRepository
@@ -14,6 +20,8 @@ final actor DearUsStore: Sendable, ObservableObject {
     private var appData: AppData
     private var privateSyncEngine: CKSyncEngine?
     private var sharedSyncEngine: CKSyncEngine?
+    private var syncEngineScopes: [ObjectIdentifier: CKDatabase.Scope] = [:]
+    private var relationshipOperation: RelationshipOperation?
     private var didStart = false
 
     private let logger = Logger(
@@ -77,7 +85,10 @@ final actor DearUsStore: Sendable, ObservableObject {
         appData = LocalPreview.makeAppData()
         privateSyncEngine = nil
         sharedSyncEngine = nil
-        try? persist()
+        _ = await persistOrReport(
+            context: "保存本机预览状态",
+            noticeMessage: "本机预览可以继续使用，但这次状态可能无法保留到下次启动。"
+        )
         await presentLocalPreview()
     }
 
@@ -86,13 +97,37 @@ final actor DearUsStore: Sendable, ObservableObject {
         appData = AppData()
         privateSyncEngine = nil
         sharedSyncEngine = nil
-        try? repository.reset()
+        do {
+            try repository.reset()
+        } catch {
+            logger.error("Failed to reset local preview state: \(error.localizedDescription, privacy: .public)")
+        }
         try? mediaStore.removeAll()
         composeDraftRepository.clearAll()
-        try? persist()
+        _ = await persistOrReport(
+            context: "保存退出本机预览后的状态",
+            noticeMessage: "退出状态未能写入本机，请重新打开 App 后再试。"
+        )
         await publishData()
         await setSyncStatus(.idle)
         _ = await refreshAccountState()
+    }
+
+    func replenishLocalPreview() async {
+        guard appData.isLocalPreview else { return }
+        let changed = prepareLocalPreviewContent()
+        if changed {
+            let persisted = await persistOrReport(
+                context: "保存补充后的演示内容",
+                noticeMessage: "演示内容已经补充，但这次变化可能无法保留到下次启动。"
+            )
+            await publishData()
+            guard persisted else { return }
+        }
+        await showNotice(
+            title: "演示内容已补充",
+            message: "三个容器现在都可以打开。"
+        )
     }
 
     func refresh() async {
@@ -109,9 +144,14 @@ final actor DearUsStore: Sendable, ObservableObject {
             await recoverMissingAttachments(in: relationship)
             try await engine.sendChanges()
             appData.lastSuccessfulSyncAt = Date()
-            try persist()
+            let persisted = await persistOrReport(
+                context: "保存手动同步结果",
+                syncScope: relationship.scope.databaseScope
+            )
             await publishData()
-            await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            if persisted {
+                await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            }
         } catch {
             logger.info("Manual sync deferred: \(error.localizedDescription, privacy: .public)")
             await setSyncStatus(.attention("网络恢复后会自动重试"))
@@ -119,14 +159,23 @@ final actor DearUsStore: Sendable, ObservableObject {
     }
 
     func createRelationship() async {
+        guard relationshipOperation == nil else {
+            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            return
+        }
+        relationshipOperation = .creating
+        await setPerformingAction(true)
+        await performCreateRelationship()
+        await setPerformingAction(false)
+        relationshipOperation = nil
+    }
+
+    private func performCreateRelationship() async {
         guard appData.relationship == nil else { return }
         guard !appData.currentUserID.isEmpty else {
             await showNotice(title: "无法创建", message: "请先在系统设置中登录 iCloud。")
             return
         }
-
-        await setPerformingAction(true)
-        defer { Task { await self.setPerformingAction(false) } }
 
         let originalData = appData
         var createdZoneID: CKRecordZone.ID?
@@ -181,7 +230,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             appData = originalData
             privateSyncEngine = nil
             sharedSyncEngine = nil
-            try? persist()
+            _ = await persistOrReport(context: "恢复创建共同空间前的本机状态")
             await publishData()
             await setPhase(.needsRelationship)
             logger.error("Failed to create relationship: \(error.localizedDescription, privacy: .public)")
@@ -240,6 +289,18 @@ final actor DearUsStore: Sendable, ObservableObject {
     }
 
     func acceptShare(_ metadata: CKShare.Metadata) async {
+        guard relationshipOperation == nil else {
+            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            return
+        }
+        relationshipOperation = .accepting
+        await setPerformingAction(true)
+        await performAcceptShare(metadata)
+        await setPerformingAction(false)
+        relationshipOperation = nil
+    }
+
+    private func performAcceptShare(_ metadata: CKShare.Metadata) async {
         let incomingZoneID = metadata.share.recordID.zoneID
         if let existing = appData.relationship {
             if existing.zoneID == incomingZoneID {
@@ -259,8 +320,6 @@ final actor DearUsStore: Sendable, ObservableObject {
             return
         }
 
-        await setPerformingAction(true)
-        defer { Task { await self.setPerformingAction(false) } }
         var didAcceptShare = false
 
         do {
@@ -291,9 +350,14 @@ final actor DearUsStore: Sendable, ObservableObject {
                     try await sharedSyncEngine.fetchChanges()
                 }
                 appData.lastSuccessfulSyncAt = Date()
-                try persist()
+                let persisted = await persistOrReport(
+                    context: "保存加入后的首次同步结果",
+                    syncScope: .shared
+                )
                 await publishData()
-                await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+                if persisted {
+                    await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+                }
             } catch {
                 logger.info("Share accepted; initial sync deferred: \(error.localizedDescription, privacy: .public)")
                 await setSyncStatus(.attention("已加入，网络恢复后会继续同步"))
@@ -316,18 +380,21 @@ final actor DearUsStore: Sendable, ObservableObject {
     func add(
         kind: ContainerKind,
         text: String,
-        attachment draft: AttachmentDraft? = nil
+        attachments drafts: [AttachmentDraft] = []
     ) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count <= 4_000,
-              (!trimmed.isEmpty || draft != nil),
+              (!trimmed.isEmpty || !drafts.isEmpty),
+              drafts.count <= 9,
               let relationship = appData.relationship,
               !appData.currentUserID.isEmpty else { return false }
 
         let itemID = UUID()
-        let attachment: AttachmentMetadata?
+        let attachments: [AttachmentMetadata]
         do {
-            attachment = try draft.map { try mediaStore.importDraft($0, itemID: itemID) }
+            attachments = try drafts.enumerated().map { index, draft in
+                try mediaStore.importDraft(draft, itemID: itemID, slot: index)
+            }
         } catch {
             await showNotice(title: "无法加入附件", message: error.localizedDescription)
             return false
@@ -338,7 +405,8 @@ final actor DearUsStore: Sendable, ObservableObject {
             kind: kind,
             authorID: appData.currentUserID,
             text: trimmed,
-            attachment: attachment
+            attachment: attachments.first,
+            additionalAttachments: attachments.count > 1 ? Array(attachments.dropFirst()) : nil
         )
         appData.items[item.recordName] = item
         appData.dirtyRecordNames.insert(item.recordName)
@@ -351,12 +419,12 @@ final actor DearUsStore: Sendable, ObservableObject {
                 queueSave(item.recordID(in: relationship), scope: scope)
                 Task { await self.sendQueuedChanges(scope: scope) }
             }
-            cleanupTemporaryDraft(draft)
+            for draft in drafts { cleanupTemporaryDraft(draft) }
             return true
         } catch {
             appData.items[item.recordName] = nil
             appData.dirtyRecordNames.remove(item.recordName)
-            if let attachment {
+            for attachment in attachments {
                 try? mediaStore.remove(attachment)
             }
             await showNotice(title: "没有保存下来", message: "本机存储失败，请稍后再试。")
@@ -390,13 +458,23 @@ final actor DearUsStore: Sendable, ObservableObject {
     }
 
     func endRelationship() async {
+        guard relationshipOperation == nil else {
+            await showNotice(title: "请稍候", message: "另一项共同空间操作还在进行中。")
+            return
+        }
+        relationshipOperation = .ending
+        await setPerformingAction(true)
+        await performEndRelationship()
+        await setPerformingAction(false)
+        relationshipOperation = nil
+    }
+
+    private func performEndRelationship() async {
         if appData.isLocalPreview {
             await leaveLocalPreview()
             return
         }
         guard let relationship = appData.relationship else { return }
-        await setPerformingAction(true)
-        defer { Task { await self.setPerformingAction(false) } }
 
         do {
             let shareID = CKRecord.ID(
@@ -428,12 +506,7 @@ final actor DearUsStore: Sendable, ObservableObject {
             try? mediaStore.removeAll()
             composeDraftRepository.clearAll()
             initializeSyncEnginesIfNeeded()
-            do {
-                try persist()
-            } catch {
-                try? repository.reset()
-                logger.error("Relationship ended remotely but local reset could not be persisted: \(error.localizedDescription, privacy: .public)")
-            }
+            _ = await persistRelationshipRemoval(context: "保存结束共同空间后的本机状态")
             await publishData()
             await setPhase(.needsRelationship)
             await setSyncStatus(.idle)
@@ -472,7 +545,7 @@ final actor DearUsStore: Sendable, ObservableObject {
         try? mediaStore.removeAll()
         composeDraftRepository.clearAll()
         initializeSharedSyncEngine()
-        try? persist()
+        _ = await persistRelationshipRemoval(context: "保存停止共享后的本机状态")
         await publishData()
         await setPhase(.needsRelationship)
         await setSyncStatus(.idle)
@@ -520,18 +593,24 @@ extension DearUsStore: CKSyncEngineDelegate {
 
         switch event {
         case .stateUpdate(let event):
-            if scope == .private {
+            switch scope {
+            case .private:
                 appData.privateSyncState = event.stateSerialization
-            } else {
+            case .shared:
                 appData.sharedSyncState = event.stateSerialization
+            default:
+                break
             }
-            try? persist()
+            _ = await persistOrReport(
+                context: "保存 \(scope) 同步游标",
+                syncScope: scope
+            )
 
         case .accountChange(let event):
             await handleAccountChange(event)
 
         case .fetchedDatabaseChanges(let event):
-            await handleFetchedDatabaseChanges(event)
+            await handleFetchedDatabaseChanges(event, syncEngine: syncEngine)
 
         case .fetchedRecordZoneChanges(let event):
             await handleFetchedRecordZoneChanges(event, syncEngine: syncEngine)
@@ -543,25 +622,37 @@ extension DearUsStore: CKSyncEngineDelegate {
             break
 
         case .willFetchChanges, .willFetchRecordZoneChanges, .willSendChanges:
-            await setSyncStatus(.syncing)
+            if isCurrentRelationshipScope(scope) {
+                await setSyncStatus(.syncing)
+            }
 
         case .didFetchRecordZoneChanges:
             break
 
         case .didFetchChanges:
-            if appData.relationship?.scope.databaseScope == scope {
-                appData.hasCompletedInitialSync = true
-            }
+            guard isCurrentRelationshipScope(scope) else { break }
+            appData.hasCompletedInitialSync = true
             appData.lastSuccessfulSyncAt = Date()
-            try? persist()
+            let persisted = await persistOrReport(
+                context: "保存拉取完成状态",
+                syncScope: scope
+            )
             await publishData()
-            await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            if persisted {
+                await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            }
 
         case .didSendChanges:
+            guard isCurrentRelationshipScope(scope) else { break }
             appData.lastSuccessfulSyncAt = Date()
-            try? persist()
+            let persisted = await persistOrReport(
+                context: "保存上传完成状态",
+                syncScope: scope
+            )
             await publishData()
-            await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            if persisted {
+                await setSyncStatus(.upToDate(appData.lastSuccessfulSyncAt))
+            }
 
         @unknown default:
             break
@@ -572,17 +663,19 @@ extension DearUsStore: CKSyncEngineDelegate {
         _ context: CKSyncEngine.SendChangesContext,
         syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
+        guard let relationship = appData.relationship,
+              relationship.scope.databaseScope == databaseScope(for: syncEngine) else {
+            return nil
+        }
         let scope = context.options.scope
         let changes = syncEngine.state.pendingRecordZoneChanges.filter {
             scope.contains($0)
         }
-        let relationship = appData.relationship
         let items = appData.items
         let mediaStore = self.mediaStore
 
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { recordID in
-            guard let relationship,
-                  recordID.zoneID == relationship.zoneID,
+            guard recordID.zoneID == relationship.zoneID,
                   let item = items[recordID.recordName.lowercased()] else {
                 syncEngine.state.remove(
                     pendingRecordZoneChanges: [.saveRecord(recordID)]
@@ -610,7 +703,9 @@ private extension DearUsStore {
         _ event: CKSyncEngine.Event.FetchedRecordZoneChanges,
         syncEngine: CKSyncEngine
     ) async {
-        guard let relationship = appData.relationship else { return }
+        let scope = databaseScope(for: syncEngine)
+        guard let relationship = appData.relationship,
+              relationship.scope.databaseScope == scope else { return }
         let shouldNotify = appData.hasCompletedInitialSync
         var recordsToRetry: [CKSyncEngine.PendingRecordZoneChange] = []
         var changed = false
@@ -647,7 +742,7 @@ private extension DearUsStore {
 
         for deletion in event.deletions where deletion.recordID.zoneID == relationship.zoneID {
             let key = deletion.recordID.recordName.lowercased()
-            if let attachment = appData.items[key]?.attachment {
+            for attachment in appData.items[key]?.allAttachments ?? [] {
                 try? mediaStore.remove(attachment)
             }
             appData.items[key] = nil
@@ -657,7 +752,10 @@ private extension DearUsStore {
 
         syncEngine.state.add(pendingRecordZoneChanges: recordsToRetry)
         if changed {
-            try? persist()
+            _ = await persistOrReport(
+                context: "保存远端内容变更",
+                syncScope: scope
+            )
             await publishData()
         }
 
@@ -672,9 +770,12 @@ private extension DearUsStore {
     }
 
     func handleFetchedDatabaseChanges(
-        _ event: CKSyncEngine.Event.FetchedDatabaseChanges
+        _ event: CKSyncEngine.Event.FetchedDatabaseChanges,
+        syncEngine: CKSyncEngine
     ) async {
-        guard let relationship = appData.relationship else { return }
+        let scope = databaseScope(for: syncEngine)
+        guard let relationship = appData.relationship,
+              relationship.scope.databaseScope == scope else { return }
         let relationshipWasRemoved = event.deletions.contains {
             $0.zoneID == relationship.zoneID
         }
@@ -685,7 +786,7 @@ private extension DearUsStore {
         sharedSyncEngine = nil
         try? mediaStore.removeAll()
         composeDraftRepository.clearAll()
-        try? persist()
+        _ = await persistRelationshipRemoval(context: "保存远端共同空间删除")
         await publishData()
         await setPhase(.needsRelationship)
         await setSyncStatus(.idle)
@@ -702,6 +803,7 @@ private extension DearUsStore {
         syncEngine: CKSyncEngine
     ) async {
         let scope = databaseScope(for: syncEngine)
+        guard isCurrentRelationshipScope(scope) else { return }
         var retryRecordChanges: [CKSyncEngine.PendingRecordZoneChange] = []
         var retryDatabaseChanges: [CKSyncEngine.PendingDatabaseChange] = []
 
@@ -775,7 +877,10 @@ private extension DearUsStore {
 
         syncEngine.state.add(pendingDatabaseChanges: retryDatabaseChanges)
         syncEngine.state.add(pendingRecordZoneChanges: retryRecordChanges)
-        try? persist()
+        _ = await persistOrReport(
+            context: "保存上传结果",
+            syncScope: scope
+        )
         await publishData()
     }
 
@@ -788,7 +893,15 @@ private extension DearUsStore {
             appData = AppData()
             privateSyncEngine = nil
             sharedSyncEngine = nil
-            try? repository.reset()
+            do {
+                try repository.reset()
+            } catch {
+                logger.error("Failed to reset local state after account change: \(error.localizedDescription, privacy: .public)")
+                _ = await persistOrReport(
+                    context: "清除账号切换前的本机状态",
+                    noticeMessage: "iCloud 账号已经变化，但旧的本机状态未能完整清除，请重新打开 App。"
+                )
+            }
             try? mediaStore.removeAll()
             composeDraftRepository.clearAll()
             await publishData()
@@ -816,9 +929,27 @@ private extension DearUsStore {
     }
 
     func presentLocalPreview() async {
+        if prepareLocalPreviewContent() {
+            _ = await persistOrReport(
+                context: "保存本机预览内容",
+                noticeMessage: "本机预览可以继续使用，但这次状态可能无法保留到下次启动。"
+            )
+        }
         await publishData()
         await setPhase(.ready)
         await setSyncStatus(.localPreview)
+    }
+
+    private func prepareLocalPreviewContent() -> Bool {
+        var changed = false
+        if let attachments = try? mediaStore.ensureLocalPreviewAttachments() {
+            changed = LocalPreview.installAttachmentDemos(
+                in: &appData,
+                attachments: attachments
+            ) || changed
+        }
+        changed = LocalPreview.replenishInteractiveContent(in: &appData) || changed
+        return changed
     }
 
     func refreshAccountState() async -> Bool {
@@ -946,7 +1077,9 @@ private extension DearUsStore {
             delegate: self
         )
         configuration.automaticallySync = true
-        privateSyncEngine = CKSyncEngine(configuration)
+        let engine = CKSyncEngine(configuration)
+        privateSyncEngine = engine
+        syncEngineScopes[ObjectIdentifier(engine)] = .private
     }
 
     func initializeSharedSyncEngine() {
@@ -957,7 +1090,9 @@ private extension DearUsStore {
             delegate: self
         )
         configuration.automaticallySync = true
-        sharedSyncEngine = CKSyncEngine(configuration)
+        let engine = CKSyncEngine(configuration)
+        sharedSyncEngine = engine
+        syncEngineScopes[ObjectIdentifier(engine)] = .shared
     }
 
     func syncEngine(for scope: CKDatabase.Scope) -> CKSyncEngine? {
@@ -970,10 +1105,65 @@ private extension DearUsStore {
     }
 
     func databaseScope(for syncEngine: CKSyncEngine) -> CKDatabase.Scope {
-        if let privateSyncEngine, privateSyncEngine === syncEngine {
-            return .private
+        syncEngineScopes[ObjectIdentifier(syncEngine)] ?? .public
+    }
+
+    func isCurrentRelationshipScope(_ scope: CKDatabase.Scope) -> Bool {
+        appData.relationship?.scope.databaseScope == scope
+    }
+
+    @discardableResult
+    func persistOrReport(
+        context: String,
+        syncScope: CKDatabase.Scope? = nil,
+        noticeMessage: String? = nil
+    ) async -> Bool {
+        do {
+            try persist()
+            return true
+        } catch {
+            logger.error("\(context, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            if let syncScope, isCurrentRelationshipScope(syncScope) {
+                await setSyncStatus(.attention("本机同步状态未保存，请稍后重试"))
+            }
+            if let noticeMessage {
+                await showNotice(title: "本机存储失败", message: noticeMessage)
+            }
+            return false
         }
-        return .shared
+    }
+
+    @discardableResult
+    func persistRelationshipRemoval(context: String) async -> Bool {
+        do {
+            try repository.reset()
+        } catch {
+            logger.error("\(context, privacy: .public) could not clear the previous snapshot: \(error.localizedDescription, privacy: .public)")
+            return await persistRemovalFallback(context: context)
+        }
+
+        do {
+            try persist()
+            return true
+        } catch {
+            // The repository is already empty, so a restart still recovers to a safe state.
+            logger.error("\(context, privacy: .public) kept a clean reset but could not save the empty snapshot: \(error.localizedDescription, privacy: .public)")
+            return true
+        }
+    }
+
+    func persistRemovalFallback(context: String) async -> Bool {
+        do {
+            try persist()
+            return true
+        } catch {
+            logger.fault("\(context, privacy: .public) failed completely: \(error.localizedDescription, privacy: .public)")
+            await showNotice(
+                title: "本机清理未完成",
+                message: "共同空间已经结束，但旧的本机状态未能清除，请重新打开 App。"
+            )
+            return false
+        }
     }
 
     func queueSave(_ recordID: CKRecord.ID, scope: CKDatabase.Scope) {
@@ -988,7 +1178,9 @@ private extension DearUsStore {
             try await engine.sendChanges()
         } catch {
             logger.info("Background sync deferred: \(error.localizedDescription, privacy: .public)")
-            await setSyncStatus(.attention("等待网络同步"))
+            if isCurrentRelationshipScope(scope) {
+                await setSyncStatus(.attention("等待网络同步"))
+            }
         }
     }
 
@@ -1036,7 +1228,10 @@ private extension DearUsStore {
         }
 
         if changed {
-            try? persist()
+            _ = await persistOrReport(
+                context: "保存附件恢复结果",
+                syncScope: relationship.scope.databaseScope
+            )
             await publishData()
         }
     }

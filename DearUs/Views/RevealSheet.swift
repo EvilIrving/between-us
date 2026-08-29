@@ -41,14 +41,15 @@ struct RevealSheet: View {
                                 Text(item.text)
                                     .font(.system(size: 21, weight: .medium, design: .rounded))
                                     .foregroundStyle(AppTheme.primaryText)
-                                    .multilineTextAlignment(.center)
+                                    .multilineTextAlignment(.leading)
                                     .lineSpacing(7)
                                     .textSelection(.enabled)
                                     .padding(.horizontal, 14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
 
-                            if let attachment = item.attachment {
-                                AttachmentContentView(attachment: attachment, tint: item.kind.tint)
+                            if !item.allAttachments.isEmpty {
+                                AttachmentCollectionView(attachments: item.allAttachments, tint: item.kind.tint)
                                     .frame(maxWidth: .infinity)
                             }
 
@@ -108,8 +109,11 @@ struct RevealSheet: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showResponseComposer) {
+        .sheet(isPresented: $showResponseComposer) {
             ComposeSheet(kind: item.kind)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(30)
         }
     }
 

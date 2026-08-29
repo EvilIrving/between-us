@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: DearUsStore
+    @State private var composeKind: ContainerKind?
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,12 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(item: $composeKind) { kind in
+                ComposeSheet(kind: kind)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+                    .presentationCornerRadius(30)
+            }
         }
     }
 
@@ -61,48 +68,55 @@ struct HomeView: View {
     }
 
     private var sharedRoom: some View {
-        VStack(spacing: 12) {
-            NavigationLink {
+        VStack(spacing: 18) {
+            roomObject(kind: .star) {
                 StarJarView()
-            } label: {
+            }
+            .frame(width: 140)
+
+            HStack(alignment: .top, spacing: 34) {
+                roomObject(kind: .capsule) {
+                    CapsuleBoxView()
+                }
+                .frame(width: 140)
+
+                roomObject(kind: .paper) {
+                    PaperBinView()
+                }
+                .frame(width: 140)
+            }
+        }
+        .frame(maxWidth: 430)
+        .padding(.top, 20)
+    }
+
+    private func roomObject<Destination: View>(
+        kind: ContainerKind,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        VStack(spacing: 2) {
+            NavigationLink(destination: destination) {
                 RoomObject(
-                    kind: .star,
-                    count: sharedCount(.star),
-                    waiting: unopenedCount(.star),
-                    scale: .large,
-                    quietText: starWhisper
+                    kind: kind,
+                    count: sharedCount(kind),
+                    waiting: unopenedCount(kind)
                 )
             }
             .buttonStyle(SoftScaleButtonStyle())
 
-            HStack(spacing: 12) {
-                NavigationLink {
-                    CapsuleBoxView()
-                } label: {
-                    RoomObject(
-                        kind: .capsule,
-                        count: sharedCount(.capsule),
-                        waiting: unopenedCount(.capsule),
-                        scale: .compact,
-                        quietText: capsuleWhisper
-                    )
-                }
-                .buttonStyle(SoftScaleButtonStyle())
-
-                NavigationLink {
-                    PaperBinView()
-                } label: {
-                    RoomObject(
-                        kind: .paper,
-                        count: sharedCount(.paper),
-                        waiting: unopenedCount(.paper),
-                        scale: .compact,
-                        quietText: paperWhisper
-                    )
-                }
-                .buttonStyle(SoftScaleButtonStyle())
+            Button {
+                RitualHaptics.selection()
+                composeKind = kind
+            } label: {
+                Text("留下")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(kind.tint.opacity(0.82))
+                    .frame(height: 28)
             }
+            .buttonStyle(SoftScaleButtonStyle())
+            .accessibilityLabel("在\(kind.title)留下一件")
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var roomWhisper: String {
@@ -125,131 +139,77 @@ struct HomeView: View {
         store.viewModel.data.unopenedCountFromCounterpart(kind: kind)
     }
 
-    private var starWhisper: String {
-        statusText(for: .star)
-    }
-
-    private var capsuleWhisper: String {
-        statusText(for: .capsule)
-    }
-
-    private var paperWhisper: String {
-        statusText(for: .paper)
-    }
-
-    private func statusText(for kind: ContainerKind) -> String {
-        let waiting = unopenedCount(kind)
-        if waiting > 0 { return "\(waiting) 件待打开" }
-        return sharedCount(kind) == 0 ? "还没有内容" : "共 \(sharedCount(kind)) 件"
-    }
-}
-
-private enum RoomObjectScale {
-    case large
-    case compact
 }
 
 private struct RoomObject: View {
     let kind: ContainerKind
     let count: Int
     let waiting: Int
-    let scale: RoomObjectScale
-    let quietText: String
 
     var body: some View {
-        Group {
-            if scale == .large {
-                HStack(spacing: 16) {
-                    containerGlyph(size: 86)
+        VStack(spacing: 9) {
+            containerGlyph
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(kind.title)
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(quietText)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
-                    }
-
-                    Spacer(minLength: 10)
-
-                    countView
-                }
-                .padding(.horizontal, 18)
-                .frame(height: 134)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        containerGlyph(size: 72)
-                        Spacer()
-                        countView
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(kind.title)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(quietText)
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
-                            .lineLimit(1)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 178)
-            }
+            Text(kind.title)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+                .frame(height: 23, alignment: .top)
         }
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.38), kind.tint.opacity(waiting > 0 ? 0.15 : 0.07)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(kind.tint.opacity(waiting > 0 ? 0.42 : 0.20), lineWidth: waiting > 0 ? 1.5 : 1)
-        }
-        .shadow(color: kind.tint.opacity(waiting > 0 ? 0.09 : 0.04), radius: 18, y: 10)
+        .frame(maxWidth: .infinity)
+        .frame(height: 156, alignment: .top)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(kind.title)，\(quietText)")
+        .accessibilityLabel(kind.title)
         .accessibilityHint("打开这个共同容器")
     }
 
-    private var countView: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("\(count)")
-                .font(.title3.bold().monospacedDigit())
-                .foregroundStyle(AppTheme.primaryText)
-            Text("件")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
-        }
-    }
-
-    private func containerGlyph(size: CGFloat) -> some View {
+    private var containerGlyph: some View {
         ZStack {
-            AppTheme.glow(for: kind)
             ContainerVisual(
                 kind: kind,
                 count: count,
                 style: .room,
                 isActive: waiting > 0
             )
-            .padding(kind == .capsule ? 2 : 5)
+            .scaleEffect(
+                x: horizontalArtworkScale,
+                y: verticalArtworkScale
+            )
+            .offset(y: artworkVerticalOffset)
         }
-            .frame(width: size, height: kind == .capsule ? size * 0.76 : size * 1.06)
-            .overlay(alignment: .topTrailing) {
-                if waiting > 0 {
-                    Circle()
-                        .fill(kind.tint)
-                        .frame(width: 8, height: 8)
-                        .padding(7)
-                }
+        .frame(width: 124, height: 124)
+        .overlay(alignment: .topTrailing) {
+            if waiting > 0 {
+                Circle()
+                    .fill(kind.tint)
+                    .frame(width: 8, height: 8)
+                    .padding(4)
             }
+        }
+    }
+
+    private var horizontalArtworkScale: CGFloat {
+        switch kind {
+        case .star: return 0.88
+        case .capsule: return 1
+        case .paper: return 0.98
+        }
+    }
+
+    private var verticalArtworkScale: CGFloat {
+        switch kind {
+        case .star: return 0.88
+        case .capsule: return 1.75
+        case .paper: return 0.98
+        }
+    }
+
+    private var artworkVerticalOffset: CGFloat {
+        switch kind {
+        case .star: return 0
+        case .capsule: return -6
+        case .paper: return -4
+        }
     }
 }
 

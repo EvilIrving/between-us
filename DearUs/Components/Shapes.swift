@@ -236,7 +236,7 @@ enum ParametricGeometry {
 enum ParametricPreset {
     static let starInnerRatio: CGFloat = 0.47
     static let starRoundness: CGFloat = 0.13
-    static let keepsakeBoxExponent: CGFloat = 5.0
+    static let keepsakeBoxExponent: CGFloat = 3.15
     static let openingExponent: CGFloat = 3.4
 
     static let bottleProfile: [ParametricGeometry.ProfilePoint] = [
