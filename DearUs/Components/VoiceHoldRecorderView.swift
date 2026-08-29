@@ -97,13 +97,6 @@ struct VoiceHoldRecorderView: View {
 
     private var recordingInfo: some View {
         ZStack {
-            Capsule()
-                .fill(Color.white.opacity(0.38))
-                .overlay {
-                    Capsule()
-                        .stroke(Color.white.opacity(0.66), lineWidth: 1)
-                }
-
             if captureState == .producingDraft {
                 ProgressView()
                     .tint(kind.tint)
@@ -118,17 +111,26 @@ struct VoiceHoldRecorderView: View {
                 .padding(.leading, 14)
                 .padding(.trailing, 16)
             } else {
-                TextField("这一刻的想法…", text: $text)
+                TextField("这一刻的想法…", text: $text, axis: .vertical)
                     .focused(isFocused)
-                    .lineLimit(1)
+                    .lineLimit(1...4)
                     .font(.system(size: 17, weight: .regular, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
                     .tint(kind.tint)
                     .padding(.horizontal, 15)
+                    .padding(.vertical, 12)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 47)
+        .frame(minHeight: 47)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.38))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.66), lineWidth: 1)
+        }
     }
 
     @ViewBuilder
