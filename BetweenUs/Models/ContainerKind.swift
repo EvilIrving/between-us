@@ -15,14 +15,6 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var subtitle: String {
-        switch self {
-        case .star: return "喜欢、感谢和想分享的事".localized
-        case .capsule: return "建议、鼓励和需要认真说的事".localized
-        case .paper: return "委屈、生气和其他不开心的事".localized
-        }
-    }
-
     var composeTitle: String {
         switch self {
         case .star: return "折一颗星星".localized

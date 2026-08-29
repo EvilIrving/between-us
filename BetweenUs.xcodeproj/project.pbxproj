@@ -96,6 +96,7 @@
 		76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RootView.swift"; sourceTree = "<group>"; };
 		E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
 		B20000000000000000000002 /* LifetimeUnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LifetimeUnlockView.swift"; sourceTree = "<group>"; };
+		B20000000000000000000003 /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
 		BEF2E8E3546A398934A9B701 /* StarJarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarJarView.swift"; sourceTree = "<group>"; };
 		C86DDE73043ED07505514CFE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
 		1EAC603F8BA05554DF4AEBD9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "PrivacyInfo.xcprivacy"; sourceTree = "<group>"; };
@@ -135,6 +136,7 @@
 				C86DDE73043ED07505514CFE /* Info.plist */,
 				4AA60C972987F036519AF7A6 /* BetweenUs.entitlements */,
 				1EAC603F8BA05554DF4AEBD9 /* PrivacyInfo.xcprivacy */,
+				B20000000000000000000003 /* Configuration.storekit */,
 				17051CE815BBC1BA56D2673D /* Assets.xcassets */,
 			);
 			path = BetweenUs;

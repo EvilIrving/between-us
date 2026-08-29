@@ -29,7 +29,7 @@ struct MyDepositsView: View {
                 filterTokens
 
                 if items.isEmpty {
-                    EmptyDrawerView(kind: selectedKind, section: section)
+                    EmptyDrawerView(kind: selectedKind)
                         .frame(maxHeight: .infinity)
                 } else {
                     ScrollView(showsIndicators: false) {
@@ -201,7 +201,6 @@ private struct DrawerFilterToken: View {
 
 private struct EmptyDrawerView: View {
     let kind: ContainerKind?
-    let section: DrawerSection
 
     var body: some View {
         VStack(spacing: 16) {
@@ -220,21 +219,6 @@ private struct EmptyDrawerView: View {
             Text("暂无记录")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text(emptyMessage)
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.horizontal, 34)
-        }
-    }
-
-    private var emptyMessage: String {
-        switch section {
-        case .leftByMe:
-            return "放入容器后会显示在这里".localized
-        case .openedFromOther:
-            return "打开后会保留在这里".localized
         }
     }
 }

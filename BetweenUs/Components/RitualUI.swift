@@ -189,10 +189,12 @@ struct WhisperNoticeBanner: View {
                     Text(title.localized)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text(message.localized)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .lineLimit(3)
+                    if !message.isEmpty {
+                        Text(message.localized)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(3)
+                    }
                 }
 
                 Spacer(minLength: 4)
@@ -212,7 +214,11 @@ struct WhisperNoticeBanner: View {
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 8)
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel("通知：%@，%@。轻点关闭".localized(title.localized, message.localized))
+        .accessibilityLabel(
+            message.isEmpty
+                ? title.localized
+                : "通知：%@，%@。轻点关闭".localized(title.localized, message.localized)
+        )
     }
 }
 
@@ -482,15 +488,9 @@ struct HoldToOpenControl: View {
                 RitualObjectGlyph(kind: kind, size: 54, filled: true)
                     .scaleEffect(isPressing ? 0.94 : 1)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text((isEnabled ? title : inactiveTitle).localized)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
-
-                    Text(isWorking ? "请稍候".localized : "持续按住 · 松开取消".localized)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(isEnabled ? 0.66 : 0.40))
-                }
+                Text((isEnabled ? title : inactiveTitle).localized)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
 
                 Spacer(minLength: 8)
 

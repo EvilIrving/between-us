@@ -3,6 +3,7 @@ import SwiftUI
 enum LifetimeUnlockContext: Equatable {
     case settings
     case quotaReached
+    case preview
 }
 
 struct LifetimeUnlockView: View {
@@ -19,7 +20,7 @@ struct LifetimeUnlockView: View {
                 VStack(spacing: 0) {
                     header
 
-                    vesselShelf
+                    objectsShelf
                         .padding(.top, 22)
 
                     Text(title)
@@ -27,14 +28,6 @@ struct LifetimeUnlockView: View {
                         .foregroundStyle(AppTheme.primaryText)
                         .multilineTextAlignment(.center)
                         .padding(.top, 19)
-
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.74))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(5)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 9)
 
                     if !isUnlocked {
                         usagePill
@@ -77,7 +70,7 @@ struct LifetimeUnlockView: View {
         .padding(.top, 9)
     }
 
-    private var vesselShelf: some View {
+    private var objectsShelf: some View {
         ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(AppTheme.roomTable.opacity(0.20))
@@ -96,7 +89,7 @@ struct LifetimeUnlockView: View {
     }
 
     private var usagePill: some View {
-        Text("当前保留 %d / %d 条".localized(
+        Text("已经留下 %d / %d".localized(
             store.viewModel.data.items.count,
             CommerceConfiguration.freeItemLimit
         ))
@@ -112,20 +105,20 @@ struct LifetimeUnlockView: View {
         VStack(spacing: 0) {
             benefit(
                 systemName: "person.2.fill",
-                title: "一人购买，两个人共享",
-                detail: "被邀请的一方不需要再次购买。"
+                title: "一起解锁",
+                detail: "一人买断，两个人都能用。被邀请的一方不用再买。"
             )
             divider
             benefit(
                 systemName: "infinity",
-                title: "三个容器，数量不限",
-                detail: "已经留下的文字、照片和语音不用为了腾位置而删除。"
+                title: "不再限量",
+                detail: "星星、胶囊和纸团，想留多少都可以。"
             )
             divider
             benefit(
                 systemName: "checkmark.seal.fill",
-                title: "一次买断，没有订阅",
-                detail: "不会按月或按年续费。"
+                title: "只买一次",
+                detail: "没有月付，也没有年付。"
             )
         }
         .padding(.horizontal, 15)
@@ -150,9 +143,10 @@ struct LifetimeUnlockView: View {
                 Text(title.localized)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
+
                 Text(detail.localized)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -171,34 +165,19 @@ struct LifetimeUnlockView: View {
     @ViewBuilder
     private var actions: some View {
         if isUnlocked {
-            VStack(spacing: 11) {
-                Button {
-                    RitualHaptics.success()
-                    dismiss()
-                } label: {
-                    Text("继续使用".localized)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(ContainerKind.star.tint.opacity(0.92))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(SoftScaleButtonStyle())
-
-                if store.viewModel.purchase.ownsLifetimePurchase,
-                   store.viewModel.data.sharedSpaceEntitlement == nil {
-                    Text("这台设备已经解锁；恢复 iCloud 连接后会同步给空间。".localized)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.60))
-                        .multilineTextAlignment(.center)
-                } else {
-                    Text("这个空间已经由两个人共享永久版。".localized)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.60))
-                        .multilineTextAlignment(.center)
-                }
+            Button {
+                RitualHaptics.success()
+                dismiss()
+            } label: {
+                Text("继续使用".localized)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(ContainerKind.star.tint.opacity(0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
+            .buttonStyle(SoftScaleButtonStyle())
         } else {
             VStack(spacing: 12) {
                 Button {
@@ -241,32 +220,42 @@ struct LifetimeUnlockView: View {
                 .buttonStyle(SoftScaleButtonStyle())
                 .disabled(isAnyActionWorking)
 
-                Text("付款由 App Store 处理。购买不会自动续费。".localized)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.52))
-                    .multilineTextAlignment(.center)
+                purchasePolicyLinks
             }
         }
     }
 
+    private var purchasePolicyLinks: some View {
+        HStack(spacing: 8) {
+            Link("购买说明".localized, destination: Self.purchasesURL)
+            Text("·")
+            Link("使用条款".localized, destination: Self.termsURL)
+            Text("·")
+            Link("隐私政策".localized, destination: Self.privacyURL)
+        }
+        .font(.caption)
+        .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
+        .tint(AppTheme.secondaryText.opacity(0.68))
+        .multilineTextAlignment(.center)
+    }
+
     private var isUnlocked: Bool {
-        store.viewModel.hasUnlimitedContent
+        if context == .preview {
+            return store.viewModel.purchase.ownsLifetimePurchase
+        }
+        return store.viewModel.hasUnlimitedContent
     }
 
     private var title: String {
-        if isUnlocked { return "空间已解锁".localized }
-        if context == .quotaReached { return "十个位置已经装满".localized }
-        return "让想留下的都留得下".localized
-    }
-
-    private var message: String {
         if isUnlocked {
-            return "三个容器不再限制内容数量。".localized
+            if store.viewModel.purchase.ownsLifetimePurchase,
+               store.viewModel.data.sharedSpaceEntitlement == nil {
+                return "这台设备已解锁".localized
+            }
+            return "已经解锁".localized
         }
-        if context == .quotaReached {
-            return "免费版最多同时保留 10 条。你可以删除一条释放位置，或一次买断永久版。".localized
-        }
-        return "免费版可以同时保留 10 条内容；永久版让当前空间不再受数量限制。".localized
+        if context == .quotaReached { return "已经放满".localized }
+        return "一直留着".localized
     }
 
     private var primaryActionTitle: String {
@@ -307,4 +296,8 @@ struct LifetimeUnlockView: View {
         case .loadingProduct, .purchasing, .restoring, .pending: return false
         }
     }
+
+    private static let purchasesURL = URL(string: "https://betweenus.onecat.dev/purchases/")!
+    private static let termsURL = URL(string: "https://betweenus.onecat.dev/terms/")!
+    private static let privacyURL = URL(string: "https://betweenus.onecat.dev/privacy/")!
 }

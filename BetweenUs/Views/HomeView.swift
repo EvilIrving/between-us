@@ -108,16 +108,9 @@ struct HomeView: View {
                     .background(ContainerKind.capsule.tint.opacity(0.11))
                     .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("情侣同步".localized)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText)
-
-                    Text(syncCardDetail.localized)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-                        .lineLimit(1)
-                }
+                Text(syncCardTitle.localized)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
 
                 Spacer(minLength: 6)
 
@@ -143,11 +136,8 @@ struct HomeView: View {
         .disabled(store.viewModel.isPerformingAction)
     }
 
-    private var syncCardDetail: String {
-        if store.viewModel.data.isLocalPreview {
-            return "真机登录 iCloud 后可用"
-        }
-        return relationship?.isOwner == true ? "邀请对方，共用当前空间" : "已通过 iCloud 同步"
+    private var syncCardTitle: String {
+        store.viewModel.data.isLocalPreview ? "本机预览" : "空间共享"
     }
 
     private var syncCardAction: String {

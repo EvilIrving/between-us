@@ -1,5 +1,4 @@
 import AVFoundation
-import AVKit
 import SwiftUI
 import UIKit
 
@@ -107,9 +106,6 @@ struct AttachmentContentView: View {
                 .font(.system(size: 28, weight: .light))
             Text("正在从 iCloud 下载附件")
                 .font(.subheadline.weight(.semibold))
-            Text("请保持网络连接，稍后重试")
-                .font(.caption)
-                .opacity(0.68)
         }
         .foregroundStyle(AppTheme.secondaryText)
         .frame(maxWidth: .infinity, minHeight: 148)
@@ -130,38 +126,35 @@ struct AttachmentCollectionView: View {
     @State private var mediaViewerRequest: MediaViewerRequest?
 
     var body: some View {
-        let images = attachments.filter { $0.kind == .image }
         let visualMedia = attachments.filter { $0.kind == .image || $0.kind == .video }
-        Group {
-            if images.count == attachments.count, images.count > 1 {
+        let audioAttachments = attachments.filter { $0.kind == .audio }
+        VStack(spacing: 10) {
+            if visualMedia.count > 1 {
                 let columns = Array(
                     repeating: GridItem(.flexible(), spacing: 7),
-                    count: images.count == 2 ? 2 : 3
+                    count: visualMedia.count == 2 ? 2 : 3
                 )
                 LazyVGrid(columns: columns, spacing: 7) {
-                    ForEach(Array(images.enumerated()), id: \.offset) { index, attachment in
-                        SavedImageTile(
-                            image: UIImage(contentsOfFile: mediaStore.url(for: attachment).path),
+                    ForEach(Array(visualMedia.enumerated()), id: \.offset) { index, attachment in
+                        SavedMediaTile(
+                            attachment: attachment,
+                            url: mediaStore.url(for: attachment),
+                            isAvailable: mediaStore.fileExists(for: attachment),
                             index: index,
                             open: { openMedia(at: index) }
                         )
                     }
                 }
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(Array(attachments.enumerated()), id: \.offset) { attachmentIndex, attachment in
-                        AttachmentContentView(
-                            attachment: attachment,
-                            tint: tint,
-                            openMedia: attachment.kind == .image || attachment.kind == .video ? {
-                                let mediaIndex = attachments[..<attachmentIndex]
-                                    .filter { $0.kind == .image || $0.kind == .video }
-                                    .count
-                                openMedia(at: mediaIndex)
-                            } : nil
-                        )
-                    }
-                }
+            } else if let attachment = visualMedia.first {
+                AttachmentContentView(
+                    attachment: attachment,
+                    tint: tint,
+                    openMedia: { openMedia(at: 0) }
+                )
+            }
+
+            ForEach(Array(audioAttachments.enumerated()), id: \.offset) { _, attachment in
+                AttachmentContentView(attachment: attachment, tint: tint, openMedia: nil)
             }
         }
         .fullScreenCover(item: $mediaViewerRequest) { request in
@@ -184,8 +177,10 @@ struct AttachmentCollectionView: View {
     }
 }
 
-private struct SavedImageTile: View {
-    let image: UIImage?
+private struct SavedMediaTile: View {
+    let attachment: AttachmentMetadata
+    let url: URL
+    let isAvailable: Bool
     let index: Int
     let open: () -> Void
 
@@ -194,7 +189,13 @@ private struct SavedImageTile: View {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
-                    if let image {
+                    if !isAvailable {
+                        Image(systemName: "icloud.and.arrow.down")
+                            .font(.title2)
+                            .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+                    } else if attachment.kind == .video {
+                        VideoPosterView(url: url)
+                    } else if let image = UIImage(contentsOfFile: url.path) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
@@ -204,19 +205,37 @@ private struct SavedImageTile: View {
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
                     }
                 }
+                .overlay {
+                    if attachment.kind == .video, isAvailable {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .offset(x: 1)
+                            .frame(width: 40, height: 40)
+                            .background(Color.black.opacity(0.38))
+                            .clipShape(Circle())
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(Color.black.opacity(0.32))
-                        .clipShape(Circle())
-                        .padding(7)
+                    if attachment.kind == .image, isAvailable {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 26, height: 26)
+                            .background(Color.black.opacity(0.32))
+                            .clipShape(Circle())
+                            .padding(7)
+                    }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("查看第 %d 张照片".localized(index + 1))
+        .disabled(!isAvailable)
+        .accessibilityLabel(
+            attachment.kind == .video
+                ? "播放视频".localized
+                : "查看第 %d 张照片".localized(index + 1)
+        )
     }
 }
 
@@ -297,7 +316,7 @@ private struct FullScreenMediaViewer: View {
     var body: some View {
         ZStack {
             Color.black
-                .opacity(max(0.32, 1 - abs(dismissOffset) / 560))
+                .opacity(Double(max(CGFloat(0.32), 1 - abs(dismissOffset) / 560)))
                 .ignoresSafeArea()
 
             TabView(selection: $selectedIndex) {
@@ -331,26 +350,22 @@ private struct FullScreenMediaViewer: View {
 
                 Spacer()
 
-                VStack(spacing: 7) {
-                    if items.count > 1 {
-                        Text("\(selectedIndex + 1) / \(items.count)")
-                            .font(.caption.monospacedDigit().weight(.semibold))
-                    }
-                    Text(currentHint)
-                        .font(.caption2)
-                        .opacity(0.64)
+                if items.count > 1 {
+                    Text("\(selectedIndex + 1) / \(items.count)")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.34))
+                        .clipShape(Capsule())
+                        .padding(.bottom, 12)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.black.opacity(0.34))
-                .clipShape(Capsule())
-                .padding(.bottom, 12)
             }
             .opacity(controlsVisible ? 1 : 0)
             .allowsHitTesting(controlsVisible)
         }
         .statusBarHidden(true)
+        .presentationBackground(.clear)
         .simultaneousGesture(dismissGesture)
         .onChange(of: selectedIndex) { _, _ in
             isCurrentImageZoomed = false
@@ -395,13 +410,6 @@ private struct FullScreenMediaViewer: View {
                 .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.white.opacity(0.72))
-    }
-
-    private var currentHint: String {
-        guard items.indices.contains(selectedIndex) else { return "" }
-        return items[selectedIndex].kind == .video
-            ? "轻点显示或隐藏控制".localized
-            : "双指缩放 · 双击放大".localized
     }
 
     private func toggleControls() {
@@ -878,6 +886,7 @@ private final class AudioPlaybackController: NSObject, ObservableObject, AVAudio
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
+    private var resumeAfterSeeking = false
 
     init(url: URL) {
         super.init()
@@ -913,11 +922,31 @@ private final class AudioPlaybackController: NSObject, ObservableObject, AVAudio
         currentTime = player.currentTime
     }
 
-    func seek(progress: Double) {
+    func beginSeeking() {
+        guard let player else { return }
+        resumeAfterSeeking = player.isPlaying
+        player.pause()
+        stopTimer()
+        isPlaying = false
+    }
+
+    func previewSeek(progress: Double) {
+        guard let player else { return }
+        let clamped = min(max(progress, 0), 1)
+        currentTime = clamped * player.duration
+    }
+
+    func endSeeking(progress: Double) {
         guard let player else { return }
         let clamped = min(max(progress, 0), 1)
         player.currentTime = clamped * player.duration
         currentTime = player.currentTime
+        if resumeAfterSeeking {
+            player.play()
+            isPlaying = true
+            startTimer()
+        }
+        resumeAfterSeeking = false
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
@@ -961,43 +990,49 @@ private struct AudioAttachmentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        HStack(spacing: 14) {
             Button(action: controller.toggle) {
                 ZStack {
                     Circle()
-                        .fill(tint.opacity(controller.isPlaying ? 0.18 : 0.10))
-                        .frame(width: 86, height: 86)
-                    Circle()
-                        .fill(Color.white.opacity(0.62))
-                        .frame(width: 64, height: 64)
-                        .overlay { Circle().stroke(Color.white.opacity(0.72), lineWidth: 1) }
+                        .fill(tint.opacity(controller.isPlaying ? 0.88 : 0.72))
+                        .frame(width: 52, height: 52)
                     Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(tint)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
                         .offset(x: controller.isPlaying ? 0 : 2)
                 }
             }
             .buttonStyle(SoftScaleButtonStyle())
             .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
 
-            AudioWaveformScrubber(
-                progress: controller.progress,
-                isPlaying: controller.isPlaying,
-                tint: tint,
-                onSeek: { controller.seek(progress: $0) }
-            )
-            .frame(height: 54)
+            VStack(spacing: 5) {
+                AudioWaveformScrubber(
+                    progress: controller.progress,
+                    isPlaying: controller.isPlaying,
+                    tint: tint,
+                    beginSeeking: controller.beginSeeking,
+                    previewSeek: controller.previewSeek,
+                    endSeeking: controller.endSeeking
+                )
+                .frame(height: 36)
 
-            HStack {
-                Text(controller.currentTime.formattedDuration)
-                Spacer()
-                Text(totalDuration.formattedDuration)
+                HStack {
+                    Text(controller.currentTime.formattedDuration)
+                    Spacer()
+                    Text(totalDuration.formattedDuration)
+                }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
             }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(AppTheme.secondaryText.opacity(0.66))
         }
-        .padding(.horizontal, 17)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .background(tint.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.58), lineWidth: 1)
+        }
         .onDisappear { controller.stop() }
     }
 
@@ -1071,7 +1106,9 @@ struct VoiceDraftPreviewPlayer: View {
                     progress: controller.progress,
                     isPlaying: controller.isPlaying,
                     tint: tint,
-                    onSeek: { controller.seek(progress: $0) }
+                    beginSeeking: controller.beginSeeking,
+                    previewSeek: controller.previewSeek,
+                    endSeeking: controller.endSeeking
                 )
                 .frame(height: 13)
             }
@@ -1094,7 +1131,7 @@ struct VoiceDraftPreviewPlayer: View {
                     .clipShape(Circle())
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("保存并放入容器".localized)
+            .accessibilityLabel("保存并放进去".localized)
         }
         .frame(maxWidth: 360)
         .onDisappear { controller.stop() }
@@ -1112,10 +1149,15 @@ private struct AudioWaveformScrubber: View {
     let progress: Double
     let isPlaying: Bool
     let tint: Color
-    let onSeek: (Double) -> Void
+    let beginSeeking: () -> Void
+    let previewSeek: (Double) -> Void
+    let endSeeking: (Double) -> Void
+
+    @State private var scrubbingProgress: Double?
 
     var body: some View {
         GeometryReader { proxy in
+            let displayedProgress = scrubbingProgress ?? progress
             HStack(alignment: .center, spacing: 3) {
                 ForEach(0..<42, id: \.self) { index in
                     let normalizedIndex = Double(index) / 41
@@ -1123,7 +1165,7 @@ private struct AudioWaveformScrubber: View {
                     let minimumBarHeight = max(3, proxy.size.height * 0.24)
                     let barHeight = minimumBarHeight + max(0, proxy.size.height - minimumBarHeight) * pseudoWave
                     Capsule()
-                        .fill(normalizedIndex <= progress ? tint.opacity(0.84) : AppTheme.secondaryText.opacity(0.16))
+                        .fill(normalizedIndex <= displayedProgress ? tint.opacity(0.84) : AppTheme.secondaryText.opacity(0.16))
                         .frame(width: 3, height: barHeight)
                         .scaleEffect(y: isPlaying && abs(normalizedIndex - progress) < 0.08 ? 1.12 : 1)
                 }
@@ -1134,7 +1176,19 @@ private struct AudioWaveformScrubber: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         guard proxy.size.width > 0 else { return }
-                        onSeek(Double(value.location.x / proxy.size.width))
+                        let progress = min(max(Double(value.location.x / proxy.size.width), 0), 1)
+                        if scrubbingProgress == nil {
+                            RitualHaptics.selection()
+                            beginSeeking()
+                        }
+                        scrubbingProgress = progress
+                        previewSeek(progress)
+                    }
+                    .onEnded { value in
+                        guard proxy.size.width > 0 else { return }
+                        let progress = min(max(Double(value.location.x / proxy.size.width), 0), 1)
+                        endSeeking(progress)
+                        scrubbingProgress = nil
                     }
             )
         }

@@ -4,23 +4,17 @@
 "切换后立即生效" = "Changes take effect immediately";
 
 /* Brand and navigation */
-"耳语" = "Whisper";
-"耳语 · Between us" = "Whisper · Between Us";
+"耳语" = "Between us";
+"耳语 · Between us" = "Between us";
 "正在加载" = "Loading";
 "关闭" = "Close";
 "返回首页" = "Back to Home";
 "返回抽屉" = "Back to Drawer";
-"下拉关闭" = "Pull down to close";
 "设置" = "Settings";
 "抽屉" = "Drawer";
 
 /* Onboarding */
-"两个人，共用三个容器。" = "Two people. Three little places to share.";
 "按住邀请" = "Hold to invite";
-"创建后邀请另一半" = "Create a space, then invite your partner";
-"加入空间" = "Join a Space";
-"打开对方发来的 iCloud 邀请" = "Open your partner's iCloud invitation";
-"每人使用自己的 Apple 账号" = "Each person uses their own Apple Account";
 "按住创建空间" = "Hold to create a space";
 "正在创建" = "Creating";
 "已有邀请" = "Have an invitation?";
@@ -32,10 +26,6 @@
 "本机预览" = "Local Preview";
 "仅保存在本机" = "Saved only on this device";
 "进入本机预览" = "Enter local preview";
-"情侣同步" = "Sync Together";
-"真机登录 iCloud 后可用" = "Available on a physical device signed in to iCloud";
-"邀请对方，共用当前空间" = "Invite your partner to this space";
-"已通过 iCloud 同步" = "Synced with iCloud";
 "邀请对方" = "Invite";
 "查看共享" = "View Sharing";
 "通过 iCloud 共享" = "Share via iCloud";
@@ -48,9 +38,6 @@
 "星星" = "Stars";
 "胶囊" = "Capsules";
 "纸团" = "Notes";
-"喜欢、感谢和想分享的事" = "Love, gratitude, and little moments to share";
-"建议、鼓励和需要认真说的事" = "Suggestions, encouragement, and things to talk through";
-"委屈、生气和其他不开心的事" = "Hurt, anger, and anything weighing on you";
 "折一颗星星" = "Fold a Star";
 "装一颗胶囊" = "Fill a Capsule";
 "揉一个纸团" = "Crumple a Note";
@@ -88,7 +75,6 @@
 "正在保存…" = "Saving…";
 "正在保存" = "Saving";
 "请稍候" = "One moment";
-"持续按住 · 松开取消" = "Keep holding · Release to cancel";
 "持续按住完成" = "Keep holding to finish";
 "持续按住完成，松开取消" = "Keep holding to finish; release to cancel";
 "向上拖动完成" = "Drag up to finish";
@@ -99,8 +85,6 @@
 "我放入的" = "Added by Me";
 "我打开的" = "Opened by Me";
 "暂无记录" = "No Items Yet";
-"放入容器后会显示在这里" = "Items you add will appear here";
-"打开后会保留在这里" = "Items you open will stay here";
 "照片" = "Photo";
 "视频" = "Video";
 "语音" = "Voice";
@@ -118,12 +102,9 @@
 
 /* Compose and media */
 "录音已取消" = "Recording Canceled";
-"未保存录音。" = "The recording was not saved.";
 "录音太短" = "Recording Too Short";
-"请重新录制。" = "Please record again.";
 "无法录音" = "Unable to Record";
 "录音已中断" = "Recording Interrupted";
-"这段录音未保存。" = "This recording was not saved.";
 "保存失败" = "Unable to Save";
 "草稿已保留，请重试。" = "Your draft was kept. Please try again.";
 "无法读取媒体" = "Unable to Read Media";
@@ -153,15 +134,16 @@
 "录音时长 %@" = "Recording length %@";
 "已准备" = "Ready";
 "正在从 iCloud 下载附件" = "Downloading attachment from iCloud";
-"请保持网络连接，稍后重试" = "Stay connected and try again shortly";
 "照片暂时无法显示" = "Photo is temporarily unavailable";
 "放大查看照片" = "View photo full screen";
 "查看第 %d 张照片" = "View photo %d";
-"双指缩放 · 双击放大" = "Pinch to zoom · Double-tap to enlarge";
+"播放视频" = "Play video";
+"暂停视频" = "Pause video";
+"视频播放进度" = "Video playback progress";
 "暂停语音" = "Pause voice";
 "播放语音" = "Play voice";
 "删除录音并重录" = "Delete and record again";
-"保存并放入容器" = "Save and add to container";
+"保存并放进去" = "Save and place it inside";
 "语音播放进度" = "Voice playback progress";
 "百分之 %d" = "%d percent";
 "需要麦克风权限，才能把这句话录下来。" = "Microphone access is required to record this message.";
@@ -172,8 +154,8 @@
 
 /* Settings */
 "空间" = "Space";
-"补充容器内容" = "Restore Container Content";
-"补齐三个容器里的可打开示例" = "Add openable samples to all three containers";
+"放回内容" = "Put Content Back";
+"放回可以打开的内容" = "Put back something you can open";
 "身份" = "Role";
 "创建者" = "Owner";
 "参与者" = "Member";
@@ -192,8 +174,11 @@
 "恢复数据" = "Restore Data";
 "测试功能" = "Testing";
 "关于" = "About";
-"关于耳语" = "About Whisper";
+"关于耳语" = "About Between us";
 "隐私政策" = "Privacy Policy";
+"使用条款" = "Terms of Use";
+"购买与退款" = "Purchases & Refunds";
+"购买说明" = "Purchase Info";
 "帮助与反馈" = "Help & Feedback";
 "使用帮助" = "Help";
 "反馈问题" = "Send Feedback";
@@ -213,9 +198,6 @@
 "按住离开预览" = "Hold to leave preview";
 "按住删除空间" = "Hold to delete space";
 "按住退出空间" = "Hold to leave space";
-"本机预览内容将被删除。" = "Local preview content will be deleted.";
-"所有内容和媒体将永久删除，双方都无法恢复。" = "All content and media will be permanently deleted for both of you.";
-"退出后需要新的邀请才能再次加入。" = "You will need a new invitation to join again.";
 "正在离开" = "Leaving";
 "正在处理" = "Processing…";
 
@@ -224,16 +206,14 @@
 "正在同步" = "Syncing";
 "同步需处理" = "Sync needs attention";
 "网络恢复后会自动重试" = "Will retry when the network is available";
-"容器内容已补充" = "Container Content Restored";
-"三个容器现在都可以打开。" = "All three containers can now be opened.";
+"已放回" = "Put Back";
 "本机预览可以继续使用，但本次更改可能不会保留。" = "You can keep using local preview, but this change may not be saved.";
 "退出状态未能写入本机，请重新打开应用后重试。" = "The exit state could not be saved. Reopen the app and try again.";
-"容器内容已补充，但本次更改可能不会保留。" = "Container content was restored, but this change may not be saved.";
+"东西已经放回来了，但这次更改可能不会保留。" = "Everything is back, but this change may not be saved.";
 "另一项空间操作还在进行中。" = "Another space action is still in progress.";
 "无法创建" = "Unable to Create";
 "请先在系统设置中登录 iCloud。" = "Sign in to iCloud in Settings first.";
 "创建失败" = "Creation Failed";
-"本机预览无法邀请成员。" = "Local preview cannot invite members.";
 "无法打开共享" = "Unable to Open Sharing";
 "已有空间" = "Space Already Exists";
 "一次只能加入一个空间。请先在设置中退出或删除当前空间。" = "You can join only one space. Leave or delete the current one in Settings first.";
@@ -287,39 +267,29 @@
 "对方展开了你放入的纸团。" = "Your partner unfolded the note you left.";
 
 /* Clear content */
-"清空全部内容" = "Clear All Content";
-"当前共 %lld 条；清空后双方都无法恢复，但空间会保留。" = "%lld items currently. Clearing permanently removes them for both people but keeps the space.";
 "按住清空" = "Hold to Clear";
 "正在清空" = "Clearing";
 "无需清空" = "Nothing to Clear";
-"三个容器里还没有内容。" = "The three vessels are already empty.";
 "清空失败" = "Couldn’t Clear Content";
 "已清空" = "Content Cleared";
-"三个容器里的内容已删除，空间仍然保留。" = "Everything in the three vessels was deleted. The space remains.";
 
 /* Lifetime unlock and free quota */
-"内容空间" = "Content Space";
 "永久版" = "Lifetime";
 "免费版" = "Free";
-"内容不限" = "No item limit";
-"%d / %d 条" = "%d / %d items";
-"当前保留 %d / %d 条" = "Keeping %d of %d items";
-"一人购买，两个人共享" = "One purchase, shared by two";
-"被邀请的一方不需要再次购买。" = "The invited person doesn’t need to buy it again.";
-"三个容器，数量不限" = "All three vessels, no item limit";
-"已经留下的文字、照片和语音不用为了腾位置而删除。" = "Keep meaningful words, photos, and voice notes without deleting them to make room.";
-"一次买断，没有订阅" = "One-time purchase, no subscription";
-"不会按月或按年续费。" = "There is no monthly or annual renewal.";
+"不限量" = "Unlimited";
+"%d / %d" = "%d / %d";
+"已经留下 %d / %d" = "%d of %d left here";
+"一起解锁" = "Unlocked Together";
+"一人买断，两个人都能用。被邀请的一方不用再买。" = "One person buys it once, and both can use it. The invited person does not need to buy again.";
+"不再限量" = "No More Limit";
+"星星、胶囊和纸团，想留多少都可以。" = "Leave as many stars, capsules, and paper notes as you like.";
+"只买一次" = "Pay Only Once";
+"没有月付，也没有年付。" = "No monthly or yearly payments.";
 "继续使用" = "Continue";
-"这台设备已经解锁；恢复 iCloud 连接后会同步给空间。" = "This device is unlocked. Access will extend to the space when iCloud reconnects.";
-"这个空间已经由两个人共享永久版。" = "This space has Lifetime access for both people.";
 "恢复购买" = "Restore Purchases";
-"付款由 App Store 处理。购买不会自动续费。" = "Payment is handled by the App Store. This purchase does not renew.";
-"十个位置已经装满" = "All ten places are full";
-"让想留下的都留得下" = "Keep everything worth leaving";
-"三个容器不再限制内容数量。" = "The three vessels no longer have an item limit.";
-"免费版最多同时保留 10 条。你可以删除一条释放位置，或一次买断永久版。" = "The free version keeps up to 10 items at once. Delete one to make room, or unlock Lifetime with one purchase.";
-"免费版可以同时保留 10 条内容；永久版让当前空间不再受数量限制。" = "The free version keeps up to 10 items at once. Lifetime removes the item limit for this space.";
+"已经放满" = "All Full";
+"一直留着" = "Keep It All";
+"已经解锁" = "Unlocked";
 "正在连接 App Store" = "Connecting to the App Store";
 "正在等待 App Store" = "Waiting for the App Store";
 "正在恢复" = "Restoring";
@@ -327,8 +297,6 @@
 "重新连接 App Store" = "Reconnect to the App Store";
 "%@ 永久解锁" = "%@ · Unlock Forever";
 "永久解锁" = "Unlock Forever";
-"已经解锁" = "Already Unlocked";
-"这个空间的内容数量不再受限。" = "This space no longer has an item limit.";
 "无法购买" = "Purchases Unavailable";
 "这台设备目前不允许 App 内购买。" = "In-App Purchases are not allowed on this device.";
 "暂时无法连接 App Store" = "Can’t Connect to the App Store";
@@ -340,14 +308,10 @@
 "购买未完成" = "Purchase Not Completed";
 "请稍后再试。" = "Try again later.";
 "购买已恢复" = "Purchase Restored";
-"当前空间已解锁永久版。" = "Lifetime is now unlocked for this space.";
 "没有可恢复的购买" = "Nothing to Restore";
 "请确认使用了购买时的 Apple Account。" = "Make sure you’re using the Apple Account used for the purchase.";
 "恢复未完成" = "Restore Not Completed";
 "空间已解锁" = "Space Unlocked";
-"一次购买已经生效，两个人都可以不限数量地留下内容。" = "One purchase is now active. Both people can leave as many items as they like.";
-"永久版已解锁" = "Lifetime Unlocked";
-"这台设备已生效；恢复 iCloud 连接后会继续同步给空间。" = "This device is unlocked. Access will extend to the space when iCloud reconnects.";
 "正在删除" = "Deleting";
 "按住删除" = "Hold to Delete";
 "删除失败" = "Couldn’t Delete";
@@ -359,3 +323,12 @@
 "已是最新版本" = "You’re Up to Date";
 "新版本即将开放" = "Update Coming Soon";
 "稍后重试" = "Try Again Later";
+"打开 iCloud 邀请" = "Open iCloud Invitation";
+"空间共享" = "Space Sharing";
+"清空内容" = "Clear Content";
+"%d 条" = "%d items";
+"永久删除" = "Delete Forever";
+"这台设备已解锁" = "This Device Is Unlocked";
+"操作进行中" = "Action in Progress";
+"无法邀请" = "Can’t Invite";
+"预览永久版" = "Preview Lifetime";

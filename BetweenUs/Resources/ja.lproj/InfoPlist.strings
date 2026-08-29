@@ -1,3 +1,2 @@
 "CFBundleDisplayName" = "ささやき";
-"NSMicrophoneUsageDescription" = "伝えたい言葉を音声で録音し、ふたりの共有の入れ物に入れるために使用します。";
-
+"NSMicrophoneUsageDescription" = "伝えたいことを録音し、星・カプセル・紙のメモとして相手に残すために使います。";

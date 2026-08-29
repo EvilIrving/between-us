@@ -19,36 +19,22 @@ struct RelationshipOnboardingView: View {
                             .frame(width: 184, height: 208)
                     }
 
-                    VStack(spacing: 10) {
-                        Text("耳语")
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.primaryText)
+                    Text("耳语")
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .padding(.horizontal, 28)
 
-                        Text("两个人，共用三个容器。")
-                            .font(.body)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.80))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(6)
-                    }
-                    .padding(.horizontal, 28)
-
-                    VStack(spacing: 9) {
-                        HoldToOpenControl(
-                            kind: .star,
-                            title: "按住邀请",
-                            inactiveTitle: "正在创建",
-                            duration: 0.92,
-                            isEnabled: !store.viewModel.isPerformingAction,
-                            isWorking: store.viewModel.isPerformingAction,
-                            onComplete: {
-                                Task { await store.createRelationship() }
-                            }
-                        )
-
-                        Text("创建后邀请另一半")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.64))
-                    }
+                    HoldToOpenControl(
+                        kind: .star,
+                        title: "按住邀请",
+                        inactiveTitle: "正在创建",
+                        duration: 0.92,
+                        isEnabled: !store.viewModel.isPerformingAction,
+                        isWorking: store.viewModel.isPerformingAction,
+                        onComplete: {
+                            Task { await store.createRelationship() }
+                        }
+                    )
                     .padding(.horizontal, 36)
 
                     JoinSpaceHint()
@@ -58,12 +44,7 @@ struct RelationshipOnboardingView: View {
                         Task { await store.enterLocalPreview() }
                     }
 
-                    Text("每人使用自己的 Apple 账号")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.48))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 30)
-                        .padding(.bottom, 28)
+                    Spacer(minLength: 28)
                 }
                 .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)
@@ -82,16 +63,9 @@ private struct JoinSpaceHint: View {
                 .background(ContainerKind.capsule.tint.opacity(0.10))
                 .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("加入空间".localized)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-
-                Text("打开对方发来的 iCloud 邀请".localized)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.66))
-                    .lineLimit(2)
-            }
+            Text("打开 iCloud 邀请".localized)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
 
             Spacer(minLength: 0)
         }
@@ -163,7 +137,6 @@ struct ICloudRequiredView: View {
 }
 
 private struct LookAroundEntry: View {
-    var prominent = false
     let action: () -> Void
 
     var body: some View {
@@ -171,36 +144,18 @@ private struct LookAroundEntry: View {
             RitualHaptics.selection()
             action()
         } label: {
-            Group {
-                if prominent {
-                    VStack(spacing: 8) {
-                        RitualObjectGlyph(kind: .star, size: 64, filled: false)
-
-                        Text("本机预览")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.primaryText)
-
-                        Text("仅保存在本机")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 8)
-                } else {
-                    HStack(spacing: 6) {
-                        Image(systemName: "eye")
-                            .font(.caption.weight(.semibold))
-                        Text("本机预览")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-                    .padding(.horizontal, 13)
-                    .frame(height: 34)
-                    .background(Color.white.opacity(0.26))
-                    .clipShape(Capsule())
-                    .overlay { Capsule().stroke(Color.white.opacity(0.46), lineWidth: 1) }
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "eye")
+                    .font(.caption.weight(.semibold))
+                Text("本机预览")
+                    .font(.caption.weight(.semibold))
             }
+            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
+            .padding(.horizontal, 13)
+            .frame(height: 34)
+            .background(Color.white.opacity(0.26))
+            .clipShape(Capsule())
+            .overlay { Capsule().stroke(Color.white.opacity(0.46), lineWidth: 1) }
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())

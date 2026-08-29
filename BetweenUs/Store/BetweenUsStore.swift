@@ -128,15 +128,15 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         let changed = prepareLocalPreviewContent()
         if changed {
             let persisted = await persistOrReport(
-                context: "保存补充后的容器内容",
-                noticeMessage: "容器内容已补充，但本次更改可能不会保留。"
+                context: "保存放回的预览内容",
+                noticeMessage: "东西已经放回来了，但这次更改可能不会保留。"
             )
             await publishData()
             guard persisted else { return }
         }
         await showNotice(
-            title: "容器内容已补充",
-            message: "三个容器现在都可以打开。"
+            title: "已放回",
+            message: ""
         )
     }
 
@@ -170,7 +170,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func createRelationship() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
+            await showNotice(title: "操作进行中", message: "")
             return
         }
         relationshipOperation = .creating
@@ -255,8 +255,8 @@ final actor BetweenUsStore: Sendable, ObservableObject {
     func prepareShareSheet() async {
         if appData.isLocalPreview {
             await showNotice(
-                title: "本机预览",
-                message: "本机预览无法邀请成员。"
+                title: "无法邀请",
+                message: ""
             )
             return
         }
@@ -304,7 +304,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func acceptShare(_ metadata: CKShare.Metadata) async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
+            await showNotice(title: "操作进行中", message: "")
             return
         }
         relationshipOperation = .accepting
@@ -520,7 +520,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func purchaseLifetime() async {
         guard !hasUnlimitedContent else {
-            await showNotice(title: "已经解锁", message: "这个空间的内容数量不再受限。")
+            await showNotice(title: "空间已解锁", message: "")
             return
         }
         guard SKPaymentQueue.canMakePayments() else {
@@ -590,7 +590,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await publishPurchaseState()
 
             if ownedLifetimeTransaction != nil {
-                await showNotice(title: "购买已恢复", message: "当前空间已解锁永久版。")
+                await showNotice(title: "购买已恢复", message: "")
             } else {
                 await showNotice(title: "没有可恢复的购买", message: "请确认使用了购买时的 Apple Account。")
             }
@@ -629,7 +629,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func endRelationship() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
+            await showNotice(title: "操作进行中", message: "")
             return
         }
         relationshipOperation = .ending
@@ -641,11 +641,11 @@ final actor BetweenUsStore: Sendable, ObservableObject {
 
     func clearAllContent() async {
         guard relationshipOperation == nil else {
-            await showNotice(title: "请稍候", message: "另一项空间操作还在进行中。")
+            await showNotice(title: "操作进行中", message: "")
             return
         }
         guard !appData.items.isEmpty else {
-            await showNotice(title: "无需清空", message: "三个容器里还没有内容。")
+            await showNotice(title: "无需清空", message: "")
             return
         }
 
@@ -690,7 +690,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await publishData()
         await showNotice(
             title: "已清空",
-            message: "三个容器里的内容已删除，空间仍然保留。"
+            message: ""
         )
     }
 
@@ -1260,12 +1260,12 @@ private extension BetweenUsStore {
         if sharedWithSpace {
             await showNotice(
                 title: "空间已解锁",
-                message: "一次购买已经生效，两个人都可以不限数量地留下内容。"
+                message: ""
             )
         } else {
             await showNotice(
-                title: "永久版已解锁",
-                message: "这台设备已生效；恢复 iCloud 连接后会继续同步给空间。"
+                title: "这台设备已解锁",
+                message: ""
             )
         }
     }
@@ -1273,12 +1273,14 @@ private extension BetweenUsStore {
     func syncLifetimeEntitlementToCurrentSpace(using transaction: Transaction) async -> Bool {
         guard let relationship = appData.relationship else { return false }
         guard !appData.isLocalPreview else { return true }
-        if appData.sharedSpaceEntitlement != nil { return true }
 
         let entitlement = SharedSpaceEntitlement(
             productID: CommerceConfiguration.lifetimeProductID,
             unlockedAt: transaction.purchaseDate
         )
+        if appData.sharedSpaceEntitlement != nil {
+            return true
+        }
         let recordID = CKRecord.ID(recordName: "relationship", zoneID: relationship.zoneID)
         let database = Self.container.database(with: relationship.scope.databaseScope)
 
@@ -1321,8 +1323,13 @@ private extension BetweenUsStore {
         guard let relationship = appData.relationship,
               let sharedEntitlement = appData.sharedSpaceEntitlement,
               sharedEntitlement.productID == transaction.productID,
-              abs(sharedEntitlement.unlockedAt.timeIntervalSince(transaction.purchaseDate)) < 2,
+              matchesTransaction(sharedEntitlement, transaction),
               !appData.isLocalPreview else { return }
+
+        await clearSharedLifetimeEntitlement(in: relationship)
+    }
+
+    func clearSharedLifetimeEntitlement(in relationship: RelationshipLocator) async {
 
         let recordID = CKRecord.ID(recordName: "relationship", zoneID: relationship.zoneID)
         let database = Self.container.database(with: relationship.scope.databaseScope)
@@ -1337,6 +1344,10 @@ private extension BetweenUsStore {
         } catch {
             logger.info("Shared lifetime entitlement revocation deferred: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    func matchesTransaction(_ entitlement: SharedSpaceEntitlement, _ transaction: Transaction) -> Bool {
+        return abs(entitlement.unlockedAt.timeIntervalSince(transaction.purchaseDate)) < 2
     }
 
     func sharedEntitlement(from record: CKRecord) -> SharedSpaceEntitlement? {
@@ -1453,6 +1464,7 @@ private extension BetweenUsStore {
             queuePersistedDirtyRecords()
             try persist()
             await publishData()
+            Task { await self.refreshOwnedLifetimePurchase() }
             await setPhase(appData.relationship == nil ? .needsRelationship : .ready)
             if appData.relationship != nil, let ownedLifetimeTransaction {
                 _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)

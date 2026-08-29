@@ -1,0 +1,61 @@
+{
+  "identifier" : "89D6AEB0-3482-4BE4-9FCF-1A20EA5B2218",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "18",
+      "familyShareable" : false,
+      "internalID" : "8A0687AC-5A14-4E64-9E59-EF319392C320",
+      "localizations" : [
+        {
+          "description" : "一次买断，当前空间由两个人共享不限量内容。",
+          "displayName" : "耳语永久版",
+          "locale" : "zh_Hans"
+        },
+        {
+          "description" : "One purchase unlocks unlimited content for both people in the current space.",
+          "displayName" : "Between us Lifetime",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "一度の購入で、現在のスペースをふたりで無制限に使えます。",
+          "displayName" : "Between us 買い切り版",
+          "locale" : "ja_JP"
+        },
+        {
+          "description" : "한 번 구매하면 현재 공간에서 두 사람이 콘텐츠를 제한 없이 보관할 수 있어요.",
+          "displayName" : "Between us 평생 이용",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "cain.com.between-us.lifetime",
+      "referenceName" : "Between us Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "zh_CN",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+      { "current" : null, "enabled" : false, "name" : "Load Products" },
+      { "current" : null, "enabled" : false, "name" : "Purchase" },
+      { "current" : null, "enabled" : false, "name" : "Verification" },
+      { "current" : null, "enabled" : false, "name" : "App Store Sync" },
+      { "current" : null, "enabled" : false, "name" : "Subscription Status" },
+      { "current" : null, "enabled" : false, "name" : "App Transaction" },
+      { "current" : null, "enabled" : false, "name" : "Manage Subscriptions Sheet" },
+      { "current" : null, "enabled" : false, "name" : "Refund Request Sheet" },
+      { "current" : null, "enabled" : false, "name" : "Offer Code Redeem Sheet" }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

@@ -179,10 +179,10 @@ struct ComposeSheet: View {
                     onRecorded: voiceRecorded,
                     onPreviewed: voicePreviewed,
                     onCancelled: {
-                        localNotice = LocalNotice(title: "录音已取消", message: "未保存录音。")
+                        localNotice = LocalNotice(title: "录音已取消", message: "")
                     },
                     onTooShort: {
-                        localNotice = LocalNotice(title: "录音太短", message: "请重新录制。")
+                        localNotice = LocalNotice(title: "录音太短", message: "")
                     },
                     onError: { message in
                         localNotice = LocalNotice(title: "无法录音", message: message)
@@ -262,7 +262,7 @@ struct ComposeSheet: View {
         RitualHaptics.warning()
         localNotice = LocalNotice(
             title: "录音已中断",
-            message: "这段录音未保存。"
+            message: ""
         )
     }
 

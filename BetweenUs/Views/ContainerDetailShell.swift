@@ -3,7 +3,6 @@ import SwiftUI
 struct ContainerDetailShell<Content: View>: View {
     let kind: ContainerKind
     let title: String
-    let subtitle: String
     let content: Content
 
     @Environment(\.dismiss) private var dismiss
@@ -11,12 +10,10 @@ struct ContainerDetailShell<Content: View>: View {
     init(
         kind: ContainerKind,
         title: String,
-        subtitle: String,
         @ViewBuilder content: () -> Content
     ) {
         self.kind = kind
         self.title = title
-        self.subtitle = subtitle
         self.content = content()
     }
 
@@ -45,17 +42,6 @@ struct ContainerDetailShell<Content: View>: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
 
-                    if !subtitle.isEmpty {
-                        Text(subtitle.localized)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.76))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(4)
-                            .padding(.horizontal, 30)
-                            .padding(.top, 7)
-                            .padding(.bottom, 3)
-                    }
-
                     content
                         .padding(.horizontal, 20)
                         .padding(.bottom, 34)
@@ -81,8 +67,7 @@ struct ContainerRitualScene: View {
     var body: some View {
         ContainerDetailShell(
             kind: kind,
-            title: kind.title,
-            subtitle: ""
+            title: kind.title
         ) {
             VStack(spacing: 14) {
                 ContainerHoldStage(
@@ -94,7 +79,10 @@ struct ContainerRitualScene: View {
                     title: hasOpenableItem ? kind.openActionTitle : unavailableWhisper,
                     onComplete: openNext
                 )
-                .frame(height: kind == .capsule ? 236 : 272)
+                // Keep the interaction stage on one shared vertical grid. The
+                // artwork has different aspect ratios, but the content below
+                // it (balance and compose entry) must not move between jars.
+                .frame(height: 272)
 
                 ExchangeBalanceView(
                     kind: kind,

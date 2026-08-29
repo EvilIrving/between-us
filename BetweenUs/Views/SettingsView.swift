@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var isClearingContent = false
     @State private var didCopyFeedbackEmail = false
     @State private var isShowingLifetimeUnlock = false
+    @State private var lifetimeUnlockContext: LifetimeUnlockContext = .settings
     @State private var releaseUpdateState: ReleaseUpdateState = .idle
 
     var body: some View {
@@ -56,6 +57,18 @@ struct SettingsView: View {
                     if isLocalPreview {
                         SettingsSection(title: "测试功能") {
                             SettingsActionRow(
+                                systemName: "infinity",
+                                title: "预览永久版",
+                                value: nil,
+                                tint: ContainerKind.star.tint
+                            ) {
+                                lifetimeUnlockContext = .preview
+                                isShowingLifetimeUnlock = true
+                            }
+
+                            SettingsRowDivider()
+
+                            SettingsActionRow(
                                 systemName: "arrow.clockwise.circle",
                                 title: "恢复数据",
                                 value: nil,
@@ -79,13 +92,14 @@ struct SettingsView: View {
                     }
 
                     if !isLocalPreview {
-                        SettingsSection(title: "内容空间") {
+                        SettingsSection(title: "") {
                             SettingsActionRow(
                                 systemName: store.viewModel.hasUnlimitedContent ? "infinity" : "tray.full",
                                 title: store.viewModel.hasUnlimitedContent ? "永久版" : "免费版",
                                 value: contentPlanDetail,
                                 tint: ContainerKind.star.tint
                             ) {
+                                lifetimeUnlockContext = .settings
                                 isShowingLifetimeUnlock = true
                             }
                         }
@@ -145,6 +159,28 @@ struct SettingsView: View {
                         SettingsRowDivider()
 
                         SettingsActionRow(
+                            systemName: "doc.text",
+                            title: "使用条款",
+                            value: nil,
+                            tint: Color(red: 0.50, green: 0.54, blue: 0.72)
+                        ) {
+                            openWebsite("terms/")
+                        }
+
+                        SettingsRowDivider()
+
+                        SettingsActionRow(
+                            systemName: "cart",
+                            title: "购买与退款",
+                            value: nil,
+                            tint: ContainerKind.star.tint
+                        ) {
+                            openWebsite("purchases/")
+                        }
+
+                        SettingsRowDivider()
+
+                        SettingsActionRow(
                             systemName: "questionmark.bubble",
                             title: "使用帮助",
                             value: nil,
@@ -158,7 +194,7 @@ struct SettingsView: View {
                         SettingsCopyRow(
                             systemName: "envelope",
                             title: "反馈问题",
-                            value: "jescain2024@gmail.com",
+                            value: "dong.yy1916@gmail.com",
                             isCopied: didCopyFeedbackEmail,
                             tint: ContainerKind.paper.tint
                         ) {
@@ -205,7 +241,7 @@ struct SettingsView: View {
             notificationState = await store.notificationAuthorizationStatus()
         }
         .sheet(isPresented: $isShowingLifetimeUnlock) {
-            LifetimeUnlockView(context: .settings)
+            LifetimeUnlockView(context: lifetimeUnlockContext)
         }
     }
 
@@ -242,16 +278,9 @@ struct SettingsView: View {
                     .background(Color.red.opacity(0.08))
                     .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(endSpaceTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText.opacity(0.82))
-
-                    Text(endSpaceExplanation)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(endSpaceTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText.opacity(0.82))
             }
 
             CompactHoldAction(
@@ -283,16 +312,15 @@ struct SettingsView: View {
                     .background(Color.red.opacity(0.08))
                     .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("清空全部内容")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText.opacity(0.82))
+                Text("清空内容".localized)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText.opacity(0.82))
 
-                    Text(clearContentExplanation)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Spacer(minLength: 8)
+
+                Text("%d 条".localized(store.viewModel.data.items.count))
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
             }
 
             CompactHoldAction(
@@ -348,9 +376,9 @@ struct SettingsView: View {
 
     private var contentPlanDetail: String {
         if store.viewModel.hasUnlimitedContent {
-            return "内容不限".localized
+            return "不限量".localized
         }
-        return "%d / %d 条".localized(
+        return "%d / %d".localized(
             store.viewModel.data.items.count,
             CommerceConfiguration.freeItemLimit
         )
@@ -412,28 +440,11 @@ struct SettingsView: View {
     }
 
     private var endSpaceTitle: String {
-        if isLocalPreview { return "离开预览".localized }
-        return relationship?.isOwner == true ? "删除空间".localized : "退出空间".localized
-    }
-
-    private var clearContentExplanation: String {
-        let count = Int64(store.viewModel.data.items.count)
-        return "当前共 %lld 条；清空后双方都无法恢复，但空间会保留。".localized(count)
+        relationship?.isOwner == true ? "永久删除".localized : "退出空间".localized
     }
 
     private var endSpaceActionTitle: String {
-        if isLocalPreview { return "按住离开预览".localized }
-        return relationship?.isOwner == true ? "按住删除空间".localized : "按住退出空间".localized
-    }
-
-    private var endSpaceExplanation: String {
-        if isLocalPreview {
-            return "本机预览内容将被删除。".localized
-        }
-        if relationship?.isOwner == true {
-            return "所有内容和媒体将永久删除，双方都无法恢复。".localized
-        }
-        return "退出后需要新的邀请才能再次加入。".localized
+        relationship?.isOwner == true ? "按住删除空间".localized : "按住退出空间".localized
     }
 
     private func handleNotificationAction() {
@@ -479,7 +490,7 @@ struct SettingsView: View {
     }
 
     private func copyFeedbackEmail() {
-        UIPasteboard.general.string = "jescain2024@gmail.com"
+        UIPasteboard.general.string = "dong.yy1916@gmail.com"
         RitualHaptics.success()
         didCopyFeedbackEmail = true
 

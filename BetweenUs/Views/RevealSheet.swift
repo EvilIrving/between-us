@@ -76,15 +76,6 @@ struct RevealSheet: View {
                             showResponseComposer = true
                         }
 
-                        VStack(spacing: 5) {
-                            Image(systemName: "chevron.down")
-                                .font(.caption.weight(.bold))
-                            Text("下拉关闭")
-                                .font(.caption2)
-                        }
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.46))
-                        .padding(.top, 2)
-                        .padding(.bottom, 30)
                     }
                 }
                 .padding(.horizontal, 20)
