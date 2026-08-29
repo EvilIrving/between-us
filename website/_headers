@@ -7,6 +7,9 @@
 /assets/*
   Cache-Control: public, max-age=604800, immutable
 
+/release.json
+  Cache-Control: no-store
+
 /*.css
   Cache-Control: public, max-age=3600
 

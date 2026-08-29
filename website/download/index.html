@@ -7,32 +7,44 @@
   <meta name="description" content="耳语 Between us 的稳定下载入口。公开测试将通过 TestFlight 提供，正式版本计划上架 Apple App Store。">
   <link rel="canonical" href="https://betweenus.onecat.dev/download/">
   <link rel="icon" href="/assets/app-icon.png" type="image/png">
-  <script src="/site.js"></script>
-  <link rel="stylesheet" href="/styles.css">
+  <script src="/site.js?v=20260830-2"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260830-2">
   <meta name="robots" content="index,follow">
-  <script src="/release-config.js"></script>
   <script>
-    const release = window.BETWEEN_US_RELEASE || {};
-    if (release.available && release.primaryDownloadURL) {
-      window.location.replace(release.primaryDownloadURL);
-    }
+    (async () => {
+      try {
+        const response = await fetch(`/release.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) return;
+
+        const release = await response.json();
+        if (!release.isDownloadOpen || !release.downloadURL) return;
+
+        const downloadURL = new URL(release.downloadURL);
+        const allowedHosts = ["testflight.apple.com", "apps.apple.com"];
+        if (downloadURL.protocol === "https:" && allowedHosts.includes(downloadURL.hostname)) {
+          window.location.replace(downloadURL.href);
+        }
+      } catch (_) {
+        // Keep the download-status page visible when the manifest is unavailable.
+      }
+    })();
   </script>
 </head>
 <body
   class="download-page"
   data-title-zh="下载耳语 Between us"
-  data-title-en="Download Whisper — Between us"
-  data-title-ja="ささやき Between usをダウンロード"
-  data-title-ko="속삭임 Between us 다운로드"
+  data-title-en="Download Between us"
+  data-title-ja="耳语 Between usをダウンロード"
+  data-title-ko="耳语 Between us 다운로드"
   data-description-zh="耳语 Between us 的稳定下载入口。公开测试将通过 TestFlight 提供，正式版本计划上架 Apple App Store。"
-  data-description-en="The official download page for Whisper — Between us. The public beta will be available through TestFlight, followed by a release on the Apple App Store."
-  data-description-ja="ささやき Between usの公式ダウンロードページです。公開ベータ版はTestFlightで配布し、正式版はApple App Storeで公開予定です。"
-  data-description-ko="속삭임 Between us의 공식 다운로드 페이지입니다. 공개 베타는 TestFlight로 제공하며, 정식 버전은 Apple App Store에 출시할 예정입니다."
+  data-description-en="The official download page for Between us. The public beta will be available through TestFlight, followed by a release on the Apple App Store."
+  data-description-ja="耳语 Between usの公式ダウンロードページです。公開ベータ版はTestFlightで配布し、正式版はApple App Storeで公開予定です。"
+  data-description-ko="耳语 Between us의 공식 다운로드 페이지입니다. 공개 베타는 TestFlight로 제공하며, 정식 버전은 Apple App Store에 출시할 예정입니다."
 >
   <header class="site-header">
-    <a class="brand" href="/" aria-label="耳语 Between us 首页" data-label-zh="耳语 Between us 首页" data-label-en="Whisper — Between us home" data-label-ja="ささやき Between us ホーム" data-label-ko="속삭임 Between us 홈">
+    <a class="brand" href="/" aria-label="耳语 Between us 首页" data-label-zh="耳语 Between us 首页" data-label-en="Between us home" data-label-ja="耳语 Between us ホーム" data-label-ko="耳语 Between us 홈">
       <img src="/assets/app-icon.png" alt="" width="40" height="40">
-      <span><b><span data-copy="zh">耳语</span><span data-copy="en">Whisper</span><span data-copy="ja">ささやき</span><span data-copy="ko">속삭임</span></b><small>Between us</small></span>
+      <span><b>耳语</b><small>Between us</small></span>
     </a>
     <nav aria-label="语言选择" data-label-zh="语言选择" data-label-en="Language selection" data-label-ja="言語選択" data-label-ko="언어 선택">
       <select class="language-switch" aria-label="选择语言">
@@ -44,7 +56,7 @@
     </nav>
   </header>
   <main class="download-main">
-    <img src="/assets/app-icon.png" alt="耳语 Between us 应用图标" data-alt-zh="耳语 Between us 应用图标" data-alt-en="Whisper — Between us app icon" data-alt-ja="ささやき Between usのアプリアイコン" data-alt-ko="속삭임 Between us 앱 아이콘" width="1024" height="1024">
+    <img src="/assets/app-icon.png" alt="耳语 Between us 应用图标" data-alt-zh="耳语 Between us 应用图标" data-alt-en="Between us app icon" data-alt-ja="耳语 Between usのアプリアイコン" data-alt-ko="耳语 Between us 앱 아이콘" width="1024" height="1024">
     <p class="eyebrow"><span data-copy="zh">下载状态</span><span data-copy="en">Download status</span><span data-copy="ja">ダウンロード状況</span><span data-copy="ko">다운로드 현황</span></p>
     <h1><span data-copy="zh">TestFlight 尚未开放</span><span data-copy="en">The public TestFlight beta isn’t open yet</span><span data-copy="ja">TestFlightの公開ベータはまだ始まっていません</span><span data-copy="ko">공개 TestFlight 베타는 아직 시작되지 않았습니다</span></h1>
     <p class="lede"><span data-copy="zh">开放后，此地址将直接跳转到 TestFlight。正式上架后，将改为跳转 App Store。</span><span data-copy="en">When beta opens, this address will redirect to TestFlight. After release, it will redirect to the App Store.</span><span data-copy="ja">公開ベータ版の開始後、このアドレスからTestFlightへ直接移動できます。正式リリース後はApp Storeへ移動します。</span><span data-copy="ko">공개 베타가 시작되면 이 주소에서 TestFlight로 바로 이동합니다. 정식 출시 후에는 App Store로 연결됩니다.</span></p>
@@ -52,7 +64,7 @@
     <p class="stable-url">betweenus.onecat.dev/download</p>
   </main>
   <footer>
-    <div class="footer-brand"><span data-copy="zh">耳语</span><span data-copy="en">Whisper</span><span data-copy="ja">ささやき</span><span data-copy="ko">속삭임</span> <span>Between us</span></div>
+    <div class="footer-brand">耳语 <span>Between us</span></div>
     <div class="footer-links"><a href="/privacy/"><span data-copy="zh">隐私</span><span data-copy="en">Privacy</span><span data-copy="ja">プライバシー</span><span data-copy="ko">개인정보 보호</span></a><a href="/support/"><span data-copy="zh">支持</span><span data-copy="en">Support</span><span data-copy="ja">サポート</span><span data-copy="ko">지원</span></a></div>
     <p>© 2026 Between us</p>
   </footer>

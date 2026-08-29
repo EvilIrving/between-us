@@ -102,7 +102,7 @@ html[data-language="ko"] [data-copy="ko"] { display: inline; }
   box-shadow: 0 7px 18px rgba(179, 105, 24, 0.2);
 }
 
-.brand span { display: grid; line-height: 1.05; }
+.brand > span { display: grid; line-height: 1.05; }
 .brand b { font-family: var(--serif); font-size: 1rem; letter-spacing: 0.08em; }
 .brand small { color: var(--muted); font-size: 0.62rem; letter-spacing: 0.12em; margin-top: 0.25rem; text-transform: uppercase; }
 

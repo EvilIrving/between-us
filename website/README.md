@@ -11,19 +11,19 @@ The language menu uses `zh`, `en`, `ja`, and `ko`. It follows the browser langua
 - Privacy policy: `https://betweenus.onecat.dev/privacy/`
 - Support: `https://betweenus.onecat.dev/support/`
 
-## Point the download URL at TestFlight or the App Store
+## Publish a TestFlight or App Store release
 
-Edit `release-config.js`:
+Edit `release.json`:
 
-```js
-window.BETWEEN_US_RELEASE = {
-  primaryDownloadURL: "https://testflight.apple.com/join/REAL_CODE",
-  channel: "TestFlight",
-  available: true
-};
+```json
+{
+  "latestVersion": "0.0.2",
+  "downloadURL": "https://testflight.apple.com/join/REAL_CODE",
+  "isDownloadOpen": true
+}
 ```
 
-After the App Store release, replace `primaryDownloadURL` with the real App Store product URL and change `channel` to `App Store`. Never publish a placeholder code.
+Only publish a version after its TestFlight build or App Store product is available. After the App Store release, replace `downloadURL` with the real `https://apps.apple.com/app/id...` product URL. Both the website and the app's update checker read this manifest. Never publish a placeholder code.
 
 ## Deploy
 
