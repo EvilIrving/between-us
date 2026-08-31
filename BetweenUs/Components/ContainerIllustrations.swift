@@ -159,7 +159,7 @@ struct ParametricTokenView: View {
                         .fill(
                             LinearGradient(
                                 colors: filled
-                                    ? [Color(red: 1.00, green: 0.82, blue: 0.44), kind.tint, Color(red: 0.72, green: 0.36, blue: 0.12)]
+                                    ? starFillColors
                                     : [AppTheme.paper, Color(red: 0.88, green: 0.82, blue: 0.70)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -208,6 +208,41 @@ struct ParametricTokenView: View {
         default: return Color(red: 0.64, green: 0.57, blue: 0.68)
         }
     }
+
+    private var starFillColors: [Color] {
+        switch seed % 5 {
+        case 0:
+            return [
+                Color(red: 1.00, green: 0.84, blue: 0.46),
+                Color(red: 0.98, green: 0.62, blue: 0.22),
+                Color(red: 0.72, green: 0.36, blue: 0.12)
+            ]
+        case 1:
+            return [
+                Color(red: 1.00, green: 0.74, blue: 0.82),
+                Color(red: 0.90, green: 0.40, blue: 0.56),
+                Color(red: 0.58, green: 0.20, blue: 0.32)
+            ]
+        case 2:
+            return [
+                Color(red: 0.74, green: 0.94, blue: 0.92),
+                Color(red: 0.30, green: 0.70, blue: 0.76),
+                Color(red: 0.14, green: 0.42, blue: 0.50)
+            ]
+        case 3:
+            return [
+                Color(red: 1.00, green: 0.80, blue: 0.44),
+                Color(red: 0.96, green: 0.50, blue: 0.16),
+                Color(red: 0.68, green: 0.30, blue: 0.10)
+            ]
+        default:
+            return [
+                Color(red: 0.84, green: 0.96, blue: 0.54),
+                Color(red: 0.52, green: 0.76, blue: 0.28),
+                Color(red: 0.30, green: 0.48, blue: 0.16)
+            ]
+        }
+    }
 }
 
 private struct StarJarVisual: View {
@@ -217,11 +252,17 @@ private struct StarJarVisual: View {
     let shadowScale: CGFloat
 
     private let positions: [CGPoint] = [
-        .init(x: 0.35, y: 0.76), .init(x: 0.51, y: 0.79), .init(x: 0.66, y: 0.74),
-        .init(x: 0.29, y: 0.65), .init(x: 0.47, y: 0.65), .init(x: 0.64, y: 0.62),
-        .init(x: 0.38, y: 0.54), .init(x: 0.57, y: 0.52), .init(x: 0.70, y: 0.48),
-        .init(x: 0.31, y: 0.44), .init(x: 0.49, y: 0.41), .init(x: 0.64, y: 0.36),
-        .init(x: 0.39, y: 0.31), .init(x: 0.55, y: 0.27)
+        .init(x: 0.33, y: 0.78), .init(x: 0.50, y: 0.81), .init(x: 0.67, y: 0.77),
+        .init(x: 0.28, y: 0.68), .init(x: 0.46, y: 0.70), .init(x: 0.63, y: 0.66),
+        .init(x: 0.37, y: 0.60), .init(x: 0.55, y: 0.58), .init(x: 0.70, y: 0.55),
+        .init(x: 0.30, y: 0.52), .init(x: 0.48, y: 0.48), .init(x: 0.64, y: 0.45),
+        .init(x: 0.40, y: 0.40), .init(x: 0.57, y: 0.36), .init(x: 0.34, y: 0.34)
+    ]
+
+    private let sparkles: [(CGPoint, CGFloat, Double)] = [
+        (.init(x: 0.22, y: 0.30), 0.055, 12),
+        (.init(x: 0.78, y: 0.34), 0.042, -18),
+        (.init(x: 0.70, y: 0.22), 0.034, 28)
     ]
 
     var body: some View {
@@ -229,65 +270,154 @@ private struct StarJarVisual: View {
             let width = proxy.size.width
             let height = proxy.size.height
             let clampedProgress = min(max(progress, 0), 1)
+            let fill = min(1, CGFloat(count) / 5)
+            let glow = 0.16 + fill * 0.72 + (isActive ? 0.18 : 0) + clampedProgress * 0.20
             let bottle = ProfiledShape(profile: ParametricPreset.bottleProfile, tension: 0.73)
+            let hx = width * 0.12
+            let vy = height * 0.07
 
             ZStack {
                 Ellipse()
-                    .fill(Color.black.opacity(0.10))
-                    .frame(width: width * 0.60, height: height * 0.075)
-                    .blur(radius: 8 * shadowScale)
-                    .offset(y: height * 0.43)
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 1.00, green: 0.78, blue: 0.28).opacity(0.16 + glow * 0.28),
+                                Color.black.opacity(0.10)
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: width * 0.42
+                        )
+                    )
+                    .frame(width: width * 0.72, height: height * 0.12)
+                    .blur(radius: 10 * shadowScale)
+                    .offset(y: height * 0.44)
+
+                bottle
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 1.00, green: 0.93, blue: 0.55).opacity(0.10 + glow * 0.55),
+                                Color(red: 0.72, green: 0.86, blue: 0.28).opacity(0.10 + glow * 0.28),
+                                Color(red: 0.42, green: 0.24, blue: 0.08).opacity(0.55 - fill * 0.12)
+                            ],
+                            center: UnitPoint(x: 0.46, y: 0.40),
+                            startRadius: 0,
+                            endRadius: max(width, height) * 0.52
+                        )
+                    )
+                    .padding(.horizontal, hx)
+                    .padding(.vertical, vy)
+                    .shadow(
+                        color: Color(red: 0.95, green: 0.82, blue: 0.20).opacity(glow * 0.55),
+                        radius: 18 + glow * 22,
+                        y: 0
+                    )
+
+                ZStack {
+                    ForEach(0..<min(count, positions.count), id: \.self) { index in
+                        let position = positions[index]
+                        let size = width * (index.isMultiple(of: 5) ? 0.155 : (index.isMultiple(of: 2) ? 0.122 : 0.108))
+                        ParametricTokenView(kind: .star, seed: index)
+                            .frame(width: size, height: size)
+                            .rotationEffect(.degrees(Double(index * 31 - 24)))
+                            .position(x: width * position.x, y: height * position.y)
+                            .offset(y: -clampedProgress * height * CGFloat(0.018 + Double(index % 3) * 0.006))
+                            .scaleEffect(1 + glow * 0.05 + clampedProgress * (index.isMultiple(of: 2) ? 0.07 : 0.03))
+                            .shadow(
+                                color: Color(red: 1.00, green: 0.86, blue: 0.40).opacity(0.22 + glow * 0.40),
+                                radius: 5 + glow * 9
+                            )
+                    }
+                }
+                .mask(
+                    bottle
+                        .fill(Color.white)
+                        .padding(.horizontal, hx)
+                        .padding(.vertical, vy)
+                )
 
                 bottle
                     .fill(
                         LinearGradient(
                             colors: [
-                                ProceduralPalette.amberGlass.light,
-                                ProceduralPalette.amberGlass.base,
-                                ProceduralPalette.amberGlass.shade
+                                Color.white.opacity(0.22 + glow * 0.10),
+                                Color(red: 0.90, green: 0.72, blue: 0.28).opacity(0.10),
+                                Color(red: 0.28, green: 0.16, blue: 0.06).opacity(0.22)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .padding(.horizontal, width * 0.12)
-                    .padding(.vertical, height * 0.07)
+                    .padding(.horizontal, hx)
+                    .padding(.vertical, vy)
+                    .allowsHitTesting(false)
 
-                ForEach(0..<min(count, positions.count), id: \.self) { index in
-                    let position = positions[index]
-                    ParametricTokenView(kind: .star, seed: index)
-                        .frame(width: width * (index.isMultiple(of: 4) ? 0.135 : 0.115), height: width * (index.isMultiple(of: 4) ? 0.135 : 0.115))
-                        .rotationEffect(.degrees(Double(index * 31 - 24)))
-                        .position(x: width * position.x, y: height * position.y)
-                        .offset(y: -clampedProgress * height * CGFloat(0.018 + Double(index % 3) * 0.006))
-                        .scaleEffect(1 + clampedProgress * (index.isMultiple(of: 2) ? 0.08 : 0.04))
-                        .shadow(
-                            color: ContainerKind.star.tint.opacity(clampedProgress * 0.32),
-                            radius: 3 + clampedProgress * 8
-                        )
-                }
+                GlassGrainOverlay()
+                    .opacity(0.28 + fill * 0.12)
+                    .mask(
+                        bottle
+                            .fill(Color.white)
+                            .padding(.horizontal, hx)
+                            .padding(.vertical, vy)
+                    )
 
                 bottle
                     .stroke(
                         LinearGradient(
-                            colors: [ProceduralPalette.amberGlass.highlight, ProceduralPalette.amberGlass.edge, ProceduralPalette.amberGlass.highlight.opacity(0.35)],
+                            colors: [
+                                Color.white.opacity(0.72 + glow * 0.18),
+                                Color(red: 0.78, green: 0.58, blue: 0.18).opacity(0.80),
+                                Color.white.opacity(0.20)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: max(1.2, width * 0.010)
+                        lineWidth: max(1.4, width * 0.012)
                     )
-                    .padding(.horizontal, width * 0.12)
-                    .padding(.vertical, height * 0.07)
+                    .padding(.horizontal, hx)
+                    .padding(.vertical, vy)
 
                 BottleLightBand()
-                    .fill(ProceduralPalette.amberGlass.highlight.opacity(isActive ? 0.54 : 0.36))
-                    .frame(width: width * 0.13, height: height * 0.58)
-                    .offset(x: -width * 0.22, y: height * 0.09)
-                    .blur(radius: width * 0.006)
+                    .fill(Color.white.opacity(0.28 + glow * 0.32))
+                    .frame(width: width * 0.14, height: height * 0.58)
+                    .offset(x: -width * 0.21, y: height * 0.08)
+                    .blur(radius: width * 0.008)
+
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 1.00, green: 0.96, blue: 0.72).opacity(glow * 0.85),
+                                Color(red: 0.82, green: 0.94, blue: 0.32).opacity(glow * 0.28),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: width * 0.18
+                        )
+                    )
+                    .frame(width: width * 0.34, height: height * 0.12)
+                    .offset(y: -height * 0.27)
+                    .blur(radius: 7)
+                    .opacity(count == 0 ? 0.22 : 1)
+
+                if fill > 0.08 || isActive {
+                    ForEach(0..<sparkles.count, id: \.self) { index in
+                        let sparkle = sparkles[index]
+                        StarShape(points: 4, innerRatio: 0.32, roundness: 0.08)
+                            .fill(Color.white.opacity(0.55 + glow * 0.35))
+                            .frame(width: width * sparkle.1, height: width * sparkle.1)
+                            .rotationEffect(.degrees(sparkle.2))
+                            .position(x: width * sparkle.0.x, y: height * sparkle.0.y)
+                            .shadow(color: Color.white.opacity(0.6), radius: 4)
+                            .opacity(0.45 + glow * 0.40)
+                    }
+                }
 
                 ZStack {
                     SuperellipseShape(exponent: 4.2)
-                        .fill(ProceduralPalette.warmWood.shade.opacity(0.82))
+                        .fill(ProceduralPalette.warmWood.shade.opacity(0.88))
                         .overlay {
                             SuperellipseShape(exponent: 4.2)
                                 .stroke(ProceduralPalette.warmWood.edge, lineWidth: max(1, width * 0.007))
@@ -299,10 +429,11 @@ private struct StarJarVisual: View {
                         shape: SuperellipseShape(exponent: 5.2),
                         palette: .warmWood,
                         edgeWidth: max(1, width * 0.008),
-                        shadowRadius: (7 + clampedProgress * 10) * shadowScale,
+                        highlightStrength: 1.15,
+                        shadowRadius: (8 + clampedProgress * 10) * shadowScale,
                         shadowY: (4 + clampedProgress * 7) * shadowScale
                     )
-                    .frame(width: width * 0.50, height: height * 0.135)
+                    .frame(width: width * 0.52, height: height * 0.14)
                 }
                 .offset(
                     x: width * (0.30 * clampedProgress * clampedProgress),
@@ -538,6 +669,28 @@ private struct StarFacetShape: Shape {
             )
         }
         return path
+    }
+}
+
+
+private struct GlassGrainOverlay: View {
+    var body: some View {
+        Canvas { context, size in
+            let count = max(80, Int(size.width * size.height * 0.018))
+            for index in 0..<count {
+                let mixed = index &* 1103515245 &+ 12345
+                let x = CGFloat(abs(mixed % 1000)) / 1000 * size.width
+                let y = CGFloat(abs((mixed / 1000) % 1000)) / 1000 * size.height
+                let dot = CGFloat(1 + abs(mixed % 2))
+                let bright = mixed % 3 == 0
+                context.fill(
+                    Path(ellipseIn: CGRect(x: x, y: y, width: dot, height: dot)),
+                    with: .color(Color.white.opacity(bright ? 0.22 : 0.08))
+                )
+            }
+        }
+        .blendMode(.overlay)
+        .allowsHitTesting(false)
     }
 }
 

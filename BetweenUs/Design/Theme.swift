@@ -32,9 +32,9 @@ enum AppTheme {
 
             RadialGradient(
                 stops: [
-                    .init(color: kind.tint.opacity(0.22), location: 0),
-                    .init(color: kind.tint.opacity(0.08), location: 0.46),
-                    .init(color: kind.tint.opacity(0.018), location: 0.76),
+                    .init(color: kind.tint.opacity(kind == .star ? 0.38 : 0.22), location: 0),
+                    .init(color: kind.tint.opacity(kind == .star ? 0.14 : 0.08), location: 0.46),
+                    .init(color: kind.tint.opacity(kind == .star ? 0.04 : 0.018), location: 0.76),
                     .init(color: .clear, location: 1)
                 ],
                 center: .center,

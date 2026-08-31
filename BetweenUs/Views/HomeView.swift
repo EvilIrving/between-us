@@ -67,26 +67,22 @@ struct HomeView: View {
     }
 
     private var sharedRoom: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 28) {
             roomObject(kind: .star) {
                 StarJarView()
             }
-            .frame(width: 140)
 
-            HStack(alignment: .top, spacing: 34) {
+            HStack(alignment: .top, spacing: 28) {
                 roomObject(kind: .capsule) {
                     CapsuleBoxView()
                 }
-                .frame(width: 140)
-
                 roomObject(kind: .paper) {
                     PaperBinView()
                 }
-                .frame(width: 140)
             }
         }
         .frame(maxWidth: 430)
-        .padding(.top, 20)
+        .padding(.top, 8)
     }
 
     private var coupleSyncCard: some View {
@@ -210,7 +206,7 @@ private struct RoomObject: View {
                 .frame(height: 23, alignment: .top)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 156, alignment: .top)
+        .frame(height: kind == .star ? 268 : 156, alignment: .top)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(kind.title)
@@ -231,7 +227,7 @@ private struct RoomObject: View {
             )
             .offset(y: artworkVerticalOffset)
         }
-        .frame(width: 124, height: 124)
+        .frame(width: kind == .star ? 220 : 124, height: kind == .star ? 220 : 124)
         .overlay(alignment: .topTrailing) {
             if waiting > 0 {
                 Circle()
@@ -244,7 +240,7 @@ private struct RoomObject: View {
 
     private var horizontalArtworkScale: CGFloat {
         switch kind {
-        case .star: return 0.88
+        case .star: return 1
         case .capsule: return 1
         case .paper: return 0.98
         }
@@ -252,7 +248,7 @@ private struct RoomObject: View {
 
     private var verticalArtworkScale: CGFloat {
         switch kind {
-        case .star: return 0.88
+        case .star: return 1
         case .capsule: return 1.75
         case .paper: return 0.98
         }
