@@ -20,15 +20,11 @@ struct StarCharm: Hashable, Identifiable {
     }
 
     static func displayCharms(count: Int) -> [StarCharm] {
-        let n = min(max(count, 0), 3)
+        let n = min(max(count, 0), StarJarMetrics.maxStars)
         guard n > 0 else { return [] }
         return (0..<n).map { index in
             all[(index * 11 + 3) % all.count]
         }
-    }
-
-    var idlePhase: Double {
-        Double((series * 97 + mood * 163) % 628) / 100.0
     }
 }
 
@@ -43,51 +39,52 @@ struct StarCharmImage: View {
     }
 }
 
-struct StarIdleBob: ViewModifier {
-    let charm: StarCharm
-    var enabled = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        if !enabled || reduceMotion {
-            content
-        } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                let time = context.date.timeIntervalSinceReferenceDate
-                let sway = sin(time * 2 * .pi / 4.2 + charm.idlePhase)
-                let tilt = sin(time * 2 * .pi / 5.6 + charm.idlePhase * 1.7)
-                content
-                    .offset(y: CGFloat(sway) * 3.0)
-                    .rotationEffect(.degrees(Double(tilt) * 1.6))
-            }
-        }
-    }
-}
-
-/// The only star-jar renderer. Home, detail, loading and onboarding share this bottle.
+/// Shared layered renderer for every star bottle surface.
+/// In-bottle stars stay behind the bottle PNG; exiting flight is composited by the reveal overlay.
 struct StarBottleView: View {
-    var charms: [StarCharm]
-    var drop: CGFloat = 1
-    var neckScale: CGSize = CGSize(width: 1, height: 1)
+    @ObservedObject var physics: StarJarPhysicsSystem
+    var count: Int
     var reportsRevealAnchors = false
-    var idleMotion = true
+    var animateCountChanges = false
 
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
-            ZStack {
-                ForEach(Array(charms.enumerated()), id: \.element.id) { index, charm in
-                    let layout = charmLayout(index: index, count: charms.count, side: side)
-                    StarCharmImage(charm: charm)
-                        .frame(width: layout.size, height: layout.size)
-                        .modifier(StarIdleBob(charm: charm, enabled: idleMotion))
-                        .scaleEffect(x: neckScale.width, y: neckScale.height)
+            let origin = CGPoint(
+                x: (proxy.size.width - side) / 2,
+                y: (proxy.size.height - side) / 2
+            )
+            let bottleFrame = CGRect(origin: origin, size: CGSize(width: side, height: side))
+
+            ZStack(alignment: .topLeading) {
+                BottleInteriorShape()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.52, green: 0.80, blue: 0.98).opacity(0.16),
+                                Color(red: 0.76, green: 0.91, blue: 0.99).opacity(0.10),
+                                Color.white.opacity(0.04)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: side, height: side)
+                    .position(x: bottleFrame.midX, y: bottleFrame.midY)
+
+                ForEach(physics.stars) { star in
+                    StarCharmImage(charm: star.charm)
+                        .frame(width: star.visualSize, height: star.visualSize)
+                        .rotationEffect(.radians(star.rotation))
+                        .position(
+                            x: origin.x + star.position.x,
+                            y: origin.y + star.position.y
+                        )
                         .background {
-                            if reportsRevealAnchors, index == charms.count - 1 {
+                            if reportsRevealAnchors, star.id == physics.topmostStar()?.id {
                                 RevealAnchorProbe(kind: .star, id: .content)
                             }
                         }
-                        .position(layout.position)
                 }
 
                 Image("StarJarBottle")
@@ -95,6 +92,7 @@ struct StarBottleView: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .frame(width: side, height: side)
+                    .position(x: bottleFrame.midX, y: bottleFrame.midY)
                     .background {
                         if reportsRevealAnchors {
                             RevealAnchorProbe(kind: .star, id: .container)
@@ -102,16 +100,12 @@ struct StarBottleView: View {
                     }
                     .overlay {
                         if reportsRevealAnchors {
-                            GeometryReader { bottle in
-                                let unit = ContainerRevealAnchors.exitUnit(for: .star)
-                                RevealAnchorProbe(kind: .star, id: .exit)
-                                    .frame(width: 2, height: 2)
-                                    .position(
-                                        x: bottle.size.width * unit.x,
-                                        y: bottle.size.height * unit.y
-                                    )
-                            }
-                            .allowsHitTesting(false)
+                            RevealAnchorProbe(kind: .star, id: .exit)
+                                .frame(width: 2, height: 2)
+                                .position(
+                                    x: side * StarJarMetrics.mouthCenter.x,
+                                    y: side * StarJarMetrics.mouthCenter.y
+                                )
                         }
                     }
                     .background(
@@ -123,25 +117,38 @@ struct StarBottleView: View {
                         }
                     )
             }
-            .frame(width: side, height: side)
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .onAppear {
+                physics.configure(side: side)
+                physics.setStarCount(count, animated: false)
+            }
+            .onChange(of: side) { newSide in
+                physics.configure(side: newSide)
+                physics.setStarCount(count, animated: false)
+            }
+            .onChange(of: count) { newCount in
+                physics.setStarCount(newCount, animated: animateCountChanges)
+            }
         }
     }
+}
 
-    private func charmLayout(index: Int, count: Int, side: CGFloat) -> (size: CGFloat, position: CGPoint) {
-        let bellyY = side * StarDropLayout.holeY(drop: drop, side: side)
-        let belly = CGPoint(x: side * 0.50, y: bellyY)
-        if count <= 1 {
-            return (side * 0.44, belly)
+private struct BottleInteriorShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let points = StarJarMetrics.interiorContour.map { unit in
+            CGPoint(
+                x: rect.minX + unit.x * rect.width,
+                y: rect.minY + unit.y * rect.height
+            )
         }
-        let size = side * 0.30
-        let offsets: [CGSize] = [
-            CGSize(width: -side * 0.07, height: side * 0.015),
-            CGSize(width: side * 0.08, height: -side * 0.01),
-            CGSize(width: 0, height: -side * 0.07)
-        ]
-        let offset = offsets[index % offsets.count]
-        return (size, CGPoint(x: belly.x + offset.width, y: belly.y + offset.height))
+        guard let first = points.first else { return Path() }
+        var path = Path()
+        path.move(to: first)
+        for point in points.dropFirst() {
+            path.addLine(to: point)
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -155,24 +162,3 @@ struct StarBottleFrameKey: PreferenceKey {
         }
     }
 }
-
-enum StarDropLayout {
-    static func holeY(drop: CGFloat, side: CGFloat) -> CGFloat {
-        let settled = side * 0.62
-        let mouthY = side * 0.16
-        let t = min(max((drop - 0.58) / 0.42, 0), 1)
-        return drop < 0.999 ? mouthY + (settled - mouthY) * t : settled
-    }
-
-    static func neckScale(drop: CGFloat) -> CGSize {
-        func bump(near value: CGFloat, at target: CGFloat, width: CGFloat) -> CGFloat {
-            max(0, 1 - abs(value - target) / width)
-        }
-        var amount: CGFloat = 0
-        if drop < 0.999 {
-            amount = max(amount, bump(near: min(max(drop, 0), 1), at: 0.58, width: 0.16))
-        }
-        return CGSize(width: 1 - 0.16 * amount, height: 1 + 0.08 * amount)
-    }
-}
-

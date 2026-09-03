@@ -4,6 +4,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: BetweenUsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var reveal = ContainerRevealAnimationController()
+    @StateObject private var starReveal = StarRevealAnimationController()
 
     @State private var composeKind: ContainerKind?
     @State private var isShowingLifetimeUnlock = false
@@ -39,7 +40,7 @@ struct HomeView: View {
                     .frame(maxWidth: 640)
                     .frame(maxWidth: .infinity)
                 }
-                .scrollDisabled(reveal.isPlaying)
+                .scrollDisabled(reveal.isPlaying || starReveal.isPlaying)
                 .refreshable {
                     await store.refresh()
                 }
@@ -51,6 +52,14 @@ struct HomeView: View {
                         if let kind = revealingKind ?? reveal.item?.kind {
                             composeKind = kind
                         }
+                    }
+                )
+
+                ContainerRevealOverlay(
+                    controller: starReveal.reveal,
+                    onDismiss: dismissReveal,
+                    onRespond: {
+                        composeKind = .star
                     }
                 )
             }
@@ -72,6 +81,11 @@ struct HomeView: View {
             .onChange(of: reveal.isPlaying) { playing in
                 if !playing {
                     liftedKind = nil
+                    revealingKind = nil
+                }
+            }
+            .onChange(of: starReveal.isPlaying) { playing in
+                if !playing {
                     revealingKind = nil
                 }
             }
@@ -112,16 +126,16 @@ struct HomeView: View {
     }
 
     private var sharedRoom: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: HomeRoomMetrics.rowSpacing) {
             roomObject(kind: .star)
 
-            HStack(alignment: .top, spacing: 28) {
+            HStack(alignment: .top, spacing: HomeRoomMetrics.rowSpacing) {
                 roomObject(kind: .capsule)
                 roomObject(kind: .paper)
             }
         }
         .frame(maxWidth: 430)
-        .padding(.top, 8)
+        .padding(.top, HomeRoomMetrics.topPadding)
     }
 
     private var coupleSyncCard: some View {
@@ -188,11 +202,12 @@ struct HomeView: View {
                     waiting: waiting,
                     reportsRevealAnchors: true,
                     trackedContentIndex: trackedIndex(kind, count: count),
-                    containerFeedback: feedback(for: kind)
+                    containerFeedback: feedback(for: kind),
+                    starPhysics: kind == .star ? starReveal.physics : nil
                 )
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .disabled(reveal.isPlaying)
+            .disabled(reveal.isPlaying || starReveal.isPlaying)
 
             Button {
                 RitualHaptics.selection()
@@ -209,7 +224,7 @@ struct HomeView: View {
                     .frame(height: 28)
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .disabled(reveal.isPlaying)
+            .disabled(reveal.isPlaying || starReveal.isPlaying)
             .accessibilityLabel("在%@%@".localized(kind.title, kind.homeActionTitle))
         }
         .frame(maxWidth: .infinity)
@@ -229,6 +244,7 @@ struct HomeView: View {
 
     private func displayedCount(_ kind: ContainerKind) -> Int {
         let count = sharedCount(kind)
+        guard kind != .star else { return count }
         return liftedKind == kind ? max(0, count - 1) : count
     }
 
@@ -239,10 +255,18 @@ struct HomeView: View {
     }
 
     private func canOpen(_ kind: ContainerKind) -> Bool {
-        credits(kind) > 0 && unopenedCount(kind) > 0 && !reveal.isPlaying
+        let hasStarBody = kind != .star || !starReveal.physics.stars.isEmpty
+        return credits(kind) > 0
+            && unopenedCount(kind) > 0
+            && !reveal.isPlaying
+            && !starReveal.isPlaying
+            && hasStarBody
     }
 
     private func feedback(for kind: ContainerKind) -> ContainerFeedbackTransform {
+        if kind == .star, starReveal.isPlaying {
+            return starReveal.sample.container
+        }
         if reveal.isPlaying, revealingKind == kind {
             return reveal.sample.container
         }
@@ -256,7 +280,7 @@ struct HomeView: View {
     }
 
     private func handleContainerTap(_ kind: ContainerKind) {
-        guard !reveal.isPlaying else { return }
+        guard !reveal.isPlaying, !starReveal.isPlaying else { return }
         guard canOpen(kind) else {
             RitualHaptics.warning()
             playFailedNudge(kind)
@@ -297,6 +321,22 @@ struct HomeView: View {
             let frames = revealAnchors[kind] ?? RevealAnchorFrames()
             let canvas = canvasSize.width > 1 ? canvasSize : UIScreen.main.bounds.size
             let container = frames.hasContainer ? frames.container : .zero
+
+            if kind == .star {
+                let started = starReveal.play(
+                    item: item,
+                    bottleFrame: container,
+                    canvasSize: canvas,
+                    safeArea: safeArea,
+                    reduceMotion: reduceMotion
+                )
+                if !started {
+                    revealingKind = nil
+                    RitualHaptics.warning()
+                }
+                return
+            }
+
             let slots = ContainerRevealAnchors.contentSlots(for: kind)
             let index = trackedIndex(kind, count: displayedCount(kind)) ?? 0
             let slot = slots[min(max(index, 0), max(slots.count - 1, 0))]
@@ -322,10 +362,9 @@ struct HomeView: View {
                 seed: item.id.hashValue
             )
 
-            let flyingCharm = StarCharm.displayCharms(count: max(sharedCount(kind), 1)).last
             let token = RevealContentToken(
                 type: ContentTokenType(kind),
-                imageName: kind == .star ? flyingCharm?.imageName : nil,
+                imageName: nil,
                 seed: index,
                 visualSize: contentSize
             )
@@ -334,9 +373,23 @@ struct HomeView: View {
     }
 
     private func dismissReveal() {
+        if starReveal.isPlaying {
+            guard starReveal.sample.cardInteractive || reduceMotion else { return }
+            starReveal.dismiss()
+            return
+        }
         guard reveal.sample.cardInteractive || reduceMotion else { return }
         reveal.dismiss()
     }
+}
+
+private enum HomeRoomMetrics {
+    static let canvas: CGFloat = 156
+    static let titleHeight: CGFloat = 23
+    static let glyphTitleSpacing: CGFloat = 9
+    static let cellHeight: CGFloat = canvas + glyphTitleSpacing + titleHeight
+    static let rowSpacing: CGFloat = 28
+    static let topPadding: CGFloat = 94
 }
 
 private struct RoomObject: View {
@@ -346,18 +399,19 @@ private struct RoomObject: View {
     var reportsRevealAnchors = false
     var trackedContentIndex: Int? = nil
     var containerFeedback: ContainerFeedbackTransform = .identity
+    var starPhysics: StarJarPhysicsSystem? = nil
 
     var body: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: HomeRoomMetrics.glyphTitleSpacing) {
             containerGlyph
 
             Text(kind.title)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.primaryText)
-                .frame(height: 23, alignment: .top)
+                .frame(height: HomeRoomMetrics.titleHeight, alignment: .top)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: kind == .star ? 268 : 156, alignment: .top)
+        .frame(height: HomeRoomMetrics.cellHeight, alignment: .top)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(kind.title)
@@ -372,15 +426,11 @@ private struct RoomObject: View {
                 style: .room,
                 isActive: waiting > 0,
                 reportsRevealAnchors: reportsRevealAnchors,
-                trackedContentIndex: trackedContentIndex
+                trackedContentIndex: trackedContentIndex,
+                sharedStarPhysics: starPhysics
             )
-            .scaleEffect(
-                x: horizontalArtworkScale,
-                y: verticalArtworkScale
-            )
-            .offset(y: artworkVerticalOffset)
         }
-        .frame(width: kind == .star ? 220 : 124, height: kind == .star ? 220 : 124)
+        .frame(width: HomeRoomMetrics.canvas, height: HomeRoomMetrics.canvas)
         .rotationEffect(containerFeedback.rotation)
         .offset(x: containerFeedback.offsetX)
         .overlay(alignment: .topTrailing) {
@@ -390,30 +440,6 @@ private struct RoomObject: View {
                     .frame(width: 8, height: 8)
                     .padding(4)
             }
-        }
-    }
-
-    private var horizontalArtworkScale: CGFloat {
-        switch kind {
-        case .star: return 1
-        case .capsule: return 1
-        case .paper: return 0.98
-        }
-    }
-
-    private var verticalArtworkScale: CGFloat {
-        switch kind {
-        case .star: return 1
-        case .capsule: return 1.75
-        case .paper: return 0.98
-        }
-    }
-
-    private var artworkVerticalOffset: CGFloat {
-        switch kind {
-        case .star: return 0
-        case .capsule: return -6
-        case .paper: return -4
         }
     }
 }
