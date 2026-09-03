@@ -16,11 +16,22 @@ xcuserdata/
 # Xcode build
 build/
 DerivedData/
+.derivedData/
 *.moved-aside
 *.hmap
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Local screenshots / scratch
+.home-shot.png
+
+# Cloudflare Wrangler local cache
+.wrangler/
+**/.wrangler/
+
+# Local research scratch (not product source)
+research/
 
 # Swift Package Manager
 .build/

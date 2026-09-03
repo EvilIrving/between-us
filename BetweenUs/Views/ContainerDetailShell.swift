@@ -54,67 +54,95 @@ struct ContainerDetailShell<Content: View>: View {
     }
 }
 
-/// Shared state and interaction shell for all three containers.
+/// Shared state and interaction shell for capsule and paper scenes.
 struct ContainerRitualScene: View {
     let kind: ContainerKind
 
     @EnvironmentObject private var store: BetweenUsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @StateObject private var reveal = ContainerRevealAnimationController()
+
     @State private var showCompose = false
-    @State private var revealedItem: SecretItem?
     @State private var isOpening = false
     @State private var openingTask: Task<Void, Never>?
+    @State private var canvasSize: CGSize = .zero
+    @State private var safeArea = EdgeInsets()
+    @State private var revealAnchors: [ContainerKind: RevealAnchorFrames] = [:]
+    @State private var liftedContent = false
 
     var body: some View {
-        ContainerDetailShell(
-            kind: kind,
-            title: kind.title
-        ) {
-            VStack(spacing: 14) {
-                ContainerHoldStage(
-                    kind: kind,
-                    count: sharedCount,
-                    duration: AppMotion.holdDuration(for: kind),
-                    isEnabled: canOpen,
-                    isWorking: isOpening,
-                    title: hasOpenableItem ? kind.openActionTitle : unavailableWhisper,
-                    onComplete: openNext
-                )
-                // Keep the interaction stage on one shared vertical grid. The
-                // artwork has different aspect ratios, but the content below
-                // it (balance and compose entry) must not move between jars.
-                .frame(height: 272)
+        ZStack {
+            ContainerDetailShell(
+                kind: kind,
+                title: kind.title
+            ) {
+                VStack(spacing: 14) {
+                    ContainerHoldStage(
+                        kind: kind,
+                        count: displayedCount,
+                        duration: AppMotion.holdDuration(for: kind),
+                        isEnabled: canOpen,
+                        isWorking: isOpening || reveal.isPlaying,
+                        title: hasOpenableItem ? kind.openActionTitle : unavailableWhisper,
+                        reportsRevealAnchors: true,
+                        trackedContentIndex: trackedContentIndex,
+                        containerFeedback: reveal.sample.container,
+                        onComplete: openNext
+                    )
+                    .frame(height: 272)
 
-                ExchangeBalanceView(
-                    kind: kind,
-                    credits: credits,
-                    waiting: unopenedCount
-                )
+                    ExchangeBalanceView(
+                        kind: kind,
+                        credits: credits,
+                        waiting: unopenedCount
+                    )
 
-                RitualActionToken(
-                    kind: kind,
-                    title: kind.homeActionTitle
-                ) {
-                    showCompose = true
+                    RitualActionToken(
+                        kind: kind,
+                        title: kind.homeActionTitle
+                    ) {
+                        showCompose = true
+                    }
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
                 }
-                .padding(.top, 2)
-                .padding(.bottom, 4)
+            }
+
+            ContainerRevealOverlay(
+                controller: reveal,
+                onDismiss: dismissReveal,
+                onRespond: { showCompose = true }
+            )
+        }
+        .coordinateSpace(name: ContainerRevealSpace.name)
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        canvasSize = proxy.size
+                        safeArea = proxy.safeAreaInsets
+                    }
+                    .onChange(of: proxy.size) { canvasSize = $0 }
+            }
+        }
+        .onPreferenceChange(RevealAnchorKey.self) { revealAnchors = $0 }
+        .onChange(of: reveal.sample.showsToken) { showing in
+            liftedContent = showing
+        }
+        .onChange(of: reveal.isPlaying) { playing in
+            if !playing {
+                liftedContent = false
+                isOpening = false
             }
         }
         .onDisappear {
             openingTask?.cancel()
             openingTask = nil
             isOpening = false
+            reveal.reset()
         }
         .sheet(isPresented: $showCompose) {
             ComposeSheet(kind: kind)
-        }
-        .sheet(item: $revealedItem, onDismiss: {
-            isOpening = false
-        }) { item in
-            RevealSheet(item: item)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-                .presentationCornerRadius(30)
         }
     }
 
@@ -122,8 +150,16 @@ struct ContainerRitualScene: View {
     private var credits: Int { data.activeCredits(kind: kind) }
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: kind) }
     private var sharedCount: Int { data.count(kind: kind) }
+    private var displayedCount: Int {
+        liftedContent ? max(0, sharedCount - 1) : sharedCount
+    }
+    private var trackedContentIndex: Int? {
+        let visible = min(max(displayedCount, 0), 14)
+        guard visible > 0 else { return nil }
+        return visible - 1
+    }
     private var hasOpenableItem: Bool { credits > 0 && unopenedCount > 0 }
-    private var canOpen: Bool { hasOpenableItem && !isOpening && revealedItem == nil }
+    private var canOpen: Bool { hasOpenableItem && !isOpening && !reveal.isPlaying }
 
     private var unavailableWhisper: String {
         if credits == 0 { return kind.creditRequirementTitle }
@@ -134,22 +170,60 @@ struct ContainerRitualScene: View {
         guard canOpen else { return }
         isOpening = true
         openingTask?.cancel()
-        openingTask = Task {
-            do {
-                try await Task.sleep(nanoseconds: 180_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
+        openingTask = Task { @MainActor in
             let item = await store.openNext(kind: kind)
             guard !Task.isCancelled else { return }
             openingTask = nil
-            if let item {
-                revealedItem = item
-            } else {
+            guard let item else {
                 isOpening = false
+                RitualHaptics.warning()
+                return
             }
+            playReveal(item: item)
         }
+    }
+
+    private func playReveal(item: SecretItem) {
+        let frames = revealAnchors[kind] ?? RevealAnchorFrames()
+        let container = frames.hasContainer
+            ? frames.container
+            : CGRect(origin: .zero, size: canvasSize)
+        let slots = ContainerRevealAnchors.contentSlots(for: kind)
+        let slot = slots[min(max((trackedContentIndex ?? 0), 0), slots.count - 1)]
+        let contentStart = frames.hasContent
+            ? frames.contentCenter
+            : ContainerRevealAnchors.point(slot, in: container)
+        let exit = frames.hasExit
+            ? frames.exitCenter
+            : ContainerRevealAnchors.point(ContainerRevealAnchors.exitUnit(for: kind), in: container)
+        let contentSize = frames.hasContent
+            ? frames.content.size
+            : ContainerRevealAnchors.contentSize(for: kind, in: container)
+
+        let canvas = canvasSize.width > 1 ? canvasSize : UIScreen.main.bounds.size
+        let (input, instance) = ContainerRevealLayout.makeInput(
+            kind: kind,
+            containerFrame: container,
+            exitAnchor: exit,
+            contentStart: contentStart,
+            contentSize: contentSize,
+            canvasSize: canvas,
+            safeArea: safeArea,
+            reduceMotion: reduceMotion,
+            seed: item.id.hashValue
+        )
+        let token = RevealContentToken(
+            type: ContentTokenType(kind),
+            imageName: nil,
+            seed: trackedContentIndex ?? abs(item.id.hashValue % 11),
+            visualSize: contentSize
+        )
+        reveal.play(input: input, instance: instance, token: token, item: item)
+    }
+
+    private func dismissReveal() {
+        guard reveal.sample.cardInteractive || reduceMotion else { return }
+        reveal.dismiss()
     }
 }
 
@@ -160,6 +234,9 @@ private struct ContainerHoldStage: View {
     let isEnabled: Bool
     let isWorking: Bool
     let title: String
+    var reportsRevealAnchors = false
+    var trackedContentIndex: Int? = nil
+    var containerFeedback: ContainerFeedbackTransform = .identity
     let onComplete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -188,7 +265,9 @@ private struct ContainerHoldStage: View {
                         count: count,
                         style: .detail,
                         interactionProgress: motionProgress,
-                        isActive: isPressing || isWorking
+                        isActive: isPressing || isWorking,
+                        reportsRevealAnchors: reportsRevealAnchors,
+                        trackedContentIndex: trackedContentIndex
                     )
                     .padding(.horizontal, kind == .capsule ? 18 : 36)
                     .padding(.vertical, 8)
@@ -201,6 +280,8 @@ private struct ContainerHoldStage: View {
                 }
                 .scaleEffect(reduceMotion ? 1 : 1 - motionProgress * 0.045)
                 .offset(y: reduceMotion ? 0 : motionProgress * 6)
+                .rotationEffect(containerFeedback.rotation)
+                .offset(x: containerFeedback.offsetX)
                 .animation(.easeOut(duration: AppMotion.pressDuration), value: isPressing)
 
                 ShimmeringHoldLabel(

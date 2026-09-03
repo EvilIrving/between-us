@@ -16,6 +16,9 @@
 		4B4B9B2D318CED2EDE1F98A7 /* Shapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5F7F1CD6AE444E05A99127 /* Shapes.swift */; };
 		77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2755B132754367E7794616EC /* StarPhysicsView.swift */; };
 		113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */; };
+		C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */; };
+		C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */; };
+		C3A1A0000000000000000006 /* StarBottleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000005 /* StarBottleView.swift */; };
 		0F4BF63734AFBDF0CBA26B0E /* VoiceHoldRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */; };
 		6FB26D15A39A01D54C6A3298 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC43059FFE6D1EE15C3B01B7 /* Theme.swift */; };
 		5AC974E6A6A3447840F787ED /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105FDB402792C4E32EB26D47 /* AppData.swift */; };
@@ -72,6 +75,9 @@
 		8E5F7F1CD6AE444E05A99127 /* Shapes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shapes.swift"; sourceTree = "<group>"; };
 		2755B132754367E7794616EC /* StarPhysicsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarPhysicsView.swift"; sourceTree = "<group>"; };
 		1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RitualUI.swift"; sourceTree = "<group>"; };
+		C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealAnimation.swift"; sourceTree = "<group>"; };
+		C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealOverlay.swift"; sourceTree = "<group>"; };
+		C3A1A0000000000000000005 /* StarBottleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarBottleView.swift"; sourceTree = "<group>"; };
 		E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceHoldRecorderView.swift"; sourceTree = "<group>"; };
 		AC43059FFE6D1EE15C3B01B7 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme.swift"; sourceTree = "<group>"; };
 		105FDB402792C4E32EB26D47 /* AppData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppData.swift"; sourceTree = "<group>"; };
@@ -168,6 +174,9 @@
 			isa = PBXGroup;
 			children = (
 				4553C9E5C18FF1A43B52E2D8 /* ContainerIllustrations.swift */,
+				C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */,
+				C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */,
+				C3A1A0000000000000000005 /* StarBottleView.swift */,
 				8E5F7F1CD6AE444E05A99127 /* Shapes.swift */,
 				2755B132754367E7794616EC /* StarPhysicsView.swift */,
 				1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */,
@@ -328,6 +337,9 @@
 				854765C124C72762B24AE65C /* BetweenUsApp.swift in Sources */,
 				A10000000000000000000001 /* LocalizationManager.swift in Sources */,
 				3DBE773A9BDF8FC8399B918A /* ContainerIllustrations.swift in Sources */,
+				C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */,
+				C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */,
+				C3A1A0000000000000000006 /* StarBottleView.swift in Sources */,
 				4B4B9B2D318CED2EDE1F98A7 /* Shapes.swift in Sources */,
 				77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */,
 				113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */,

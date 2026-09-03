@@ -33,7 +33,7 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var openActionTitle: String {
         switch self {
-        case .star: return "按住取出星星".localized
+        case .star: return "点一下取出星星".localized
         case .capsule: return "按住打开胶囊".localized
         case .paper: return "按住展开纸团".localized
         }
