@@ -28,10 +28,6 @@ final class TrashLidController: ObservableObject, ContainerPreparationPlugin, Co
     private let animationDriver: AnimationDriver
     private var restorationAnimations: [UUID] = []
 
-    init() {
-        self.animationDriver = WaveAnimationDriver()
-    }
-
     init(animationDriver: AnimationDriver) {
         self.animationDriver = animationDriver
     }
@@ -351,8 +347,9 @@ final class TrashBinPhysicsScene: SKScene {
         body.friction = preset.friction
         body.restitution = preset.restitution
         body.linearDamping = preset.linearDamping
-        body.angularDamping = preset.angularDamping
-        body.allowsRotation = true
+        body.angularDamping = 1
+        body.allowsRotation = false
+        body.angularVelocity = 0
         body.usesPreciseCollisionDetection = true
         node.physicsBody = body
         node.position = spawnPosition(index: index, radius: visual * 0.40)
@@ -380,10 +377,12 @@ final class TrashBinPhysicsScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         super.update(currentTime)
         applySlopeAssist()
+        for node in emotionNodes {
+            node.physicsBody?.angularVelocity = 0
+        }
         let moving = emotionNodes.contains { node in
             guard let body = node.physicsBody else { return false }
             return hypot(body.velocity.dx, body.velocity.dy) >= preset.sleepVelocityThreshold
-                || abs(body.angularVelocity) >= preset.sleepAngularThreshold
         }
         if moving {
             stableSince = nil

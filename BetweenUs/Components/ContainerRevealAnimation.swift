@@ -157,80 +157,84 @@ struct ContainerRevealPreset: Equatable {
     var rotationStrategy: RotationStrategy
     var rotationAmount: Double
     var flightGlow: CGFloat
+    var usesUnifiedFlightPath: Bool
 
     /// Light, floating, longer curve, a clear Y-axis flip.
     static let star = ContainerRevealPreset(
         exitPathStyle: .curved,
         exitCurveBias: 0.42,
         flightArcFactor: 0.18,
-        flightArcRange: 50...150,
+        flightArcRange: 50...140,
         sideBiasFactor: 1.0,
-        feedbackDuration: 0.25,
+        feedbackDuration: 0.20,
         preparationDuration: 0,
-        exitDuration: 1.30,
+        exitDuration: 1.00,
         flyDuration: 1.65,
         pauseDuration: 0.35,
-        collapseDuration: 0.60,
-        cardDuration: 1.00,
-        cardOverlap: 0.15,
-        exitRotationY: 180,
-        flyRotationY: 540,
+        collapseDuration: 0.80,
+        cardDuration: 1.25,
+        cardOverlap: 0.25,
+        exitRotationY: 110,
+        flyRotationY: 160,
         peakScale: 2.0,
-        motionExponent: 1.40,
-        collapseExponent: 1.35,
+        motionExponent: 1.0,
+        collapseExponent: 2.0,
         rotationStrategy: .axis3D(x: 0, y: 1, z: 0),
-        rotationAmount: 720,
-        flightGlow: 0.28
+        rotationAmount: 270,
+        flightGlow: 0.18,
+        usesUnifiedFlightPath: true
     )
 
     /// Steadier, more direct, smaller curve, less spin.
     static let capsule = ContainerRevealPreset(
-        exitPathStyle: .straight,
-        exitCurveBias: 0.16,
-        flightArcFactor: 0.12,
-        flightArcRange: 28...72,
-        sideBiasFactor: 0.62,
-        feedbackDuration: 0.17,
+        exitPathStyle: .curved,
+        exitCurveBias: 0.28,
+        flightArcFactor: 0.16,
+        flightArcRange: 42...120,
+        sideBiasFactor: 0.86,
+        feedbackDuration: 0.20,
         preparationDuration: 0,
-        exitDuration: 0.58,
-        flyDuration: 1.05,
-        pauseDuration: 0.55,
-        collapseDuration: 0.34,
-        cardDuration: 0.50,
-        cardOverlap: 0.08,
-        exitRotationY: 110,
-        flyRotationY: 180,
-        peakScale: 1.85,
-        motionExponent: 1.72,
-        collapseExponent: 1.5,
+        exitDuration: 1.00,
+        flyDuration: 1.65,
+        pauseDuration: 0.35,
+        collapseDuration: 0.80,
+        cardDuration: 1.25,
+        cardOverlap: 0.25,
+        exitRotationY: 90,
+        flyRotationY: 140,
+        peakScale: 2.0,
+        motionExponent: 1.0,
+        collapseExponent: 2.0,
         rotationStrategy: .axis3D(x: 0, y: 1, z: 0),
-        rotationAmount: 290,
-        flightGlow: 0.18
+        rotationAmount: 230,
+        flightGlow: 0.14,
+        usesUnifiedFlightPath: true
     )
 
     /// Heavier, a more obvious parabola, speed with weight.
     static let trash = ContainerRevealPreset(
         exitPathStyle: .curved,
         exitCurveBias: 0.34,
-        flightArcFactor: 0.15,
-        flightArcRange: 45...120,
-        sideBiasFactor: 0.74,
+        flightArcFactor: 0.17,
+        flightArcRange: 45...130,
+        sideBiasFactor: 0.90,
         feedbackDuration: 0.20,
         preparationDuration: 1.15,
-        exitDuration: 1.20,
-        flyDuration: 1.75,
-        pauseDuration: 0.40,
-        collapseDuration: 0.65,
-        cardDuration: 0.85,
-        cardOverlap: 0.20,
+        exitDuration: 1.00,
+        flyDuration: 1.65,
+        pauseDuration: 0.35,
+        collapseDuration: 0.80,
+        cardDuration: 1.25,
+        cardOverlap: 0.25,
         exitRotationY: 0,
         flyRotationY: 0,
         peakScale: 2.0,
-        motionExponent: 1.30,
-        collapseExponent: 1.35,
-        rotationStrategy: .zAxis2D,
-        rotationAmount: 34,
-        flightGlow: 0.04
+        motionExponent: 1.0,
+        collapseExponent: 2.0,
+        rotationStrategy: .axis3D(x: 0, y: 1, z: 0),
+        rotationAmount: 210,
+        flightGlow: 0.08,
+        usesUnifiedFlightPath: true
     )
 
     static func preset(for type: ContentTokenType) -> ContainerRevealPreset {
@@ -399,6 +403,11 @@ enum RevealEasing {
         return 1 - pow(1 - x, 3)
     }
 
+    static func easeInQuart(_ t: CGFloat) -> CGFloat {
+        let x = clamp(t)
+        return x * x * x * x
+    }
+
     static func motionProgress(_ t: CGFloat, exponent: CGFloat) -> CGFloat {
         pow(clamp(t), exponent)
     }
@@ -421,6 +430,10 @@ struct RevealPath {
     let flightControl: CGPoint
     let exitStyle: ExitPathStyle
     let exitSplit: CGFloat
+    let exitLength: CGFloat
+    let flightLength: CGFloat
+
+    var totalLength: CGFloat { max(exitLength + flightLength, 1) }
 
     static func make(from input: ContainerRevealInput, instance: ContentRevealInstance) -> RevealPath {
         let start = instance.contentStartPosition
@@ -430,11 +443,12 @@ struct RevealPath {
             y: exit.y - input.pathConfiguration.releaseLift
         )
         let focus = instance.finalFocusPosition
+        let aligned = abs(exit.x - start.x) < 8
         let exitControl = exitControlPoint(
             start: start,
             exit: exit,
             release: release,
-            bias: instance.exitCurveBias
+            bias: aligned ? instance.exitCurveBias * 0.18 : instance.exitCurveBias
         )
         let flightControl = CGPoint(
             x: (release.x + focus.x) / 2 + instance.flightSideBias,
@@ -443,6 +457,19 @@ struct RevealPath {
         let startToExit = hypot(exit.x - start.x, exit.y - start.y)
         let exitToRelease = hypot(release.x - exit.x, release.y - exit.y)
         let split = max(0.12, min(0.88, startToExit / max(startToExit + exitToRelease, 1)))
+        let exitStyle = aligned && instance.exitPathStyle == .curved ? ExitPathStyle.straight : instance.exitPathStyle
+        let path = RevealPath(
+            start: start,
+            exit: exit,
+            release: release,
+            focus: focus,
+            exitControl: exitControl,
+            flightControl: flightControl,
+            exitStyle: exitStyle,
+            exitSplit: split,
+            exitLength: 1,
+            flightLength: 1
+        )
         return RevealPath(
             start: start,
             exit: exit,
@@ -450,8 +477,10 @@ struct RevealPath {
             focus: focus,
             exitControl: exitControl,
             flightControl: flightControl,
-            exitStyle: instance.exitPathStyle,
-            exitSplit: split
+            exitStyle: exitStyle,
+            exitSplit: split,
+            exitLength: Self.sampledLength(samples: 24) { path.exitPosition(t: $0) },
+            flightLength: Self.sampledLength(samples: 24) { path.flightPosition(t: $0) }
         )
     }
 
@@ -474,6 +503,25 @@ struct RevealPath {
 
     func reducedFlightPosition(t: CGFloat) -> CGPoint {
         RevealEasing.lerp(release, focus, RevealEasing.smoothstep(t))
+    }
+
+    func unifiedPosition(travel: CGFloat) -> CGPoint {
+        if travel <= exitLength {
+            return exitPosition(t: travel / max(exitLength, 0.0001))
+        }
+        return flightPosition(t: (travel - exitLength) / max(flightLength, 0.0001))
+    }
+
+    private static func sampledLength(samples: Int, point: (CGFloat) -> CGPoint) -> CGFloat {
+        var length: CGFloat = 0
+        var previous = point(0)
+        let count = max(samples, 2)
+        for step in 1...count {
+            let current = point(CGFloat(step) / CGFloat(count))
+            length += hypot(current.x - previous.x, current.y - previous.y)
+            previous = current
+        }
+        return max(length, 1)
     }
 
     static func quadratic(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ t: CGFloat) -> CGPoint {
@@ -500,7 +548,7 @@ struct RevealPath {
         let curve = min(max(abs(exit.x - start.x) * 0.32, 8), 30) * bias
         return CGPoint(
             x: RevealEasing.lerp(start.x, exit.x, 0.55) + curve * direction,
-            y: RevealEasing.lerp(start.y, exit.y, 0.45)
+            y: RevealEasing.lerp(start.y, exit.y, 0.42)
         )
     }
 }
@@ -616,7 +664,7 @@ enum RevealTransformEvaluator {
         if elapsed < tFeedback {
             container = feedback(
                 progress: elapsed / max(tFeedback, 0.0001),
-                amplitude: instance.contentType == .paperBall ? 1.0 : 1.5
+                amplitude: instance.contentType == .star ? 0.8 : (instance.contentType == .paperBall ? 1.0 : 1.5)
             )
         }
 
@@ -686,9 +734,8 @@ enum RevealTransformEvaluator {
     private static func feedback(progress: CGFloat, amplitude: CGFloat) -> ContainerFeedbackTransform {
         let points: [(CGFloat, CGFloat)] = [
             (0.00, 0.0),
-            (0.25, -1.5),
-            (0.50, 1.5),
-            (0.75, -0.7),
+            (0.33, -1.2),
+            (0.66, 1.2),
             (1.00, 0.0)
         ]
         let p = RevealEasing.clamp(progress)
@@ -703,8 +750,8 @@ enum RevealTransformEvaluator {
             }
         }
         return ContainerFeedbackTransform(
-            rotation: .degrees(Double(angle / 1.5 * amplitude)),
-            offsetX: angle / 1.5 * amplitude * 0.9
+            rotation: .degrees(Double(angle * amplitude)),
+            offsetX: 0
         )
     }
 
@@ -723,26 +770,53 @@ enum RevealTransformEvaluator {
         let initial = Double(instance.initialRotationPhase)
         let reduce = configuration.reduceMotion
 
-        if elapsed < tExit {
-            let local = RevealEasing.clamp(CGFloat((elapsed - tPrepared) / max(configuration.exitDuration, 0.0001)))
-            let eased = RevealEasing.easeInOutCubic(local)
-            let position = path.exitPosition(t: eased)
-            let rotation = exitRotation(
-                instance: instance,
-                configuration: configuration,
-                progress: eased
-            )
-            return ContentTransform(
-                position: position,
-                scale: 1,
-                rotationY: rotation.y,
-                rotationZ: rotation.z,
-                opacity: 1,
-                glow: preset.flightGlow * 0.35
-            )
-        }
-
         if elapsed < tFly {
+            if preset.usesUnifiedFlightPath {
+                let local = RevealEasing.clamp(CGFloat((elapsed - tPrepared) / max(tFly - tPrepared, 0.0001)))
+                let progress = reduce ? local : RevealEasing.easeInQuart(local)
+                let position = reduce
+                    ? RevealEasing.lerp(path.start, path.focus, progress)
+                    : path.unifiedPosition(travel: progress * path.totalLength)
+                let scale: CGFloat
+                if progress < 0.35 {
+                    scale = 1
+                } else {
+                    scale = RevealEasing.lerp(1.0, configuration.peakScale, (progress - 0.35) / 0.65)
+                }
+                let rotation = flightRotation(
+                    instance: instance,
+                    configuration: configuration,
+                    progress: progress
+                )
+                return ContentTransform(
+                    position: position,
+                    scale: scale,
+                    rotationY: rotation.y,
+                    rotationZ: rotation.z,
+                    opacity: 1,
+                    glow: preset.flightGlow * RevealEasing.lerp(0.18, 0.72, progress)
+                )
+            }
+
+            if elapsed < tExit {
+                let local = RevealEasing.clamp(CGFloat((elapsed - tPrepared) / max(configuration.exitDuration, 0.0001)))
+                let eased = RevealEasing.easeInOutCubic(local)
+                let position = path.exitPosition(t: eased)
+                let rotation = exitRotation(
+                    instance: instance,
+                    configuration: configuration,
+                    progress: eased
+                )
+                return ContentTransform(
+                    position: position,
+                    scale: 1,
+                    rotationY: rotation.y,
+                    rotationZ: rotation.z,
+                    opacity: 1,
+                    glow: preset.flightGlow * 0.35
+                )
+            }
+
             let local = RevealEasing.clamp(CGFloat((elapsed - tExit) / max(configuration.flyDuration, 0.0001)))
             let motion = RevealEasing.motionProgress(local, exponent: configuration.motionExponent)
             let position = reduce
@@ -782,7 +856,9 @@ enum RevealTransformEvaluator {
 
         if elapsed < tCollapse {
             let local = RevealEasing.clamp(CGFloat((elapsed - tPause) / max(configuration.collapseDuration, 0.0001)))
-            let collapse = RevealEasing.collapseProgress(local, exponent: configuration.collapseExponent)
+            let collapse = preset.usesUnifiedFlightPath
+                ? (1 - pow(1 - local, 2))
+                : RevealEasing.collapseProgress(local, exponent: configuration.collapseExponent)
             return ContentTransform(
                 position: path.focus,
                 scale: RevealEasing.lerp(configuration.peakScale, 0.1, collapse),
@@ -841,10 +917,8 @@ enum RevealTransformEvaluator {
             let local = RevealEasing.easeOutCubic((progress - 0.62) / 0.38)
             return (0, RevealEasing.lerp(peak, 0, local))
         case .axis3D:
-            return (
-                initial + configuration.exitRotationY + configuration.flyRotationY * Double(progress),
-                0
-            )
+            let total = configuration.exitRotationY + configuration.flyRotationY
+            return (initial + total * Double(progress), 0)
         }
     }
 
@@ -982,6 +1056,7 @@ final class ContainerContentRevealController: ObservableObject {
 
     private var session: Session?
     private let animationDriver: AnimationDriver
+    private var frameToken: UUID?
     private weak var preparationPlugin: ContainerPreparationPlugin?
     private weak var restorationPlugin: ContainerRestorationPlugin?
     private var onTransferBegan: (() -> Void)?
@@ -1000,10 +1075,6 @@ final class ContainerContentRevealController: ObservableObject {
         var isDismissing: Bool
         var dismissStartedAt: TimeInterval
         var hasClearedContainerOpening: Bool
-    }
-
-    init() {
-        self.animationDriver = NativeAnimationDriver()
     }
 
     init(animationDriver: AnimationDriver) {
@@ -1130,10 +1201,6 @@ final class ContainerContentRevealController: ObservableObject {
             } else if sample.contentLayer == .foregroundFlight, sample.showsToken {
                 session.hasClearedContainerOpening = true
                 self.session = session
-                if session.instance.contentType == .paperBall, !didStartRestoration {
-                    didStartRestoration = true
-                    restorationPlugin?.restore(reduceMotion: session.input.animationConfiguration.reduceMotion)
-                }
             }
         }
 
@@ -1156,6 +1223,10 @@ final class ContainerContentRevealController: ObservableObject {
             if !didCardHaptic {
                 didCardHaptic = true
                 RitualHaptics.success()
+            }
+            if session?.instance.contentType == .paperBall, !didStartRestoration {
+                didStartRestoration = true
+                restorationPlugin?.restore(reduceMotion: session?.input.animationConfiguration.reduceMotion ?? false)
             }
         default:
             break
@@ -1185,13 +1256,16 @@ final class ContainerContentRevealController: ObservableObject {
 
     private func startDriver() {
         stopDriver()
-        animationDriver.startFrames { [weak self] in
+        frameToken = animationDriver.startFrames { [weak self] in
             self?.tick()
         }
     }
 
     private func stopDriver() {
-        animationDriver.stopFrames()
+        if let frameToken {
+            animationDriver.stopFrames(frameToken)
+            self.frameToken = nil
+        }
     }
 }
 

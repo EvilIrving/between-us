@@ -602,21 +602,21 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         }
     }
 
+    func peekOpenable(kind: ContainerKind) -> SecretItem? {
+        nextOpenable(kind: kind)
+    }
+
     func drawStar() async -> SecretItem? {
-        guard appData.activeCredits(kind: .star) > 0,
-              let candidate = appData.unopenedFromCounterpart(kind: .star).randomElement() else {
-            return nil
-        }
-        return await open(candidate)
+        await openNext(kind: .star)
     }
 
     func openNext(kind: ContainerKind) async -> SecretItem? {
-        guard kind != .star else { return await drawStar() }
-        guard appData.activeCredits(kind: kind) > 0,
-              let candidate = appData.unopenedFromCounterpart(kind: kind)
-            .sorted(by: { $0.createdAt < $1.createdAt })
-            .first else { return nil }
+        guard let candidate = nextOpenable(kind: kind) else { return nil }
         return await open(candidate)
+    }
+
+    func commitOpen(_ candidate: SecretItem) async -> SecretItem? {
+        await open(candidate)
     }
 
     func requestNotificationAuthorization() async -> Bool {
@@ -774,6 +774,15 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await publishData()
         await setPhase(.needsRelationship)
         await setSyncStatus(.idle)
+    }
+
+    private func nextOpenable(kind: ContainerKind) -> SecretItem? {
+        guard appData.activeCredits(kind: kind) > 0 else { return nil }
+        let waiting = appData.unopenedFromCounterpart(kind: kind)
+        if kind == .star {
+            return waiting.randomElement()
+        }
+        return waiting.sorted(by: { $0.createdAt < $1.createdAt }).first
     }
 
     private func open(_ candidate: SecretItem) async -> SecretItem? {

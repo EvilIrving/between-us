@@ -2,12 +2,8 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: BetweenUsStore
+    @EnvironmentObject private var room: RoomWorld
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var reveal = ContainerContentRevealController(animationDriver: WaveAnimationDriver())
-    @StateObject private var starReveal = StarRevealAnimationController()
-    @StateObject private var trashPhysics = TrashBinPhysicsSystem()
-    @StateObject private var trashLid = TrashLidController()
-    @StateObject private var contentStore = ContainerContentStoreController(animationDriver: WaveAnimationDriver())
 
     @State private var composeKind: ContainerKind?
     @State private var isShowingLifetimeUnlock = false
@@ -46,28 +42,28 @@ struct HomeView: View {
                     .frame(maxWidth: 640)
                     .frame(maxWidth: .infinity)
                 }
-                .scrollDisabled(reveal.isPlaying || starReveal.isPlaying || contentStore.sample.isPlaying)
+                .scrollDisabled(room.isBusy)
                 .refreshable {
                     await store.refresh()
                 }
 
                 ContainerRevealOverlay(
-                    controller: reveal,
+                    controller: room.reveal,
                     onDismiss: dismissReveal,
                     onRespond: {
-                        if let kind = revealingKind ?? reveal.item?.kind {
+                        if let kind = revealingKind ?? room.reveal.item?.kind {
                             beginCompose(kind)
                         }
                     }
                 )
 
                 ContainerStoreOverlay(
-                    controller: contentStore,
+                    controller: room.contentStore,
                     containerFrame: revealAnchors[.paper]?.container ?? .zero
                 )
 
                 ContainerRevealOverlay(
-                    controller: starReveal.reveal,
+                    controller: room.starReveal.reveal,
                     onDismiss: dismissReveal,
                     onRespond: {
                         beginCompose(.star)
@@ -89,16 +85,16 @@ struct HomeView: View {
             .onAppear {
                 paperVisualCount = min(sharedCount(.paper), TrashBinPhysicsSystem.maximumVisibleCount)
             }
-            .onChange(of: reveal.sample.showsToken) { showing in
+            .onChange(of: room.reveal.sample.showsToken) { showing in
                 liftedKind = showing ? revealingKind : nil
             }
-            .onChange(of: reveal.isPlaying) { playing in
+            .onChange(of: room.reveal.isPlaying) { playing in
                 if !playing {
                     liftedKind = nil
                     revealingKind = nil
                 }
             }
-            .onChange(of: starReveal.isPlaying) { playing in
+            .onChange(of: room.starReveal.isPlaying) { playing in
                 if !playing {
                     revealingKind = nil
                 }
@@ -112,7 +108,7 @@ struct HomeView: View {
                 }
             }
             .onChange(of: sharedCount(.paper)) { count in
-                guard composeKind != .paper, !contentStore.sample.isPlaying else { return }
+                guard composeKind != .paper, !room.contentStore.sample.isPlaying else { return }
                 if count < paperVisualCount {
                     paperVisualCount = min(count, TrashBinPhysicsSystem.maximumVisibleCount)
                 }
@@ -231,13 +227,13 @@ struct HomeView: View {
                     reportsRevealAnchors: true,
                     trackedContentIndex: trackedIndex(kind, count: count),
                     containerFeedback: feedback(for: kind),
-                    starPhysics: kind == .star ? starReveal.physics : nil,
-                    trashPhysics: kind == .paper ? trashPhysics : nil,
-                    trashLid: kind == .paper ? trashLid : nil
+                    starPhysics: kind == .star ? room.starPhysics : nil,
+                    trashPhysics: kind == .paper ? room.trashPhysics : nil,
+                    trashLid: kind == .paper ? room.trashLid : nil
                 )
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .disabled(reveal.isPlaying || starReveal.isPlaying || contentStore.sample.isPlaying)
+            .disabled(room.isBusy)
 
             Button {
                 RitualHaptics.selection()
@@ -254,7 +250,7 @@ struct HomeView: View {
                     .frame(height: 28)
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .disabled(reveal.isPlaying || starReveal.isPlaying || contentStore.sample.isPlaying)
+            .disabled(room.isBusy)
             .accessibilityLabel("在%@%@".localized(kind.title, kind.homeActionTitle))
         }
         .frame(maxWidth: .infinity)
@@ -286,23 +282,15 @@ struct HomeView: View {
     }
 
     private func canOpen(_ kind: ContainerKind) -> Bool {
-        let hasStarBody = kind != .star || !starReveal.physics.stars.isEmpty
-        let hasPaperBody = kind != .paper || trashPhysics.selectEmotion() != nil
-        return credits(kind) > 0
-            && unopenedCount(kind) > 0
-            && !reveal.isPlaying
-            && !starReveal.isPlaying
-            && !contentStore.sample.isPlaying
-            && hasStarBody
-            && hasPaperBody
+        room.canPresent(kind: kind, data: store.viewModel.data)
     }
 
     private func feedback(for kind: ContainerKind) -> ContainerFeedbackTransform {
-        if kind == .star, starReveal.isPlaying {
-            return starReveal.sample.container
+        if kind == .star, room.starReveal.isPlaying {
+            return room.starReveal.sample.container
         }
-        if reveal.isPlaying, revealingKind == kind {
-            return reveal.sample.container
+        if room.reveal.isPlaying, revealingKind == kind {
+            return room.reveal.sample.container
         }
         if nudgeKind == kind {
             return ContainerFeedbackTransform(
@@ -314,7 +302,7 @@ struct HomeView: View {
     }
 
     private func handleContainerTap(_ kind: ContainerKind) {
-        guard !reveal.isPlaying, !starReveal.isPlaying, !contentStore.sample.isPlaying else { return }
+        guard !room.isBusy else { return }
         guard canOpen(kind) else {
             RitualHaptics.warning()
             playFailedNudge(kind)
@@ -343,112 +331,34 @@ struct HomeView: View {
         RitualHaptics.medium()
         revealTask?.cancel()
         revealTask = Task { @MainActor in
-            let item = await store.openNext(kind: kind)
-            guard !Task.isCancelled else { return }
-            guard let item else {
+            let frames = revealAnchors[kind] ?? RevealAnchorFrames()
+            guard room.canPresent(kind: kind, data: store.viewModel.data), frames.hasContainer else {
                 revealingKind = nil
                 RitualHaptics.warning()
                 playFailedNudge(kind)
                 return
             }
-
-            let frames = revealAnchors[kind] ?? RevealAnchorFrames()
-            let canvas = canvasSize.width > 1 ? canvasSize : UIScreen.main.bounds.size
-            let container = frames.hasContainer ? frames.container : .zero
-
-            if kind == .star {
-                let started = starReveal.play(
-                    item: item,
-                    bottleFrame: container,
-                    canvasSize: canvas,
-                    safeArea: safeArea,
-                    reduceMotion: reduceMotion
-                )
-                if !started {
-                    revealingKind = nil
-                    RitualHaptics.warning()
-                }
+            guard let item = await store.peekOpenable(kind: kind) else {
+                revealingKind = nil
+                RitualHaptics.warning()
+                playFailedNudge(kind)
                 return
             }
-
-            if kind == .paper {
-                guard let target = trashPhysics.selectEmotion() else {
-                    revealingKind = nil
-                    RitualHaptics.warning()
-                    return
-                }
-                let start = trashPhysics.globalPosition(of: target, containerFrame: container)
-                let exit = trashPhysics.globalOpeningCenter(containerFrame: container)
-                let openingBounds = trashPhysics.globalOpeningBounds(containerFrame: container)
-                let visualSide = target.visualSize / max(trashPhysics.scene.size.width, 1) * container.width
-                let contentSize = CGSize(width: visualSide, height: visualSide)
-                let releaseLift = max(20, contentSize.height * 0.5 + exit.y - openingBounds.minY + 4)
-                let (input, instance) = ContainerRevealLayout.makeInput(
-                    kind: .paper,
-                    containerFrame: container,
-                    exitAnchor: exit,
-                    contentStart: start,
-                    contentSize: contentSize,
-                    canvasSize: canvas,
-                    safeArea: safeArea,
-                    reduceMotion: reduceMotion,
-                    seed: target.creationIndex,
-                    containerOpeningBounds: openingBounds,
-                    releaseLift: releaseLift,
-                    initialRotation: target.rotation * 180 / .pi
-                )
-                let token = RevealContentToken(
-                    type: .paperBall,
-                    imageName: target.imageName,
-                    seed: target.creationIndex,
-                    visualSize: contentSize
-                )
-                reveal.play(
-                    input: input,
-                    instance: instance,
-                    token: token,
-                    item: item,
-                    preparation: trashLid,
-                    restoration: trashLid,
-                    onTransferBegan: { [weak trashPhysics] in
-                        _ = trashPhysics?.detach(target.id)
-                    }
-                )
-                return
-            }
-
-            let slots = ContainerRevealAnchors.contentSlots(for: kind)
-            let index = trackedIndex(kind, count: displayedCount(kind)) ?? 0
-            let slot = slots[min(max(index, 0), max(slots.count - 1, 0))]
-            let contentStart = frames.hasContent
-                ? frames.contentCenter
-                : ContainerRevealAnchors.point(slot, in: container)
-            let exit = frames.hasExit
-                ? frames.exitCenter
-                : ContainerRevealAnchors.point(ContainerRevealAnchors.exitUnit(for: kind), in: container)
-            let contentSize = frames.hasContent
-                ? frames.content.size
-                : ContainerRevealAnchors.contentSize(for: kind, in: container)
-
-            let (input, instance) = ContainerRevealLayout.makeInput(
+            let started = room.beginReveal(
                 kind: kind,
-                containerFrame: container,
-                exitAnchor: exit,
-                contentStart: contentStart,
-                contentSize: contentSize,
-                canvasSize: canvas,
+                item: item,
+                anchors: frames,
+                canvasSize: canvasSize,
                 safeArea: safeArea,
-                reduceMotion: reduceMotion,
-                seed: item.id.hashValue
+                reduceMotion: reduceMotion
             )
-
-            let token = RevealContentToken(
-                type: ContentTokenType(kind),
-                imageName: nil,
-                seed: index,
-                visualSize: contentSize
-            )
-            reveal.play(input: input, instance: instance, token: token, item: item)
+            if started {
+                _ = await store.commitOpen(item)
+            } else {
+                revealingKind = nil
+                RitualHaptics.warning()
+                playFailedNudge(kind)
+            }
         }
     }
 
@@ -459,53 +369,19 @@ struct HomeView: View {
     }
 
     private func playPaperStoreIfNeeded() {
-        let current = min(sharedCount(.paper), TrashBinPhysicsSystem.maximumVisibleCount)
-        guard current > paperVisualCount,
-              current > composeStartCount,
-              !contentStore.sample.isPlaying
-        else { return }
-
-        let container = revealAnchors[.paper]?.container ?? .zero
-        guard container.width > 1 else {
-            paperVisualCount = current
-            trashPhysics.setCount(current, animated: true)
-            return
-        }
-        let opening = trashPhysics.globalOpeningCenter(containerFrame: container)
-        let bounds = trashPhysics.globalOpeningBounds(containerFrame: container)
-        let visualSide = container.width * TrashBinPhysicsSystem.visualSizeUnit
-        let imageName = "TrashEmotion_\(((current - 1) % TrashBinPhysicsSystem.maximumVisibleCount) + 1)"
-        let token = RevealContentToken(
-            type: .paperBall,
-            imageName: imageName,
-            seed: current - 1,
-            visualSize: CGSize(width: visualSide, height: visualSide)
-        )
-        let start = CGPoint(x: canvasSize.width * 0.50, y: canvasSize.height * 0.72)
-        contentStore.run(
-            startPosition: start,
-            openingCenter: opening,
-            openingBounds: bounds,
-            token: token,
-            preset: .trash,
-            preparation: trashLid,
-            restoration: trashLid,
+        room.storePaperIfNeeded(
+            currentCount: sharedCount(.paper),
+            previousVisualCount: paperVisualCount,
+            composeStartCount: composeStartCount,
+            containerFrame: revealAnchors[.paper]?.container ?? .zero,
+            canvasSize: canvasSize,
             reduceMotion: reduceMotion,
-            attachDynamic: {
-                trashPhysics.attachDynamic(imageName: imageName)
-                paperVisualCount = current
-            }
+            onAttached: { paperVisualCount = $0 }
         )
     }
 
     private func dismissReveal() {
-        if starReveal.isPlaying {
-            guard starReveal.sample.cardInteractive || reduceMotion else { return }
-            starReveal.dismiss()
-            return
-        }
-        guard reveal.sample.cardInteractive || reduceMotion else { return }
-        reveal.dismiss()
+        room.dismissReveal(reduceMotion: reduceMotion)
     }
 }
 

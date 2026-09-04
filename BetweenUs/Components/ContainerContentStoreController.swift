@@ -33,10 +33,7 @@ final class ContainerContentStoreController: ObservableObject {
 
     private let animationDriver: AnimationDriver
     private var task: Task<Void, Never>?
-
-    init() {
-        self.animationDriver = NativeAnimationDriver()
-    }
+    private var animationToken: UUID?
 
     init(animationDriver: AnimationDriver) {
         self.animationDriver = animationDriver
@@ -65,7 +62,7 @@ final class ContainerContentStoreController: ObservableObject {
                 scale: 1,
                 rotationY: 0,
                 rotationZ: 0,
-                opacity: 1,
+                opacity: 0,
                 glow: 0
             ),
             layer: .foregroundFlight,
@@ -80,33 +77,39 @@ final class ContainerContentStoreController: ObservableObject {
             }
             guard !Task.isCancelled else { return }
             preparation.holdOpen()
+            self.sample.content.opacity = 1
+            self.sample.content.position = startPosition
 
-            let release = CGPoint(x: openingCenter.x, y: openingCenter.y - 28)
-            let distance = hypot(release.x - startPosition.x, release.y - startPosition.y)
+            let release = CGPoint(x: openingCenter.x, y: openingCenter.y - 20)
+            let distance = hypot(startPosition.x - openingCenter.x, startPosition.y - openingCenter.y)
             let arc = min(max(distance * preset.arcFactor, preset.arcRange.lowerBound), preset.arcRange.upperBound)
             let side: CGFloat = startPosition.x <= openingCenter.x ? -1 : 1
             let control = CGPoint(
-                x: (startPosition.x + release.x) / 2 + side * min(42, distance * 0.12),
+                x: (startPosition.x + release.x) / 2 + side * min(36, distance * 0.12),
                 y: min(startPosition.y, release.y) - arc
             )
+            let exitLength = max(hypot(release.x - startPosition.x, release.y - startPosition.y), 1)
+            let entryLength = max(hypot(openingCenter.x - release.x, openingCenter.y - release.y), 1)
+            let total = exitLength + entryLength
+            let duration = reduceMotion ? 0.36 : (preset.flightDuration + preset.entryDuration)
 
-            await animateProgress(duration: reduceMotion ? 0.24 : preset.flightDuration) { progress in
-                let motion = pow(progress, preset.motionExponent)
-                self.sample.content.position = RevealPath.quadratic(startPosition, control, release, motion)
-                self.sample.content.rotationZ = preset.rotationAmount * Double(side) * Double(progress)
-                self.sample.content.scale = RevealEasing.lerp(1, preset.scaleAtOpening, RevealEasing.easeInOutCubic(progress))
-            }
-            guard !Task.isCancelled else { return }
-
-            await animateProgress(duration: reduceMotion ? 0.12 : preset.entryDuration) { progress in
-                let eased = RevealEasing.easeInOutCubic(progress)
-                self.sample.content.position = RevealEasing.lerp(release, openingCenter, eased)
-                self.sample.content.rotationZ = preset.rotationAmount * Double(side) * Double(1 - eased)
-                self.sample.content.scale = RevealEasing.lerp(preset.scaleAtOpening, 0.62, eased)
-                let top = self.sample.content.position.y - token.visualSize.height * self.sample.content.scale * 0.5
-                if top >= openingBounds.minY {
-                    self.sample.layer = .behindContainerForeground
+            await animateProgress(duration: duration) { progress in
+                let motion = reduceMotion ? progress : RevealEasing.easeInQuart(progress)
+                let travel = motion * total
+                if travel <= exitLength {
+                    let local = travel / exitLength
+                    self.sample.content.position = RevealPath.quadratic(startPosition, control, release, local)
+                    self.sample.layer = .foregroundFlight
+                } else {
+                    let local = (travel - exitLength) / entryLength
+                    self.sample.content.position = RevealEasing.lerp(release, openingCenter, local)
+                    let top = self.sample.content.position.y - token.visualSize.height * self.sample.content.scale * 0.5
+                    if top >= openingBounds.minY {
+                        self.sample.layer = .behindContainerForeground
+                    }
                 }
+                self.sample.content.rotationZ = 0
+                self.sample.content.scale = RevealEasing.lerp(1, preset.scaleAtOpening, motion)
             }
             guard !Task.isCancelled else { return }
 
@@ -126,7 +129,10 @@ final class ContainerContentStoreController: ObservableObject {
     func cancel() {
         task?.cancel()
         task = nil
-        animationDriver.cancelAll()
+        if let animationToken {
+            animationDriver.cancel(animationToken)
+            self.animationToken = nil
+        }
         sample = ContentStoreSample()
         token = nil
     }
@@ -136,14 +142,21 @@ final class ContainerContentStoreController: ObservableObject {
         update: @escaping (CGFloat) -> Void
     ) async {
         await withCheckedContinuation { continuation in
-            animationDriver.animate(
+            var token: UUID?
+            token = animationDriver.animate(
                 from: 0,
                 to: 1,
                 duration: duration,
                 curve: .linear,
                 update: update,
-                completion: { continuation.resume() }
+                completion: { [weak self] in
+                    if self?.animationToken == token {
+                        self?.animationToken = nil
+                    }
+                    continuation.resume()
+                }
             )
+            animationToken = token
         }
     }
 }

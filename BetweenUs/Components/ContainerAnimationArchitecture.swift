@@ -91,8 +91,9 @@ enum DriverCurve {
 
 @MainActor
 protocol AnimationDriver: AnyObject {
-    func startFrames(_ handler: @escaping () -> Void)
-    func stopFrames()
+    @discardableResult
+    func startFrames(_ handler: @escaping () -> Void) -> UUID
+    func stopFrames(_ id: UUID)
     @discardableResult
     func animate(
         from: CGFloat,
@@ -116,32 +117,44 @@ protocol AnimationDriver: AnyObject {
 }
 
 @MainActor
-class NativeAnimationDriver: AnimationDriver {
+final class WaveAnimationDriver: AnimationDriver {
+    private struct TimedAnimation {
+        var from: CGFloat
+        var to: CGFloat
+        var start: TimeInterval
+        var duration: TimeInterval
+        var curve: DriverCurve
+        var update: (CGFloat) -> Void
+        var completion: () -> Void
+    }
+
     private let frameProxy = AnimationFrameProxy()
     private var displayLink: CADisplayLink?
-    private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var frameHandlers: [UUID: () -> Void] = [:]
+    private var timedAnimations: [UUID: TimedAnimation] = [:]
+    private var springs: [UUID: SpringAnimator<CGFloat>] = [:]
 
     init() {
         frameProxy.handler = { [weak self] in
-            self?.frameHandler?()
+            self?.tick()
         }
     }
 
-    private var frameHandler: (() -> Void)?
-
-    func startFrames(_ handler: @escaping () -> Void) {
-        stopFrames()
-        frameHandler = handler
-        let link = CADisplayLink(target: frameProxy, selector: #selector(AnimationFrameProxy.fire))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
-        link.add(to: .main, forMode: .common)
-        displayLink = link
+    deinit {
+        displayLink?.invalidate()
     }
 
-    func stopFrames() {
-        displayLink?.invalidate()
-        displayLink = nil
-        frameHandler = nil
+    @discardableResult
+    func startFrames(_ handler: @escaping () -> Void) -> UUID {
+        let id = UUID()
+        frameHandlers[id] = handler
+        ensureDisplayLink()
+        return id
+    }
+
+    func stopFrames(_ id: UUID) {
+        frameHandlers[id] = nil
+        stopDisplayLinkIfIdle()
     }
 
     @discardableResult
@@ -154,63 +167,22 @@ class NativeAnimationDriver: AnimationDriver {
         completion: @escaping () -> Void
     ) -> UUID {
         let id = UUID()
-        tasks[id] = Task { @MainActor [weak self] in
-            let start = CACurrentMediaTime()
-            while !Task.isCancelled {
-                let elapsed = CACurrentMediaTime() - start
-                let raw = CGFloat(elapsed / max(duration, 0.0001))
-                let value = from + (to - from) * curve.value(at: raw)
-                update(value)
-                if raw >= 1 { break }
-                try? await Task.sleep(nanoseconds: 16_000_000)
-            }
-            guard !Task.isCancelled else { return }
-            update(to)
-            completion()
-            self?.tasks[id] = nil
-        }
+        timedAnimations[id] = TimedAnimation(
+            from: from,
+            to: to,
+            start: CACurrentMediaTime(),
+            duration: max(duration, 0.0001),
+            curve: curve,
+            update: update,
+            completion: completion
+        )
+        update(from)
+        ensureDisplayLink()
         return id
     }
 
     @discardableResult
     func spring(
-        from: CGFloat,
-        to: CGFloat,
-        configuration: DriverSpring,
-        update: @escaping (CGFloat) -> Void,
-        completion: @escaping () -> Void
-    ) -> UUID {
-        animate(
-            from: from,
-            to: to,
-            duration: configuration.response,
-            curve: .easeOutCubic,
-            update: update,
-            completion: completion
-        )
-    }
-
-    func retarget(_ id: UUID, to value: CGFloat) {
-        // Native timed animations restart at the owning plugin's current value.
-    }
-
-    func cancel(_ id: UUID) {
-        tasks[id]?.cancel()
-        tasks[id] = nil
-    }
-
-    func cancelAll() {
-        for task in tasks.values { task.cancel() }
-        tasks.removeAll()
-        stopFrames()
-    }
-}
-
-@MainActor
-final class WaveAnimationDriver: NativeAnimationDriver {
-    private var waveAnimators: [UUID: SpringAnimator<CGFloat>] = [:]
-
-    override func spring(
         from: CGFloat,
         to: CGFloat,
         configuration: DriverSpring,
@@ -229,37 +201,79 @@ final class WaveAnimationDriver: NativeAnimationDriver {
         animator.completion = { [weak self] event in
             guard case .finished = event else { return }
             completion()
-            self?.waveAnimators[id] = nil
+            self?.springs[id] = nil
         }
-        waveAnimators[id] = animator
+        springs[id] = animator
         animator.start()
         return id
     }
 
-    override func retarget(_ id: UUID, to value: CGFloat) {
-        waveAnimators[id]?.target = value
+    func retarget(_ id: UUID, to value: CGFloat) {
+        springs[id]?.target = value
     }
 
-    override func cancel(_ id: UUID) {
-        guard let animator = waveAnimators.removeValue(forKey: id) else {
-            super.cancel(id)
-            return
+    func cancel(_ id: UUID) {
+        if let animator = springs.removeValue(forKey: id) {
+            animator.completion = nil
+            animator.valueChanged = nil
+            animator.stop(immediately: true)
         }
-        animator.completion = nil
-        animator.valueChanged = nil
-        animator.stop(immediately: true)
-        super.cancel(id)
+        let timedCompletion = timedAnimations.removeValue(forKey: id)?.completion
+        frameHandlers[id] = nil
+        stopDisplayLinkIfIdle()
+        timedCompletion?()
     }
 
-    override func cancelAll() {
-        let animators = Array(waveAnimators.values)
-        waveAnimators.removeAll()
+    func cancelAll() {
+        let animators = Array(springs.values)
+        springs.removeAll()
         for animator in animators {
             animator.completion = nil
             animator.valueChanged = nil
             animator.stop(immediately: true)
         }
-        super.cancelAll()
+        timedAnimations.removeAll()
+        frameHandlers.removeAll()
+        stopDisplayLink()
+    }
+
+    private func tick() {
+        let now = CACurrentMediaTime()
+        for handler in frameHandlers.values {
+            handler()
+        }
+
+        let identifiers = Array(timedAnimations.keys)
+        for id in identifiers {
+            guard let animation = timedAnimations[id] else { continue }
+            let raw = CGFloat((now - animation.start) / animation.duration)
+            let progress = animation.curve.value(at: raw)
+            animation.update(animation.from + (animation.to - animation.from) * progress)
+            if raw >= 1 {
+                timedAnimations[id] = nil
+                animation.update(animation.to)
+                animation.completion()
+            }
+        }
+        stopDisplayLinkIfIdle()
+    }
+
+    private func ensureDisplayLink() {
+        guard displayLink == nil else { return }
+        let link = CADisplayLink(target: frameProxy, selector: #selector(AnimationFrameProxy.fire))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    private func stopDisplayLinkIfIdle() {
+        guard frameHandlers.isEmpty, timedAnimations.isEmpty else { return }
+        stopDisplayLink()
+    }
+
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
     }
 }
 

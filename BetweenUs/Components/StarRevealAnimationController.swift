@@ -12,9 +12,12 @@ final class StarRevealAnimationController: ObservableObject {
     private var targetStar: StarPhysicsState?
     private var didDetachTarget = false
 
-    init() {
-        self.physics = StarJarPhysicsSystem()
-        self.reveal = ContainerContentRevealController()
+    init(
+        physics: StarJarPhysicsSystem,
+        reveal: ContainerContentRevealController
+    ) {
+        self.physics = physics
+        self.reveal = reveal
 
         physics.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }

@@ -2,10 +2,9 @@ import SwiftUI
 
 struct StarJarView: View {
     @EnvironmentObject private var store: BetweenUsStore
+    @EnvironmentObject private var room: RoomWorld
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @StateObject private var starReveal = StarRevealAnimationController()
 
     @State private var showCompose = false
     @State private var bottleFrame: CGRect = .zero
@@ -31,7 +30,7 @@ struct StarJarView: View {
                         .rotationEffect(bottleRotation)
                         .offset(x: bottleOffsetX)
 
-                    if let unavailableWhisper, !starReveal.isPlaying {
+                    if let unavailableWhisper, !room.starReveal.isPlaying {
                         Text(unavailableWhisper)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
@@ -62,7 +61,7 @@ struct StarJarView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             ContainerRevealOverlay(
-                controller: starReveal.reveal,
+                controller: room.starReveal.reveal,
                 onDismiss: dismissPreview,
                 onRespond: { showCompose = true }
             )
@@ -86,15 +85,14 @@ struct StarJarView: View {
         .onDisappear {
             motionTask?.cancel()
             motionTask = nil
-            starReveal.reset()
         }
         .onChange(of: sharedCount) { count in
-            guard !showCompose, !starReveal.isPlaying else { return }
+            guard !showCompose, !room.starReveal.isPlaying else { return }
             if count < knownCount {
                 knownCount = min(count, StarJarMetrics.maxStars)
             }
         }
-        .onChange(of: starReveal.isPlaying) { playing in
+        .onChange(of: room.starReveal.isPlaying) { playing in
             if !playing {
                 isBusy = false
             }
@@ -108,8 +106,8 @@ struct StarJarView: View {
             if target > knownCount {
                 knownCount = target
             } else if sharedCount > knownCount,
-                      starReveal.physics.stars.count < StarJarMetrics.maxStars {
-                starReveal.spawnNewStar()
+                      room.starPhysics.stars.count < StarJarMetrics.maxStars {
+                room.starReveal.spawnNewStar()
             }
         }
         .sheet(isPresented: $showCompose) {
@@ -136,7 +134,7 @@ struct StarJarView: View {
             handleBottleTap()
         } label: {
             StarBottleView(
-                physics: starReveal.physics,
+                physics: room.starPhysics,
                 count: knownCount,
                 reportsRevealAnchors: true,
                 animateCountChanges: true
@@ -144,7 +142,7 @@ struct StarJarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isBusy || starReveal.isPlaying)
+        .disabled(isBusy || room.starReveal.isPlaying)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "%@，里面积累了 %d 件内容。%@".localized(
@@ -154,7 +152,7 @@ struct StarJarView: View {
             )
         )
         .accessibilityAddTraits(.isButton)
-        .accessibilityHidden(starReveal.reveal.isShowingCard)
+        .accessibilityHidden(room.starReveal.reveal.isShowingCard)
     }
 
     private var data: AppData { store.viewModel.data }
@@ -162,11 +160,7 @@ struct StarJarView: View {
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: .star) }
     private var sharedCount: Int { data.count(kind: .star) }
     private var canOpen: Bool {
-        credits > 0
-            && unopenedCount > 0
-            && !isBusy
-            && !starReveal.isPlaying
-            && !starReveal.physics.stars.isEmpty
+        room.canPresent(kind: .star, data: data) && !isBusy
     }
 
     private var unavailableWhisper: String? {
@@ -176,19 +170,19 @@ struct StarJarView: View {
     }
 
     private var bottleRotation: Angle {
-        starReveal.isPlaying
-            ? starReveal.sample.container.rotation
+        room.starReveal.isPlaying
+            ? room.starReveal.sample.container.rotation
             : .degrees(Double(failedNudge) * 1.5)
     }
 
     private var bottleOffsetX: CGFloat {
-        starReveal.isPlaying
-            ? starReveal.sample.container.offsetX
+        room.starReveal.isPlaying
+            ? room.starReveal.sample.container.offsetX
             : failedNudge * 1.6
     }
 
     private func handleBottleTap() {
-        guard !isBusy, !starReveal.isPlaying else { return }
+        guard !isBusy, !room.starReveal.isPlaying else { return }
         guard canOpen else {
             RitualHaptics.warning()
             playFailedNudge()
@@ -214,30 +208,37 @@ struct StarJarView: View {
         isBusy = true
         motionTask?.cancel()
         motionTask = Task { @MainActor in
-            let item = await store.drawStar()
-            guard !Task.isCancelled else { return }
-            guard let item else {
+            let frames = RevealAnchorFrames(container: bottleFrame)
+            guard room.canPresent(kind: .star, data: data), frames.hasContainer else {
+                isBusy = false
+                RitualHaptics.warning()
+                playFailedNudge()
+                return
+            }
+            guard let item = await store.peekOpenable(kind: .star) else {
                 isBusy = false
                 RitualHaptics.warning()
                 return
             }
-
-            let started = starReveal.play(
+            let started = room.beginReveal(
+                kind: .star,
                 item: item,
-                bottleFrame: bottleFrame,
+                anchors: frames,
                 canvasSize: canvasSize,
                 safeArea: safeArea,
                 reduceMotion: reduceMotion
             )
-            if !started {
+            if started {
+                _ = await store.commitOpen(item)
+            } else {
                 isBusy = false
                 RitualHaptics.warning()
+                playFailedNudge()
             }
         }
     }
 
     private func dismissPreview() {
-        guard starReveal.sample.cardInteractive || reduceMotion else { return }
-        starReveal.dismiss()
+        room.dismissReveal(reduceMotion: reduceMotion)
     }
 }

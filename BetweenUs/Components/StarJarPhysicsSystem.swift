@@ -3,13 +3,41 @@ import QuartzCore
 import SwiftUI
 
 enum StarCollisionShape: Equatable {
-    case circle
+    case star
+}
+
+enum StarSilhouette {
+    static let outerRatio: CGFloat = 0.46
+    static let innerRatio: CGFloat = 0.23
+    static let points = 5
+
+    static func radius(
+        along nx: CGFloat,
+        ny: CGFloat,
+        rotation: CGFloat,
+        visualSize: CGFloat
+    ) -> CGFloat {
+        let twoPi = CGFloat.pi * 2
+        let sector = twoPi / CGFloat(points)
+        var local = atan2(ny, nx) - rotation + .pi / 2
+        local = local.truncatingRemainder(dividingBy: twoPi)
+        if local < 0 { local += twoPi }
+        var inSector = local.truncatingRemainder(dividingBy: sector)
+        if inSector > sector * 0.5 {
+            inSector = sector - inSector
+        }
+        let u = min(max(inSector / (sector * 0.5), 0), 1)
+        let blend = u * u * (3 - 2 * u)
+        let outer = visualSize * outerRatio
+        let inner = visualSize * innerRatio
+        return outer + (inner - outer) * blend
+    }
 }
 
 enum StarJarMetrics {
     static let maxStars = 10
     static let visualUnit: CGFloat = 0.148
-    static let collisionRadiusUnit: CGFloat = 0.056
+    static let collisionRadiusUnit: CGFloat = visualUnit * StarSilhouette.outerRatio
     static let mouthCenter = CGPoint(x: 0.50, y: 0.072)
     static let mouthTop: CGFloat = 0.041
     static let mouthInnerHalf: CGFloat = 0.178
@@ -17,19 +45,19 @@ enum StarJarMetrics {
     static let layerClearance: CGFloat = 4
 
     static let gravity: CGFloat = 320
-    static let restitution: CGFloat = 0.26
-    static let friction: CGFloat = 0.52
-    static let linearDamping: CGFloat = 0.9
-    static let angularDamping: CGFloat = 1.35
+    static let restitution: CGFloat = 0.14
+    static let friction: CGFloat = 0.72
+    static let linearDamping: CGFloat = 1.45
+    static let angularDamping: CGFloat = 7.0
     static let mass: CGFloat = 1.0
     static let solverIterations = 5
     static let penetrationSlop: CGFloat = 0.55
     static let correctionPercent: CGFloat = 0.48
     static let maxLinearSpeed: CGFloat = 420
-    static let maxAngularSpeed: CGFloat = 16
-    static let sleepLinearSpeed: CGFloat = 5.5
-    static let sleepAngularSpeed: CGFloat = 0.22
-    static let sleepDelay: CGFloat = 0.28
+    static let maxAngularSpeed: CGFloat = 2.2
+    static let sleepLinearSpeed: CGFloat = 6
+    static let sleepAngularSpeed: CGFloat = 0.15
+    static let sleepDelay: CGFloat = 0.20
 
     /// Inner glass surface in unit space, clockwise from the left mouth lip
     /// around the floor to the right lip. The mouth itself stays open.
@@ -158,7 +186,7 @@ final class StarJarPhysicsSystem: ObservableObject {
     private var configuredSide: CGFloat = 0
 
     private static var placementCache: [Int: [StarPlacement]] = [:]
-    private static let placementVersion = 3
+    private static let placementVersion = 4
 
     init() {
         proxy.handler = { [weak self] in
@@ -302,7 +330,6 @@ final class StarJarPhysicsSystem: ObservableObject {
             let sign: CGFloat = index.isMultiple(of: 2) ? 1 : -1
             bodies[index].velocity.dx += sign * 9
             bodies[index].velocity.dy -= 5
-            bodies[index].angularVelocity += sign * 0.35
             clampSpeed(&bodies[index], maxSpeed: 22)
         }
         publish()
@@ -361,8 +388,9 @@ final class StarJarPhysicsSystem: ObservableObject {
     }
 
     private func makeBody(index: Int, id: UUID = UUID(), charm: StarCharm? = nil) -> Body {
-        let radius = collisionRadius
-        let inertia = 0.5 * StarJarMetrics.mass * radius * radius
+        let visual = visualSize
+        let radius = visual * StarSilhouette.outerRatio
+        let inertia = 0.38 * StarJarMetrics.mass * radius * radius
         return Body(
             id: id,
             creationIndex: index,
@@ -380,8 +408,8 @@ final class StarJarPhysicsSystem: ObservableObject {
             linearDamping: StarJarMetrics.linearDamping,
             angularDamping: StarJarMetrics.angularDamping,
             radius: radius,
-            visualSize: visualSize,
-            collisionShape: .circle,
+            visualSize: visual,
+            collisionShape: .star,
             sleeping: false,
             kinematic: false,
             sleepTimer: 0
@@ -618,8 +646,9 @@ private struct OfflineWorld {
     }
 
     mutating func spawn(index: Int) {
-        let radius = StarJarMetrics.collisionRadiusUnit * side
-        let inertia = 0.5 * StarJarMetrics.mass * radius * radius
+        let visual = StarJarMetrics.visualUnit * side
+        let radius = visual * StarSilhouette.outerRatio
+        let inertia = 0.38 * StarJarMetrics.mass * radius * radius
         let mouth = StarJarCoordinates.mouthBounds(in: side)
         let jitter = CGFloat((index * 37 + 11) % 21 - 10) / 10 * StarJarMetrics.mouthInnerHalf * side * 0.52
         var x = mouth.midX + jitter
@@ -641,8 +670,8 @@ private struct OfflineWorld {
             linearDamping: StarJarMetrics.linearDamping,
             angularDamping: StarJarMetrics.angularDamping,
             radius: radius,
-            visualSize: StarJarMetrics.visualUnit * side,
-            collisionShape: .circle,
+            visualSize: visual,
+            collisionShape: .star,
             sleeping: false,
             kinematic: false,
             sleepTimer: 0
@@ -701,11 +730,9 @@ private enum StarPhysicsSolver {
             let linear = 1 / (1 + bodies[index].linearDamping * dt)
             bodies[index].velocity.dx *= linear
             bodies[index].velocity.dy *= linear
-            bodies[index].angularVelocity *= 1 / (1 + bodies[index].angularDamping * dt)
             clampMotion(&bodies[index])
             bodies[index].position.x += bodies[index].velocity.dx * dt
             bodies[index].position.y += bodies[index].velocity.dy * dt
-            bodies[index].rotation += bodies[index].angularVelocity * dt
         }
     }
 
@@ -973,7 +1000,6 @@ private enum StarPhysicsSolver {
         guard inverseMass > 0 || inverseInertia > 0 else { return }
         body.velocity.dx += impulseX * inverseMass
         body.velocity.dy += impulseY * inverseMass
-        body.angularVelocity += (radiusX * impulseY - radiusY * impulseX) * inverseInertia
     }
 
     private static func updateSleep(bodies: inout [Body], dt: CGFloat) {
@@ -984,8 +1010,7 @@ private enum StarPhysicsSolver {
                 continue
             }
             let speed = hypot(bodies[index].velocity.dx, bodies[index].velocity.dy)
-            let spin = abs(bodies[index].angularVelocity)
-            if speed < StarJarMetrics.sleepLinearSpeed, spin < StarJarMetrics.sleepAngularSpeed {
+            if speed < StarJarMetrics.sleepLinearSpeed {
                 bodies[index].sleepTimer += dt
                 if bodies[index].sleepTimer > StarJarMetrics.sleepDelay {
                     bodies[index].sleeping = true
@@ -1001,11 +1026,7 @@ private enum StarPhysicsSolver {
 
     private static func clampMotion(_ body: inout Body) {
         clampSpeed(&body, maxSpeed: StarJarMetrics.maxLinearSpeed)
-        if body.angularVelocity > StarJarMetrics.maxAngularSpeed {
-            body.angularVelocity = StarJarMetrics.maxAngularSpeed
-        } else if body.angularVelocity < -StarJarMetrics.maxAngularSpeed {
-            body.angularVelocity = -StarJarMetrics.maxAngularSpeed
-        }
+        body.angularVelocity = 0
     }
 }
 
