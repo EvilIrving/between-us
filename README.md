@@ -61,8 +61,8 @@
 - 空间有了变化和“对方已打开”弱提醒，通知不展示正文。
 - 空间管理、参与者退出和创建者删除。
 - “我的抽屉”查看自己留下的内容及打开状态。
-- 免费共同空间最多同时保留 10 条内容，删除单条或清空后立即释放位置。
-- StoreKit 2 非消耗型永久买断；一人购买后，当前共同空间由两个人共享不限量权益，不提供订阅。
+- 免费空间最多同时保留 10 条内容，删除单条或清空后立即释放位置。
+- StoreKit 2 非消耗型永久买断；一人购买后，当前空间由两个人共享不限量权益，不提供订阅。
 - 界面支持简体中文、英文、日文和韩文，可跟随系统或在设置中即时切换。
 - 无第三方依赖，无自建业务服务器。
 
@@ -84,16 +84,17 @@ BetweenUs/
 └── Resources/    简体中文、英文、日文、韩文本地化资源
 ```
 
-视觉与动效的长期标准见 [VISUAL_MOTION_DESIGN.md](VISUAL_MOTION_DESIGN.md)。核心物件采用程序化视觉系统：共享的参数曲线负责轮廓，统一材质模型负责光影，交互状态直接驱动盖口、内容物与容器形变；外部美术资源只作为背景或未来可替换增强层。
+核心物件采用混合渲染：星星瓶与纸团篓使用正式位图资产加物理系统，胶囊盒仍以共享参数化几何与材质绘制；交互状态驱动开合、揭示、投入与遮挡。源文件与提示词参考在 `DesignAssets/`，运行时资产在 `BetweenUs/Assets.xcassets`。产品与协作约束见 [AGENTS.md](AGENTS.md)。
 
 核心交互组件包括：
 
-- `RitualDepositControl`：向上推入容器的提交手势。
+- `RitualDepositControl`：向上推入物件的提交手势。
 - `HoldToCompleteSurface`：长按进度、取消、完成和辅助操作的共享状态机。
-- `ParametricGeometry`：圆角星形、超椭圆、胶囊体、对称剖面与有机纸形的共享数学内核。
-- `ContainerVisual`：首页、详情、引导与加载共同使用的参数化容器渲染器。
+- `StarBottleView` / `StarJarPhysicsSystem`：星星瓶位图、挂件与物理。
+- `TrashBinVisual` / `TrashBinPhysicsSystem`：纸团篓位图、情绪纸团与开盖物理。
+- `ContainerVisual`：首页、详情、引导与加载共同使用的物件渲染入口。
 - `VoiceHoldRecorderView`：按住录音、左滑取消和松手完成。
-- `AmbientRoomBackground`：共同房间与各容器场景的统一环境层。
+- `AmbientRoomBackground`：共同房间与各物件场景的统一环境层。
 - `WhisperNoticeBanner`：替代核心流程中的系统 Alert。
 
 ## 开始运行

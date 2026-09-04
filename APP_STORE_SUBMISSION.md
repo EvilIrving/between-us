@@ -26,7 +26,7 @@
 - 类型：Non-Consumable。
 - Product ID：`cain.com.between-us.lifetime`，必须与工程中的 `CommerceConfiguration.lifetimeProductID` 完全一致。
 - Reference Name 建议：`Between us Lifetime`。
-- 不启用 App Store Family Sharing；双人共享由当前受邀共同空间负责，避免把权益扩展到与该空间无关的家庭成员。
+- 不启用 App Store Family Sharing；双人共享由当前受邀空间负责，避免把权益扩展到与该空间无关的家庭成员。
 - 中国大陆价格手动设为 ¥18，美国价格手动设为 US$2.99；其他地区使用 App Store 对等价格。
 - 为简体中文、英文、日文、韩文填写本地化显示名与说明，并上传永久版购买页的审核截图。
 - 确认 Paid Apps Agreement、税务与收款资料有效，选择销售地区，再把此 App 内购买与首发版本一并提交审核。
