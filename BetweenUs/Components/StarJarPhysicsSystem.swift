@@ -9,7 +9,7 @@ enum StarCollisionShape: Equatable {
 enum StarJarMetrics {
     static let maxStars = 10
     static let visualUnit: CGFloat = 0.148
-    static let collisionRadiusUnit: CGFloat = 0.064
+    static let collisionRadiusUnit: CGFloat = 0.056
     static let mouthCenter = CGPoint(x: 0.50, y: 0.072)
     static let mouthTop: CGFloat = 0.041
     static let mouthInnerHalf: CGFloat = 0.178
@@ -17,44 +17,54 @@ enum StarJarMetrics {
     static let layerClearance: CGFloat = 4
 
     static let gravity: CGFloat = 320
-    static let restitution: CGFloat = 0.08
-    static let friction: CGFloat = 0.68
-    static let linearDamping: CGFloat = 2.35
-    static let angularDamping: CGFloat = 2.7
+    static let restitution: CGFloat = 0.26
+    static let friction: CGFloat = 0.52
+    static let linearDamping: CGFloat = 0.9
+    static let angularDamping: CGFloat = 1.35
     static let mass: CGFloat = 1.0
+    static let solverIterations = 5
+    static let penetrationSlop: CGFloat = 0.55
+    static let correctionPercent: CGFloat = 0.48
+    static let maxLinearSpeed: CGFloat = 420
+    static let maxAngularSpeed: CGFloat = 16
+    static let sleepLinearSpeed: CGFloat = 5.5
+    static let sleepAngularSpeed: CGFloat = 0.22
+    static let sleepDelay: CGFloat = 0.28
 
     /// Inner glass surface in unit space, clockwise from the left mouth lip
     /// around the floor to the right lip. The mouth itself stays open.
+    /// Sampled from StarJarBottle inner cavity, then inset so charms rest
+    /// against glass instead of clipping through it.
     static let interiorContour: [CGPoint] = [
-        CGPoint(x: 0.322, y: 0.078),
-        CGPoint(x: 0.318, y: 0.118),
-        CGPoint(x: 0.322, y: 0.158),
-        CGPoint(x: 0.308, y: 0.198),
-        CGPoint(x: 0.258, y: 0.248),
-        CGPoint(x: 0.218, y: 0.300),
-        CGPoint(x: 0.206, y: 0.360),
-        CGPoint(x: 0.204, y: 0.520),
-        CGPoint(x: 0.206, y: 0.700),
-        CGPoint(x: 0.214, y: 0.810),
-        CGPoint(x: 0.232, y: 0.872),
-        CGPoint(x: 0.270, y: 0.918),
-        CGPoint(x: 0.340, y: 0.942),
-        CGPoint(x: 0.420, y: 0.952),
-        CGPoint(x: 0.500, y: 0.956),
-        CGPoint(x: 0.580, y: 0.952),
-        CGPoint(x: 0.660, y: 0.942),
-        CGPoint(x: 0.730, y: 0.918),
-        CGPoint(x: 0.768, y: 0.872),
-        CGPoint(x: 0.786, y: 0.810),
-        CGPoint(x: 0.794, y: 0.700),
-        CGPoint(x: 0.796, y: 0.520),
-        CGPoint(x: 0.794, y: 0.360),
-        CGPoint(x: 0.782, y: 0.300),
-        CGPoint(x: 0.742, y: 0.248),
-        CGPoint(x: 0.692, y: 0.198),
-        CGPoint(x: 0.678, y: 0.158),
-        CGPoint(x: 0.682, y: 0.118),
-        CGPoint(x: 0.678, y: 0.078)
+        CGPoint(x: 0.318, y: 0.078),
+        CGPoint(x: 0.310, y: 0.118),
+        CGPoint(x: 0.300, y: 0.158),
+        CGPoint(x: 0.272, y: 0.198),
+        CGPoint(x: 0.228, y: 0.248),
+        CGPoint(x: 0.188, y: 0.300),
+        CGPoint(x: 0.174, y: 0.360),
+        CGPoint(x: 0.168, y: 0.520),
+        CGPoint(x: 0.168, y: 0.700),
+        CGPoint(x: 0.174, y: 0.810),
+        CGPoint(x: 0.190, y: 0.868),
+        CGPoint(x: 0.232, y: 0.910),
+        CGPoint(x: 0.312, y: 0.930),
+        CGPoint(x: 0.400, y: 0.938),
+        CGPoint(x: 0.500, y: 0.942),
+        CGPoint(x: 0.600, y: 0.938),
+        CGPoint(x: 0.688, y: 0.930),
+        CGPoint(x: 0.768, y: 0.910),
+        CGPoint(x: 0.810, y: 0.868),
+        CGPoint(x: 0.826, y: 0.810),
+        CGPoint(x: 0.832, y: 0.700),
+        CGPoint(x: 0.832, y: 0.520),
+        CGPoint(x: 0.826, y: 0.360),
+        CGPoint(x: 0.812, y: 0.300),
+        CGPoint(x: 0.772, y: 0.248),
+        CGPoint(x: 0.728, y: 0.198),
+        CGPoint(x: 0.700, y: 0.158),
+        CGPoint(x: 0.690, y: 0.118),
+        CGPoint(x: 0.682, y: 0.078)
     ]
 }
 
@@ -148,7 +158,7 @@ final class StarJarPhysicsSystem: ObservableObject {
     private var configuredSide: CGFloat = 0
 
     private static var placementCache: [Int: [StarPlacement]] = [:]
-    private static let placementVersion = 2
+    private static let placementVersion = 3
 
     init() {
         proxy.handler = { [weak self] in
@@ -352,7 +362,7 @@ final class StarJarPhysicsSystem: ObservableObject {
 
     private func makeBody(index: Int, id: UUID = UUID(), charm: StarCharm? = nil) -> Body {
         let radius = collisionRadius
-        let inertia = 0.42 * StarJarMetrics.mass * radius * radius
+        let inertia = 0.5 * StarJarMetrics.mass * radius * radius
         return Body(
             id: id,
             creationIndex: index,
@@ -505,173 +515,11 @@ final class StarJarPhysicsSystem: ObservableObject {
     }
 
     private func step(dt: CGFloat, substeps: Int) {
-        let split = max(dt / CGFloat(max(substeps, 1)), 1.0 / 240.0)
-        for _ in 0..<max(substeps, 1) {
-            integrate(dt: split)
-            solveStars()
-            solveWalls()
-            updateSleep(dt: split)
-        }
-    }
-
-    private func integrate(dt: CGFloat) {
-        for index in bodies.indices {
-            if bodies[index].kinematic || bodies[index].sleeping { continue }
-            bodies[index].velocity.dy += StarJarMetrics.gravity * dt
-            let linear = max(0, 1 - bodies[index].linearDamping * dt)
-            bodies[index].velocity.dx *= linear
-            bodies[index].velocity.dy *= linear
-            bodies[index].angularVelocity *= max(0, 1 - bodies[index].angularDamping * dt)
-            clampSpeed(&bodies[index], maxSpeed: 420)
-            bodies[index].position.x += bodies[index].velocity.dx * dt
-            bodies[index].position.y += bodies[index].velocity.dy * dt
-            bodies[index].rotation += bodies[index].angularVelocity * dt
-        }
-    }
-
-    private func solveStars() {
-        guard bodies.count > 1 else { return }
-        for i in 0..<bodies.count {
-            for j in (i + 1)..<bodies.count {
-                if bodies[i].kinematic && bodies[j].kinematic { continue }
-                collideBodies(i, j)
-            }
-        }
-    }
-
-    private func collideBodies(_ i: Int, _ j: Int) {
-        let a = bodies[i]
-        let b = bodies[j]
-        let dx = b.position.x - a.position.x
-        let dy = b.position.y - a.position.y
-        let distance = max(0.0001, hypot(dx, dy))
-        let minimum = a.radius + b.radius
-        guard distance < minimum else { return }
-
-        let nx = dx / distance
-        let ny = dy / distance
-        let penetration = minimum - distance
-        let inverse = (a.kinematic ? 0 : a.inverseMass) + (b.kinematic ? 0 : b.inverseMass)
-        guard inverse > 0 else { return }
-        let correction = penetration / inverse * 0.86
-        if !a.kinematic {
-            bodies[i].position.x -= nx * correction * a.inverseMass
-            bodies[i].position.y -= ny * correction * a.inverseMass
-            bodies[i].sleeping = false
-        }
-        if !b.kinematic {
-            bodies[j].position.x += nx * correction * b.inverseMass
-            bodies[j].position.y += ny * correction * b.inverseMass
-            bodies[j].sleeping = false
-        }
-
-        let rvx = b.velocity.dx - a.velocity.dx
-        let rvy = b.velocity.dy - a.velocity.dy
-        let relative = rvx * nx + rvy * ny
-        if relative > 0 { return }
-
-        let restitution = min(a.restitution, b.restitution)
-        let impulse = -(1 + restitution) * relative / inverse
-        let ix = impulse * nx
-        let iy = impulse * ny
-        if !a.kinematic {
-            bodies[i].velocity.dx -= ix * a.inverseMass
-            bodies[i].velocity.dy -= iy * a.inverseMass
-        }
-        if !b.kinematic {
-            bodies[j].velocity.dx += ix * b.inverseMass
-            bodies[j].velocity.dy += iy * b.inverseMass
-        }
-
-        let tx = rvx - relative * nx
-        let ty = rvy - relative * ny
-        let tangentLength = hypot(tx, ty)
-        guard tangentLength > 0.0001 else { return }
-        let tnx = tx / tangentLength
-        let tny = ty / tangentLength
-        let friction = sqrt(a.friction * b.friction)
-        var frictionImpulse = -(rvx * tnx + rvy * tny) / inverse
-        let maxFriction = abs(impulse) * friction
-        frictionImpulse = min(max(frictionImpulse, -maxFriction), maxFriction)
-        if !a.kinematic {
-            bodies[i].velocity.dx -= tnx * frictionImpulse * a.inverseMass
-            bodies[i].velocity.dy -= tny * frictionImpulse * a.inverseMass
-            bodies[i].angularVelocity -= frictionImpulse * a.radius * a.inverseInertia * 0.35
-        }
-        if !b.kinematic {
-            bodies[j].velocity.dx += tnx * frictionImpulse * b.inverseMass
-            bodies[j].velocity.dy += tny * frictionImpulse * b.inverseMass
-            bodies[j].angularVelocity += frictionImpulse * b.radius * b.inverseInertia * 0.35
-        }
-    }
-
-    private func solveWalls() {
-        for i in bodies.indices {
-            if bodies[i].kinematic { continue }
-            for wall in walls {
-                collideWall(index: i, segment: wall)
-            }
-        }
-    }
-
-    private func collideWall(index: Int, segment: Segment) {
-        let body = bodies[index]
-        let closest = segment.closestPoint(to: body.position)
-        let dx = body.position.x - closest.x
-        let dy = body.position.y - closest.y
-        let inward = segment.inwardNormal
-        let signedDistance = dx * inward.dx + dy * inward.dy
-        let euclideanDistance = hypot(dx, dy)
-        guard euclideanDistance < body.radius else { return }
-        let penetration = body.radius - signedDistance
-        bodies[index].position.x += inward.dx * penetration
-        bodies[index].position.y += inward.dy * penetration
-        bodies[index].sleeping = false
-
-        let relative = bodies[index].velocity.dx * inward.dx + bodies[index].velocity.dy * inward.dy
-        if relative < 0 {
-            let impulse = -(1 + body.restitution) * relative
-            bodies[index].velocity.dx += impulse * inward.dx
-            bodies[index].velocity.dy += impulse * inward.dy
-            let tx = -inward.dy
-            let ty = inward.dx
-            let tangentSpeed = bodies[index].velocity.dx * tx + bodies[index].velocity.dy * ty
-            let frictionImpulse = tangentSpeed * body.friction * 0.55
-            bodies[index].velocity.dx -= tx * frictionImpulse
-            bodies[index].velocity.dy -= ty * frictionImpulse
-            bodies[index].angularVelocity -= frictionImpulse * body.radius * body.inverseInertia * 0.28
-        }
-    }
-
-    private func updateSleep(dt: CGFloat) {
-        for index in bodies.indices {
-            if bodies[index].kinematic {
-                bodies[index].sleeping = false
-                bodies[index].sleepTimer = 0
-                continue
-            }
-            let speed = hypot(bodies[index].velocity.dx, bodies[index].velocity.dy)
-            let spin = abs(bodies[index].angularVelocity)
-            if speed < 7, spin < 0.38 {
-                bodies[index].sleepTimer += dt
-                if bodies[index].sleepTimer > 0.32 {
-                    bodies[index].sleeping = true
-                    bodies[index].velocity = .zero
-                    bodies[index].angularVelocity = 0
-                }
-            } else {
-                bodies[index].sleepTimer = 0
-                bodies[index].sleeping = false
-            }
-        }
+        StarPhysicsSolver.step(bodies: &bodies, walls: walls, dt: dt, substeps: substeps)
     }
 
     private func clampSpeed(_ body: inout Body, maxSpeed: CGFloat) {
-        let speed = hypot(body.velocity.dx, body.velocity.dy)
-        guard speed > maxSpeed, speed > 0 else { return }
-        let scale = maxSpeed / speed
-        body.velocity.dx *= scale
-        body.velocity.dy *= scale
+        StarPhysicsSolver.clampSpeed(&body, maxSpeed: maxSpeed)
     }
 
     private func publish() {
@@ -771,7 +619,7 @@ private struct OfflineWorld {
 
     mutating func spawn(index: Int) {
         let radius = StarJarMetrics.collisionRadiusUnit * side
-        let inertia = 0.42 * StarJarMetrics.mass * radius * radius
+        let inertia = 0.5 * StarJarMetrics.mass * radius * radius
         let mouth = StarJarCoordinates.mouthBounds(in: side)
         let jitter = CGFloat((index * 37 + 11) % 21 - 10) / 10 * StarJarMetrics.mouthInnerHalf * side * 0.52
         var x = mouth.midX + jitter
@@ -806,10 +654,7 @@ private struct OfflineWorld {
         var time: CGFloat = 0
         let dt: CGFloat = 1.0 / 120.0
         while time < maxTime {
-            integrate(dt: dt)
-            collideStars()
-            collideWalls()
-            sleep(dt: dt)
+            StarPhysicsSolver.step(bodies: &bodies, walls: walls, dt: dt, substeps: 1)
             time += dt
             if bodies.allSatisfy(\.sleeping) { break }
         }
@@ -826,84 +671,323 @@ private struct OfflineWorld {
         }
         .sorted { $0.creationIndex < $1.creationIndex }
     }
+}
 
-    private mutating func integrate(dt: CGFloat) {
+private enum StarPhysicsSolver {
+    static func step(bodies: inout [Body], walls: [Segment], dt: CGFloat, substeps: Int) {
+        let split = max(dt / CGFloat(max(substeps, 1)), 1.0 / 240.0)
+        for _ in 0..<max(substeps, 1) {
+            integrate(bodies: &bodies, dt: split)
+            for _ in 0..<StarJarMetrics.solverIterations {
+                collideStars(bodies: &bodies)
+                collideWalls(bodies: &bodies, walls: walls)
+            }
+            updateSleep(bodies: &bodies, dt: split)
+        }
+    }
+
+    static func clampSpeed(_ body: inout Body, maxSpeed: CGFloat) {
+        let speed = hypot(body.velocity.dx, body.velocity.dy)
+        guard speed > maxSpeed, speed > 0 else { return }
+        let scale = maxSpeed / speed
+        body.velocity.dx *= scale
+        body.velocity.dy *= scale
+    }
+
+    private static func integrate(bodies: inout [Body], dt: CGFloat) {
         for index in bodies.indices {
-            if bodies[index].sleeping { continue }
+            if bodies[index].kinematic || bodies[index].sleeping { continue }
             bodies[index].velocity.dy += StarJarMetrics.gravity * dt
-            let linear = max(0, 1 - bodies[index].linearDamping * dt)
+            let linear = 1 / (1 + bodies[index].linearDamping * dt)
             bodies[index].velocity.dx *= linear
             bodies[index].velocity.dy *= linear
-            bodies[index].angularVelocity *= max(0, 1 - bodies[index].angularDamping * dt)
+            bodies[index].angularVelocity *= 1 / (1 + bodies[index].angularDamping * dt)
+            clampMotion(&bodies[index])
             bodies[index].position.x += bodies[index].velocity.dx * dt
             bodies[index].position.y += bodies[index].velocity.dy * dt
             bodies[index].rotation += bodies[index].angularVelocity * dt
         }
     }
 
-    private mutating func collideStars() {
+    private static func collideStars(bodies: inout [Body]) {
         guard bodies.count > 1 else { return }
         for i in 0..<bodies.count {
             for j in (i + 1)..<bodies.count {
-                let a = bodies[i]
-                let b = bodies[j]
-                let dx = b.position.x - a.position.x
-                let dy = b.position.y - a.position.y
-                let distance = max(0.0001, hypot(dx, dy))
-                let minimum = a.radius + b.radius
-                guard distance < minimum else { continue }
-                let nx = dx / distance
-                let ny = dy / distance
-                let correction = (minimum - distance) / (a.inverseMass + b.inverseMass) * 0.86
-                bodies[i].position.x -= nx * correction * a.inverseMass
-                bodies[i].position.y -= ny * correction * a.inverseMass
-                bodies[j].position.x += nx * correction * b.inverseMass
-                bodies[j].position.y += ny * correction * b.inverseMass
-                bodies[i].sleeping = false
-                bodies[j].sleeping = false
-                let rvx = b.velocity.dx - a.velocity.dx
-                let rvy = b.velocity.dy - a.velocity.dy
-                let relative = rvx * nx + rvy * ny
-                if relative >= 0 { continue }
-                let impulse = -(1 + min(a.restitution, b.restitution)) * relative / (a.inverseMass + b.inverseMass)
-                bodies[i].velocity.dx -= impulse * nx * a.inverseMass
-                bodies[i].velocity.dy -= impulse * ny * a.inverseMass
-                bodies[j].velocity.dx += impulse * nx * b.inverseMass
-                bodies[j].velocity.dy += impulse * ny * b.inverseMass
+                if bodies[i].kinematic && bodies[j].kinematic { continue }
+                collideBodies(&bodies, i, j)
             }
         }
     }
 
-    private mutating func collideWalls() {
-        for i in bodies.indices {
-            for wall in walls {
-                let closest = wall.closestPoint(to: bodies[i].position)
-                let dx = bodies[i].position.x - closest.x
-                let dy = bodies[i].position.y - closest.y
-                let inward = wall.inwardNormal
-                let signedDistance = dx * inward.dx + dy * inward.dy
-                let euclideanDistance = hypot(dx, dy)
-                guard euclideanDistance < bodies[i].radius else { continue }
-                let penetration = bodies[i].radius - signedDistance
-                bodies[i].position.x += inward.dx * penetration
-                bodies[i].position.y += inward.dy * penetration
-                bodies[i].sleeping = false
-                let relative = bodies[i].velocity.dx * inward.dx + bodies[i].velocity.dy * inward.dy
-                if relative < 0 {
-                    let impulse = -(1 + bodies[i].restitution) * relative
-                    bodies[i].velocity.dx += impulse * inward.dx
-                    bodies[i].velocity.dy += impulse * inward.dy
+    private static func collideBodies(_ bodies: inout [Body], _ i: Int, _ j: Int) {
+        var a = bodies[i]
+        var b = bodies[j]
+        let dx = b.position.x - a.position.x
+        let dy = b.position.y - a.position.y
+        let distance = hypot(dx, dy)
+        let minimum = a.radius + b.radius
+        guard distance < minimum else { return }
+
+        let nx: CGFloat
+        let ny: CGFloat
+        if distance > 0.0001 {
+            nx = dx / distance
+            ny = dy / distance
+        } else {
+            nx = 0
+            ny = -1
+        }
+        let penetration = minimum - (distance > 0.0001 ? distance : 0)
+
+        let rax = nx * a.radius
+        let ray = ny * a.radius
+        let rbx = -nx * b.radius
+        let rby = -ny * b.radius
+        let inverseAMass = a.kinematic ? 0 : a.inverseMass
+        let inverseBMass = b.kinematic ? 0 : b.inverseMass
+        let inverseAInertia = a.kinematic ? 0 : a.inverseInertia
+        let inverseBInertia = b.kinematic ? 0 : b.inverseInertia
+        let raCrossN = rax * ny - ray * nx
+        let rbCrossN = rbx * ny - rby * nx
+        let inverse = inverseAMass + inverseBMass
+            + raCrossN * raCrossN * inverseAInertia
+            + rbCrossN * rbCrossN * inverseBInertia
+        guard inverse > 0 else { return }
+
+        correctPenetration(
+            bodies: &bodies,
+            i: i,
+            j: j,
+            nx: nx,
+            ny: ny,
+            penetration: penetration,
+            inverseAMass: inverseAMass,
+            inverseBMass: inverseBMass
+        )
+        a = bodies[i]
+        b = bodies[j]
+        if !a.kinematic { bodies[i].sleeping = false }
+        if !b.kinematic { bodies[j].sleeping = false }
+
+        let avx = a.velocity.dx - a.angularVelocity * ray
+        let avy = a.velocity.dy + a.angularVelocity * rax
+        let bvx = b.velocity.dx - b.angularVelocity * rby
+        let bvy = b.velocity.dy + b.angularVelocity * rbx
+        let rvx = bvx - avx
+        let rvy = bvy - avy
+        let relative = rvx * nx + rvy * ny
+        if relative <= 0 {
+            var restitution = min(a.restitution, b.restitution)
+            if abs(relative) < StarJarMetrics.gravity * 0.018 {
+                restitution = 0
+            }
+            let impulse = -(1 + restitution) * relative / inverse
+            applyImpulse(
+                &bodies[i],
+                impulseX: -impulse * nx,
+                impulseY: -impulse * ny,
+                radiusX: rax,
+                radiusY: ray,
+                inverseMass: inverseAMass,
+                inverseInertia: inverseAInertia
+            )
+            applyImpulse(
+                &bodies[j],
+                impulseX: impulse * nx,
+                impulseY: impulse * ny,
+                radiusX: rbx,
+                radiusY: rby,
+                inverseMass: inverseBMass,
+                inverseInertia: inverseBInertia
+            )
+
+            a = bodies[i]
+            b = bodies[j]
+            let avx2 = a.velocity.dx - a.angularVelocity * ray
+            let avy2 = a.velocity.dy + a.angularVelocity * rax
+            let bvx2 = b.velocity.dx - b.angularVelocity * rby
+            let bvy2 = b.velocity.dy + b.angularVelocity * rbx
+            let rvx2 = bvx2 - avx2
+            let rvy2 = bvy2 - avy2
+            var tx = rvx2 - (rvx2 * nx + rvy2 * ny) * nx
+            var ty = rvy2 - (rvx2 * nx + rvy2 * ny) * ny
+            let tangentLength = hypot(tx, ty)
+            if tangentLength > 0.0001 {
+                tx /= tangentLength
+                ty /= tangentLength
+                let raCrossT = rax * ty - ray * tx
+                let rbCrossT = rbx * ty - rby * tx
+                let tangentInverse = inverseAMass + inverseBMass
+                    + raCrossT * raCrossT * inverseAInertia
+                    + rbCrossT * rbCrossT * inverseBInertia
+                if tangentInverse > 0 {
+                    var frictionImpulse = -(rvx2 * tx + rvy2 * ty) / tangentInverse
+                    let maxFriction = abs(impulse) * sqrt(a.friction * b.friction)
+                    frictionImpulse = min(max(frictionImpulse, -maxFriction), maxFriction)
+                    applyImpulse(
+                        &bodies[i],
+                        impulseX: -frictionImpulse * tx,
+                        impulseY: -frictionImpulse * ty,
+                        radiusX: rax,
+                        radiusY: ray,
+                        inverseMass: inverseAMass,
+                        inverseInertia: inverseAInertia
+                    )
+                    applyImpulse(
+                        &bodies[j],
+                        impulseX: frictionImpulse * tx,
+                        impulseY: frictionImpulse * ty,
+                        radiusX: rbx,
+                        radiusY: rby,
+                        inverseMass: inverseBMass,
+                        inverseInertia: inverseBInertia
+                    )
                 }
             }
         }
+        clampMotion(&bodies[i])
+        clampMotion(&bodies[j])
     }
 
-    private mutating func sleep(dt: CGFloat) {
+    private static func collideWalls(bodies: inout [Body], walls: [Segment]) {
+        for i in bodies.indices {
+            if bodies[i].kinematic { continue }
+            for wall in walls {
+                collideWall(bodies: &bodies, index: i, segment: wall)
+            }
+        }
+    }
+
+    private static func collideWall(bodies: inout [Body], index: Int, segment: Segment) {
+        var body = bodies[index]
+        let closest = segment.closestPoint(to: body.position)
+        let dx = body.position.x - closest.x
+        let dy = body.position.y - closest.y
+        let euclideanDistance = hypot(dx, dy)
+        guard euclideanDistance < body.radius else { return }
+
+        let inward = segment.inwardNormal
+        let nx: CGFloat
+        let ny: CGFloat
+        if euclideanDistance > 0.0001, dx * inward.dx + dy * inward.dy > 0 {
+            nx = dx / euclideanDistance
+            ny = dy / euclideanDistance
+        } else {
+            nx = inward.dx
+            ny = inward.dy
+        }
+        let signedDistance = dx * nx + dy * ny
+        let penetration = body.radius - signedDistance
+        let correction = max(penetration - StarJarMetrics.penetrationSlop, 0) * StarJarMetrics.correctionPercent
+        bodies[index].position.x += nx * correction
+        bodies[index].position.y += ny * correction
+        bodies[index].sleeping = false
+        body = bodies[index]
+
+        let rax = -nx * body.radius
+        let ray = -ny * body.radius
+        let contactVX = body.velocity.dx - body.angularVelocity * ray
+        let contactVY = body.velocity.dy + body.angularVelocity * rax
+        let relative = contactVX * nx + contactVY * ny
+        if relative < 0 {
+            let raCrossN = rax * ny - ray * nx
+            let inverse = body.inverseMass + raCrossN * raCrossN * body.inverseInertia
+            guard inverse > 0 else { return }
+            var restitution = body.restitution
+            if abs(relative) < StarJarMetrics.gravity * 0.018 {
+                restitution = 0
+            }
+            let impulse = -(1 + restitution) * relative / inverse
+            applyImpulse(
+                &bodies[index],
+                impulseX: impulse * nx,
+                impulseY: impulse * ny,
+                radiusX: rax,
+                radiusY: ray,
+                inverseMass: body.inverseMass,
+                inverseInertia: body.inverseInertia
+            )
+
+            body = bodies[index]
+            let contactVX2 = body.velocity.dx - body.angularVelocity * ray
+            let contactVY2 = body.velocity.dy + body.angularVelocity * rax
+            var tx = contactVX2 - (contactVX2 * nx + contactVY2 * ny) * nx
+            var ty = contactVY2 - (contactVX2 * nx + contactVY2 * ny) * ny
+            let tangentLength = hypot(tx, ty)
+            if tangentLength > 0.0001 {
+                tx /= tangentLength
+                ty /= tangentLength
+                let raCrossT = rax * ty - ray * tx
+                let tangentInverse = body.inverseMass + raCrossT * raCrossT * body.inverseInertia
+                if tangentInverse > 0 {
+                    var frictionImpulse = -(contactVX2 * tx + contactVY2 * ty) / tangentInverse
+                    let maxFriction = abs(impulse) * body.friction
+                    frictionImpulse = min(max(frictionImpulse, -maxFriction), maxFriction)
+                    applyImpulse(
+                        &bodies[index],
+                        impulseX: frictionImpulse * tx,
+                        impulseY: frictionImpulse * ty,
+                        radiusX: rax,
+                        radiusY: ray,
+                        inverseMass: body.inverseMass,
+                        inverseInertia: body.inverseInertia
+                    )
+                }
+            }
+        }
+        clampMotion(&bodies[index])
+    }
+
+    private static func correctPenetration(
+        bodies: inout [Body],
+        i: Int,
+        j: Int,
+        nx: CGFloat,
+        ny: CGFloat,
+        penetration: CGFloat,
+        inverseAMass: CGFloat,
+        inverseBMass: CGFloat
+    ) {
+        let massSum = inverseAMass + inverseBMass
+        guard massSum > 0 else { return }
+        let correction = max(penetration - StarJarMetrics.penetrationSlop, 0) / massSum * StarJarMetrics.correctionPercent
+        if inverseAMass > 0 {
+            bodies[i].position.x -= nx * correction * inverseAMass
+            bodies[i].position.y -= ny * correction * inverseAMass
+        }
+        if inverseBMass > 0 {
+            bodies[j].position.x += nx * correction * inverseBMass
+            bodies[j].position.y += ny * correction * inverseBMass
+        }
+    }
+
+    private static func applyImpulse(
+        _ body: inout Body,
+        impulseX: CGFloat,
+        impulseY: CGFloat,
+        radiusX: CGFloat,
+        radiusY: CGFloat,
+        inverseMass: CGFloat,
+        inverseInertia: CGFloat
+    ) {
+        guard inverseMass > 0 || inverseInertia > 0 else { return }
+        body.velocity.dx += impulseX * inverseMass
+        body.velocity.dy += impulseY * inverseMass
+        body.angularVelocity += (radiusX * impulseY - radiusY * impulseX) * inverseInertia
+    }
+
+    private static func updateSleep(bodies: inout [Body], dt: CGFloat) {
         for index in bodies.indices {
+            if bodies[index].kinematic {
+                bodies[index].sleeping = false
+                bodies[index].sleepTimer = 0
+                continue
+            }
             let speed = hypot(bodies[index].velocity.dx, bodies[index].velocity.dy)
-            if speed < 7, abs(bodies[index].angularVelocity) < 0.38 {
+            let spin = abs(bodies[index].angularVelocity)
+            if speed < StarJarMetrics.sleepLinearSpeed, spin < StarJarMetrics.sleepAngularSpeed {
                 bodies[index].sleepTimer += dt
-                if bodies[index].sleepTimer > 0.32 {
+                if bodies[index].sleepTimer > StarJarMetrics.sleepDelay {
                     bodies[index].sleeping = true
                     bodies[index].velocity = .zero
                     bodies[index].angularVelocity = 0
@@ -912,6 +996,15 @@ private struct OfflineWorld {
                 bodies[index].sleepTimer = 0
                 bodies[index].sleeping = false
             }
+        }
+    }
+
+    private static func clampMotion(_ body: inout Body) {
+        clampSpeed(&body, maxSpeed: StarJarMetrics.maxLinearSpeed)
+        if body.angularVelocity > StarJarMetrics.maxAngularSpeed {
+            body.angularVelocity = StarJarMetrics.maxAngularSpeed
+        } else if body.angularVelocity < -StarJarMetrics.maxAngularSpeed {
+            body.angularVelocity = -StarJarMetrics.maxAngularSpeed
         }
     }
 }
