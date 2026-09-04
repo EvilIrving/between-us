@@ -112,7 +112,7 @@ struct ContainerVisual: View {
 
     @StateObject private var starPhysics = StarJarPhysicsSystem()
     @StateObject private var trashPhysics = TrashBinPhysicsSystem()
-    @StateObject private var trashLid = TrashLidController()
+    @StateObject private var trashLid = TrashLidController(animationDriver: RoomWorld.sharedClock)
 
     var body: some View {
         GeometryReader { proxy in
