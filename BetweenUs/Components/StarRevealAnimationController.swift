@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 final class StarRevealAnimationController: ObservableObject {
     let physics: StarJarPhysicsSystem
-    let reveal: ContainerRevealAnimationController
+    let reveal: ContainerContentRevealController
 
     @Published private(set) var context: RevealContext?
 
@@ -14,7 +14,7 @@ final class StarRevealAnimationController: ObservableObject {
 
     init() {
         self.physics = StarJarPhysicsSystem()
-        self.reveal = ContainerRevealAnimationController()
+        self.reveal = ContainerContentRevealController()
 
         physics.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -91,7 +91,7 @@ final class StarRevealAnimationController: ObservableObject {
             safeArea: safeArea,
             reduceMotion: reduceMotion,
             seed: target.creationIndex,
-            bottleMouthBounds: mouthBounds,
+            containerOpeningBounds: mouthBounds,
             releaseLift: releaseLift
         )
 

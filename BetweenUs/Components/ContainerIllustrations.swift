@@ -107,8 +107,12 @@ struct ContainerVisual: View {
     var reportsRevealAnchors = false
     var trackedContentIndex: Int? = nil
     var sharedStarPhysics: StarJarPhysicsSystem? = nil
+    var sharedTrashPhysics: TrashBinPhysicsSystem? = nil
+    var sharedTrashLid: TrashLidController? = nil
 
     @StateObject private var starPhysics = StarJarPhysicsSystem()
+    @StateObject private var trashPhysics = TrashBinPhysicsSystem()
+    @StateObject private var trashLid = TrashLidController()
 
     var body: some View {
         GeometryReader { proxy in
@@ -129,12 +133,11 @@ struct ContainerVisual: View {
                         trackedContentIndex: trackedContentIndex
                     )
                 case .paper:
-                    PaperHolderVisual(
+                    TrashBinVisual(
+                        physics: sharedTrashPhysics ?? trashPhysics,
+                        lid: sharedTrashLid ?? trashLid,
                         count: min(max(count, 0), style.contentLimit),
-                        progress: interactionProgress,
-                        isActive: isActive,
-                        shadowScale: style.shadowScale,
-                        trackedContentIndex: trackedContentIndex
+                        reportsRevealAnchors: reportsRevealAnchors
                     )
                 }
             }

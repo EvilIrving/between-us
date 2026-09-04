@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContainerRevealOverlay: View {
-    @ObservedObject var controller: ContainerRevealAnimationController
+    @ObservedObject var controller: ContainerContentRevealController
     var onDismiss: () -> Void
     var onRespond: () -> Void
 
@@ -24,15 +24,11 @@ struct ContainerRevealOverlay: View {
 
                 if let token = controller.token,
                    sample.showsToken,
-                   sample.contentLayer == .behindBottleForeground {
-                    flyingStar(token: token, sample: sample)
+                   sample.contentLayer == .behindContainerForeground {
+                    flyingToken(token: token, sample: sample)
 
-                    // Keep the bottle chrome above the star while it is still exiting.
                     if controller.containerFrame.width > 1 {
-                        Image("StarJarBottle")
-                            .resizable()
-                            .interpolation(.high)
-                            .scaledToFit()
+                        containerForeground(for: token.type)
                             .frame(
                                 width: controller.containerFrame.width,
                                 height: controller.containerFrame.height
@@ -57,7 +53,7 @@ struct ContainerRevealOverlay: View {
                 if let token = controller.token,
                    sample.showsToken,
                    sample.contentLayer == .foregroundFlight {
-                    flyingStar(token: token, sample: sample)
+                    flyingToken(token: token, sample: sample)
                 }
             }
             .frame(width: canvas.size.width, height: canvas.size.height)
@@ -66,13 +62,15 @@ struct ContainerRevealOverlay: View {
     }
 
     @ViewBuilder
-    private func flyingStar(token: RevealContentToken, sample: RevealSample) -> some View {
+    private func flyingToken(token: RevealContentToken, sample: RevealSample) -> some View {
+        let axis = rotationAxis(for: sample.rotationStrategy)
         RevealTokenView(token: token)
             .frame(width: token.visualSize.width, height: token.visualSize.height)
             .scaleEffect(sample.content.scale)
+            .rotationEffect(.degrees(sample.content.rotationZ))
             .rotation3DEffect(
                 .degrees(sample.content.rotationY),
-                axis: (x: 0, y: 1, z: 0),
+                axis: axis,
                 perspective: 0.62
             )
             .shadow(
@@ -82,6 +80,30 @@ struct ContainerRevealOverlay: View {
             .opacity(sample.content.opacity)
             .position(sample.content.position)
             .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func containerForeground(for type: ContentTokenType) -> some View {
+        switch type {
+        case .star:
+            Image("StarJarBottle")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+        case .paperBall:
+            TrashBinForegroundLayer()
+        case .capsule:
+            Color.clear
+        }
+    }
+
+    private func rotationAxis(for strategy: RotationStrategy) -> (x: CGFloat, y: CGFloat, z: CGFloat) {
+        switch strategy {
+        case let .axis3D(x, y, z):
+            return (CGFloat(x), CGFloat(y), CGFloat(z))
+        case .none, .zAxis2D:
+            return (0, 1, 0)
+        }
     }
 }
 
@@ -102,7 +124,14 @@ struct RevealTokenView: View {
         case .capsule:
             ParametricTokenView(kind: .capsule, seed: token.seed, filled: true)
         case .paperBall:
-            ParametricTokenView(kind: .paper, seed: token.seed, filled: true)
+            if let imageName = token.imageName {
+                Image(imageName)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                ParametricTokenView(kind: .paper, seed: token.seed, filled: true)
+            }
         }
     }
 }
@@ -195,7 +224,7 @@ struct RevealNoteCard: View {
 
     private func writingRect(in size: CGSize) -> CGRect {
         let width = size.width * 0.70 * (2.0 / 3.0)
-        CGRect(
+        return CGRect(
             x: (size.width - width) / 2,
             y: size.height * 0.29,
             width: width,

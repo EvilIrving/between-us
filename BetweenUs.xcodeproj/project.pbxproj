@@ -17,6 +17,10 @@
 		77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2755B132754367E7794616EC /* StarPhysicsView.swift */; };
 		A30000000000000000000001 /* StarJarPhysicsSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* StarJarPhysicsSystem.swift */; };
 		A30000000000000000000003 /* StarRevealAnimationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* StarRevealAnimationController.swift */; };
+		B30000000000000000000001 /* ContainerAnimationArchitecture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* ContainerAnimationArchitecture.swift */; };
+		B30000000000000000000003 /* Wave in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000004 /* Wave */; };
+		B30000000000000000000006 /* TrashBinSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TrashBinSystem.swift */; };
+		B30000000000000000000008 /* ContainerContentStoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* ContainerContentStoreController.swift */; };
 		113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */; };
 		C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */; };
 		C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */; };
@@ -78,6 +82,9 @@
 		2755B132754367E7794616EC /* StarPhysicsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarPhysicsView.swift"; sourceTree = "<group>"; };
 		A30000000000000000000002 /* StarJarPhysicsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarJarPhysicsSystem.swift"; sourceTree = "<group>"; };
 		A30000000000000000000004 /* StarRevealAnimationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarRevealAnimationController.swift"; sourceTree = "<group>"; };
+		B30000000000000000000002 /* ContainerAnimationArchitecture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerAnimationArchitecture.swift"; sourceTree = "<group>"; };
+		B30000000000000000000007 /* TrashBinSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrashBinSystem.swift"; sourceTree = "<group>"; };
+		B30000000000000000000009 /* ContainerContentStoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerContentStoreController.swift"; sourceTree = "<group>"; };
 		1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RitualUI.swift"; sourceTree = "<group>"; };
 		C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealAnimation.swift"; sourceTree = "<group>"; };
 		C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealOverlay.swift"; sourceTree = "<group>"; };
@@ -115,7 +122,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		69680EDE0CF9B24DB8DBFE04 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		69680EDE0CF9B24DB8DBFE04 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B30000000000000000000003 /* Wave in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -185,6 +192,9 @@
 				2755B132754367E7794616EC /* StarPhysicsView.swift */,
 				A30000000000000000000002 /* StarJarPhysicsSystem.swift */,
 				A30000000000000000000004 /* StarRevealAnimationController.swift */,
+				B30000000000000000000002 /* ContainerAnimationArchitecture.swift */,
+				B30000000000000000000007 /* TrashBinSystem.swift */,
+				B30000000000000000000009 /* ContainerContentStoreController.swift */,
 				1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */,
 				E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */,
 			);
@@ -286,6 +296,9 @@
 			buildRules = ();
 			dependencies = ();
 			name = BetweenUs;
+			packageProductDependencies = (
+				B30000000000000000000004 /* Wave */,
+			);
 			productName = "Between us";
 			productReference = D957E19B16B69713B7749A90 /* Between us.app */;
 			productType = "com.apple.product-type.application";
@@ -316,6 +329,9 @@
 			hasScannedForEncodings = 0;
 			knownRegions = ("zh-Hans", en, ja, ko, Base);
 			mainGroup = 870B3294C0CBD48AF6BBCC1B;
+			packageReferences = (
+				B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */,
+			);
 			productRefGroup = 615B463D1028E4E24B674CF7 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -350,6 +366,9 @@
 				77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */,
 				A30000000000000000000001 /* StarJarPhysicsSystem.swift in Sources */,
 				A30000000000000000000003 /* StarRevealAnimationController.swift in Sources */,
+				B30000000000000000000001 /* ContainerAnimationArchitecture.swift in Sources */,
+				B30000000000000000000006 /* TrashBinSystem.swift in Sources */,
+				B30000000000000000000008 /* ContainerContentStoreController.swift in Sources */,
 				113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */,
 				0F4BF63734AFBDF0CBA26B0E /* VoiceHoldRecorderView.swift in Sources */,
 				6FB26D15A39A01D54C6A3298 /* Theme.swift in Sources */,
@@ -464,6 +483,25 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jtrivedi/Wave.git";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.3.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B30000000000000000000004 /* Wave */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */;
+			productName = Wave;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		6650A2B5E24FA7522CE6B81C /* Build configuration list for PBXProject "BetweenUs" */ = {isa = XCConfigurationList; buildConfigurations = (D12546C7310DEE778E55E187 /* Debug */, AA23A758EC6A71B7321371F8 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
