@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>耳语 Between us · 把难以说出口的话放在这里</title>
+  <meta name="description" content="给两个人的私密空间。把难以说出口的话揉成纸团，留给对方在准备好时打开。">
+  <link rel="icon" href="/assets/paper-6.png" type="image/png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="耳语 Between us">
+      <span class="brand-mark">耳</span>
+      <span class="brand-copy"><strong>耳语</strong><small>BETWEEN US</small></span>
+    </a>
+    <div class="topbar-meta">
+      <span class="connection-dot" id="connection-dot"></span>
+      <span id="connection-label">尚未进入空间</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="auth-view view active" id="auth-view" aria-labelledby="auth-title">
+      <div class="auth-stage">
+        <div class="auth-copy">
+          <p class="kicker">A PRIVATE PLACE FOR TWO</p>
+          <h1 id="auth-title">有一句话，<br><em>先放在这里。</em></h1>
+          <p class="lead">不是把话发出去。把它留在你们之间，等对方准备好时，再亲手打开。</p>
+          <div class="set-object" aria-hidden="true">
+            <div class="object-shadow"></div>
+            <div class="set-orbit"></div>
+            <div class="mini-vessel mini-jar"><img src="/assets/star-jar.png" alt=""><span>星星</span></div>
+            <div class="mini-vessel mini-capsule"><span class="capsule-shape"></span><span>胶囊</span></div>
+            <div class="mini-vessel mini-bin"><img src="/assets/paper-bin-filled.png" alt=""><span>纸团</span></div>
+          </div>
+        </div>
+        <div class="auth-panel panel-surface">
+          <div class="panel-tabs" role="tablist" aria-label="账号操作">
+            <button class="tab is-active" id="login-tab" type="button" role="tab" aria-selected="true">登录</button>
+            <button class="tab" id="register-tab" type="button" role="tab" aria-selected="false">注册</button>
+          </div>
+          <form id="auth-form" class="form-stack">
+            <label class="field">
+              <span>账号</span>
+              <input id="auth-username" name="username" autocomplete="username" placeholder="给自己取个名字" required minlength="3" maxlength="32">
+            </label>
+            <label class="field">
+              <span>密码</span>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="至少 6 位" required minlength="6" maxlength="72">
+            </label>
+            <label class="field register-only" hidden>
+              <span>怎么称呼你</span>
+              <input id="auth-display-name" name="displayName" autocomplete="nickname" placeholder="会显示给对方" maxlength="32">
+            </label>
+            <button class="button button-primary" type="submit" id="auth-submit">进入空间</button>
+            <p class="form-message" id="auth-message" role="status"></p>
+          </form>
+          <p class="privacy-line"><span class="lock-mark" aria-hidden="true">•</span> 只为你们两个人保存</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="pairing-view view" id="pairing-view" aria-labelledby="pairing-title" hidden>
+      <div class="pairing-shell">
+        <div class="pairing-copy">
+          <p class="kicker">YOUR SPACE</p>
+          <h1 id="pairing-title">先和一个人，<br><em>站到同一边。</em></h1>
+          <p class="lead">创建一个配对码，或者填入对方给你的配对码。配对完成后，这里只属于你们。</p>
+        </div>
+        <div class="pairing-actions">
+          <div class="pairing-block" id="create-pair-block">
+            <p class="block-label">让对方加入</p>
+            <button class="button button-primary" id="create-pair" type="button">生成配对码</button>
+            <div class="pair-code" id="pair-code" hidden><span>------</span><button id="copy-code" type="button" aria-label="复制配对码">复制</button></div>
+            <p class="block-note" id="create-pair-note">配对码只给你们使用，不需要扫码。</p>
+          </div>
+          <div class="pair-divider"><span>或者</span></div>
+          <form class="pairing-block" id="join-form">
+            <label class="field">
+              <span>输入对方的配对码</span>
+              <input id="join-code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" required minlength="6" maxlength="6">
+            </label>
+            <button class="button button-outline" type="submit">加入空间</button>
+            <p class="form-message" id="join-message" role="status"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="room-view view" id="room-view" aria-labelledby="room-title" hidden>
+      <div class="room-shell">
+        <div class="room-heading">
+          <div>
+            <p class="kicker">THE PAPER BIN</p>
+            <h1 id="room-title">有些话，<br><em>适合先揉起来。</em></h1>
+          </div>
+          <div class="room-partner" id="room-partner">正在等待对方加入</div>
+        </div>
+
+        <div class="room-layout">
+          <div class="bin-stage" id="bin-stage">
+            <div class="stage-line stage-line-top"></div>
+            <div class="set-label" id="set-label">你们的表达 · <span>0</span></div>
+            <div class="vessel-stage" id="vessel-stage">
+              <button class="vessel vessel-jar" type="button" data-vessel="star" aria-label="打开星星"><img src="/assets/star-jar.png" alt=""></button>
+              <button class="vessel vessel-capsule" type="button" data-vessel="capsule" aria-label="打开胶囊"><span class="capsule-shape"></span></button>
+              <button class="vessel vessel-bin" type="button" data-vessel="paper" aria-label="打开纸团篓">
+                <span class="vessel-notes" id="vessel-notes-paper"></span>
+                <img class="bin-image bin-back" src="/assets/paper-bin-filled.png" alt="">
+                <img class="bin-image bin-lid" id="bin-lid" src="/assets/paper-bin-empty.png" alt="">
+              </button>
+              <div class="vessel-notes" id="vessel-notes-star"></div>
+              <div class="vessel-notes" id="vessel-notes-capsule"></div>
+              <div class="set-glow" aria-hidden="true"></div>
+            </div>
+            <div class="stage-caption" id="stage-caption">这里还没有对方留下的话。</div>
+            <button class="stage-action" id="open-action" type="button" hidden>打开一件表达</button>
+          </div>
+
+          <aside class="room-rail">
+            <div class="rail-heading">
+              <span>你们之间</span>
+              <span class="room-code" id="room-code">------</span>
+            </div>
+            <div class="rail-status" id="rail-status">还没有新的纸团</div>
+            <div class="rail-history" id="rail-history"></div>
+            <button class="write-button" id="write-button" type="button"><span class="write-symbol" aria-hidden="true">+</span><span>揉一个纸团</span></button>
+            <button class="text-button" id="logout-button" type="button">退出账号</button>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="compose-dialog" id="compose-dialog">
+    <form method="dialog" class="dialog-inner" id="compose-form">
+      <button class="dialog-close" value="cancel" type="submit" aria-label="关闭">×</button>
+      <p class="kicker">LEAVE IT HERE</p>
+      <h2>写下来，<br><em>让它长成一件东西。</em></h2>
+      <div class="vessel-choice" role="radiogroup" aria-label="选择表达的形状">
+        <label class="choice is-selected"><input type="radio" name="vessel" value="paper" checked><span class="choice-art choice-paper"><img src="/assets/paper-6.png" alt=""></span><span>纸团</span></label>
+        <label class="choice"><input type="radio" name="vessel" value="star"><span class="choice-art choice-star"><img src="/assets/star-charm.png" alt=""></span><span>星星</span></label>
+        <label class="choice"><input type="radio" name="vessel" value="capsule"><span class="choice-art choice-capsule"><span class="capsule-shape"></span></span><span>胶囊</span></label>
+      </div>
+      <label class="field compose-field">
+        <span>想对对方说</span>
+        <textarea id="note-body" maxlength="1000" placeholder="比如：那天你没有追问，我其实松了一口气。" required></textarea>
+      </label>
+      <div class="compose-footer">
+        <span class="char-count" id="char-count">0 / 1000</span>
+        <button class="button button-primary" value="default" type="submit">揉好，放进纸篓</button>
+      </div>
+      <p class="form-message" id="compose-message" role="status"></p>
+    </form>
+  </dialog>
+
+  <dialog class="reveal-dialog" id="reveal-dialog">
+    <div class="reveal-inner">
+      <button class="dialog-close" id="reveal-close" type="button" aria-label="关闭">×</button>
+      <div class="reveal-note" id="reveal-note"><img src="/assets/paper-1.png" alt=""></div>
+      <p class="kicker" id="reveal-kicker">UNFOLDED</p>
+      <p class="revealed-body" id="revealed-body"></p>
+      <div class="revealed-meta" id="revealed-meta"></div>
+      <button class="button button-outline" id="reply-button" type="button">留下一句回应</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

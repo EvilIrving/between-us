@@ -1,0 +1,8 @@
+name = "between-us-contest"
+pages_build_output_dir = "."
+compatibility_date = "2026-09-04"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "between-us-contest"
+database_id = "7d8866da-32fb-40e8-b416-e7405ef2b9ce"
