@@ -147,6 +147,16 @@ struct RevealTokenView: View {
     }
 }
 
+/// The six note papers are one family; a note keeps the same sheet on every open.
+private enum NotePaper {
+    static let names = (1...6).map { "Note_Paper_0\($0)" }
+
+    static func name(for id: UUID) -> String {
+        let bytes = withUnsafeBytes(of: id.uuid) { Array($0) }
+        return names[Int(bytes[0] &+ bytes[1]) % names.count]
+    }
+}
+
 struct RevealNoteCard: View {
     let item: SecretItem
     let onDismiss: () -> Void
@@ -158,7 +168,7 @@ struct RevealNoteCard: View {
             let bodyHeight = contentBodyHeight(in: proxy.size)
 
             ZStack(alignment: .topTrailing) {
-                Image("Note_Paper")
+                Image(NotePaper.name(for: item.id))
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
