@@ -1,0 +1,959 @@
+{
+  "CapsuleJar_Body": {
+    "source": "认真说话/Revisions/CapsuleJar_Body_Clear.png",
+    "export": "copy without resampling",
+    "alignment": "Original normalized jar stage; outer x25%-75%, y10%-94.5%; mouth x50%, y14.5%",
+    "material": "Clear glass, genuine transparent central pane; one foreground layer",
+    "generator": "built-in imagegen",
+    "prompt": "认真说话/Revisions/CapsuleJar_Body_Clear.prompt.md"
+  },
+  "CapsuleJar_Lid": {
+    "source": "认真说话/CapsuleJar_Lid.png",
+    "alphaGlowRemoval": [
+      160,
+      240
+    ],
+    "crop": [
+      249,
+      199,
+      1288,
+      807
+    ],
+    "size": [
+      190,
+      111
+    ],
+    "origin": [
+      161,
+      5
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "Capsule_Closed": {
+    "source": "认真说话/Capsule_Closed.png",
+    "crop": [
+      212,
+      104,
+      312,
+      397
+    ],
+    "size": [
+      164,
+      481
+    ],
+    "origin": [
+      14,
+      16
+    ],
+    "canvas": [
+      192,
+      512
+    ]
+  },
+  "Capsule_Bottom": {
+    "source": "认真说话/Capsule_Bottom.png",
+    "crop": [
+      153,
+      109,
+      322,
+      399
+    ],
+    "size": [
+      154,
+      264
+    ],
+    "origin": [
+      19,
+      230
+    ],
+    "canvas": [
+      192,
+      512
+    ]
+  },
+  "Capsule_Top": {
+    "source": "认真说话/Capsule_Top.png",
+    "crop": [
+      141,
+      107,
+      333,
+      407
+    ],
+    "size": [
+      168,
+      262
+    ],
+    "origin": [
+      12,
+      8
+    ],
+    "canvas": [
+      192,
+      512
+    ]
+  },
+  "StarCharm_Candy_Comfort": {
+    "source": "正面情绪 icons/01-糖芯/05-安心.png",
+    "crop": [
+      32,
+      101,
+      480,
+      411
+    ],
+    "size": [
+      448,
+      310
+    ],
+    "origin": [
+      32,
+      101
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Candy_Hope": {
+    "source": "正面情绪 icons/01-糖芯/06-期待.png",
+    "crop": [
+      32,
+      88,
+      480,
+      423
+    ],
+    "size": [
+      448,
+      335
+    ],
+    "origin": [
+      32,
+      88
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Candy_Joy": {
+    "source": "正面情绪 icons/01-糖芯/01-开心.png",
+    "crop": [
+      34,
+      60,
+      480,
+      452
+    ],
+    "size": [
+      446,
+      392
+    ],
+    "origin": [
+      33,
+      60
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Candy_Love": {
+    "source": "正面情绪 icons/01-糖芯/02-喜欢.png",
+    "crop": [
+      34,
+      52,
+      480,
+      460
+    ],
+    "size": [
+      446,
+      408
+    ],
+    "origin": [
+      33,
+      52
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Candy_Missing": {
+    "source": "正面情绪 icons/01-糖芯/03-想念.png",
+    "crop": [
+      32,
+      54,
+      475,
+      458
+    ],
+    "size": [
+      443,
+      404
+    ],
+    "origin": [
+      34,
+      54
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Candy_Thanks": {
+    "source": "正面情绪 icons/01-糖芯/04-感谢.png",
+    "crop": [
+      32,
+      58,
+      480,
+      454
+    ],
+    "size": [
+      448,
+      396
+    ],
+    "origin": [
+      32,
+      58
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Comfort": {
+    "source": "正面情绪 icons/05-礼饰/05-安心.png",
+    "crop": [
+      32,
+      67,
+      478,
+      445
+    ],
+    "size": [
+      446,
+      378
+    ],
+    "origin": [
+      33,
+      67
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Hope": {
+    "source": "正面情绪 icons/05-礼饰/06-期待.png",
+    "crop": [
+      32,
+      61,
+      475,
+      451
+    ],
+    "size": [
+      443,
+      390
+    ],
+    "origin": [
+      34,
+      61
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Joy": {
+    "source": "正面情绪 icons/05-礼饰/01-开心.png",
+    "crop": [
+      32,
+      84,
+      478,
+      428
+    ],
+    "size": [
+      446,
+      344
+    ],
+    "origin": [
+      33,
+      84
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Love": {
+    "source": "正面情绪 icons/05-礼饰/02-喜欢.png",
+    "crop": [
+      32,
+      54,
+      478,
+      458
+    ],
+    "size": [
+      446,
+      404
+    ],
+    "origin": [
+      33,
+      54
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Missing": {
+    "source": "正面情绪 icons/05-礼饰/03-想念.png",
+    "crop": [
+      40,
+      74,
+      480,
+      438
+    ],
+    "size": [
+      440,
+      364
+    ],
+    "origin": [
+      36,
+      74
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Gift_Thanks": {
+    "source": "正面情绪 icons/05-礼饰/04-感谢.png",
+    "crop": [
+      37,
+      47,
+      480,
+      465
+    ],
+    "size": [
+      443,
+      418
+    ],
+    "origin": [
+      34,
+      47
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Comfort": {
+    "source": "正面情绪 icons/03-手作/05-安心.png",
+    "crop": [
+      36,
+      72,
+      478,
+      440
+    ],
+    "size": [
+      442,
+      368
+    ],
+    "origin": [
+      35,
+      72
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Hope": {
+    "source": "正面情绪 icons/03-手作/06-期待.png",
+    "crop": [
+      36,
+      93,
+      480,
+      418
+    ],
+    "size": [
+      444,
+      325
+    ],
+    "origin": [
+      34,
+      93
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Joy": {
+    "source": "正面情绪 icons/03-手作/01-开心.png",
+    "crop": [
+      37,
+      56,
+      480,
+      456
+    ],
+    "size": [
+      443,
+      400
+    ],
+    "origin": [
+      34,
+      56
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Love": {
+    "source": "正面情绪 icons/03-手作/02-喜欢.png",
+    "crop": [
+      32,
+      49,
+      480,
+      464
+    ],
+    "size": [
+      448,
+      415
+    ],
+    "origin": [
+      32,
+      48
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Missing": {
+    "source": "正面情绪 icons/03-手作/03-想念.png",
+    "crop": [
+      32,
+      51,
+      480,
+      461
+    ],
+    "size": [
+      448,
+      410
+    ],
+    "origin": [
+      32,
+      51
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Handmade_Thanks": {
+    "source": "正面情绪 icons/03-手作/04-感谢.png",
+    "crop": [
+      32,
+      62,
+      480,
+      450
+    ],
+    "size": [
+      448,
+      388
+    ],
+    "origin": [
+      32,
+      62
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Comfort": {
+    "source": "正面情绪 icons/04-虹彩/05-安心.png",
+    "crop": [
+      32,
+      58,
+      473,
+      454
+    ],
+    "size": [
+      441,
+      396
+    ],
+    "origin": [
+      35,
+      58
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Hope": {
+    "source": "正面情绪 icons/04-虹彩/06-期待.png",
+    "crop": [
+      32,
+      56,
+      480,
+      456
+    ],
+    "size": [
+      448,
+      400
+    ],
+    "origin": [
+      32,
+      56
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Joy": {
+    "source": "正面情绪 icons/04-虹彩/01-开心.png",
+    "crop": [
+      32,
+      50,
+      480,
+      462
+    ],
+    "size": [
+      448,
+      412
+    ],
+    "origin": [
+      32,
+      50
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Love": {
+    "source": "正面情绪 icons/04-虹彩/02-喜欢.png",
+    "crop": [
+      32,
+      52,
+      480,
+      460
+    ],
+    "size": [
+      448,
+      408
+    ],
+    "origin": [
+      32,
+      52
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Missing": {
+    "source": "正面情绪 icons/04-虹彩/03-想念.png",
+    "crop": [
+      37,
+      53,
+      466,
+      459
+    ],
+    "size": [
+      429,
+      406
+    ],
+    "origin": [
+      41,
+      53
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Iridescent_Thanks": {
+    "source": "正面情绪 icons/04-虹彩/04-感谢.png",
+    "crop": [
+      32,
+      62,
+      475,
+      450
+    ],
+    "size": [
+      443,
+      388
+    ],
+    "origin": [
+      34,
+      62
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Comfort": {
+    "source": "正面情绪 icons/02-冷银/05-安心.png",
+    "crop": [
+      34,
+      73,
+      480,
+      439
+    ],
+    "size": [
+      446,
+      366
+    ],
+    "origin": [
+      33,
+      73
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Hope": {
+    "source": "正面情绪 icons/02-冷银/06-期待.png",
+    "crop": [
+      32,
+      85,
+      467,
+      427
+    ],
+    "size": [
+      435,
+      342
+    ],
+    "origin": [
+      38,
+      85
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Joy": {
+    "source": "正面情绪 icons/02-冷银/01-开心.png",
+    "crop": [
+      32,
+      55,
+      480,
+      457
+    ],
+    "size": [
+      448,
+      402
+    ],
+    "origin": [
+      32,
+      55
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Love": {
+    "source": "正面情绪 icons/02-冷银/02-喜欢.png",
+    "crop": [
+      32,
+      55,
+      480,
+      457
+    ],
+    "size": [
+      448,
+      402
+    ],
+    "origin": [
+      32,
+      55
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Missing": {
+    "source": "正面情绪 icons/02-冷银/03-想念.png",
+    "crop": [
+      32,
+      54,
+      480,
+      458
+    ],
+    "size": [
+      448,
+      404
+    ],
+    "origin": [
+      32,
+      54
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "StarCharm_Silver_Thanks": {
+    "source": "正面情绪 icons/02-冷银/04-感谢.png",
+    "crop": [
+      32,
+      54,
+      478,
+      458
+    ],
+    "size": [
+      446,
+      404
+    ],
+    "origin": [
+      33,
+      54
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_01": {
+    "source": "负面情绪 icons/PaperBall_01.png",
+    "crop": [
+      0,
+      0,
+      1240,
+      1254
+    ],
+    "size": [
+      443,
+      448
+    ],
+    "origin": [
+      34,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_02": {
+    "source": "负面情绪 icons/PaperBall_02.png",
+    "crop": [
+      0,
+      21,
+      1232,
+      1254
+    ],
+    "size": [
+      448,
+      448
+    ],
+    "origin": [
+      32,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_03": {
+    "source": "负面情绪 icons/PaperBall_03.png",
+    "crop": [
+      0,
+      0,
+      1242,
+      1254
+    ],
+    "size": [
+      444,
+      448
+    ],
+    "origin": [
+      34,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_04": {
+    "source": "负面情绪 icons/PaperBall_04.png",
+    "crop": [
+      0,
+      15,
+      1232,
+      1254
+    ],
+    "size": [
+      445,
+      448
+    ],
+    "origin": [
+      33,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_05": {
+    "source": "负面情绪 icons/PaperBall_05.png",
+    "crop": [
+      0,
+      19,
+      1220,
+      1254
+    ],
+    "size": [
+      443,
+      448
+    ],
+    "origin": [
+      34,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_06": {
+    "source": "负面情绪 icons/PaperBall_06.png",
+    "crop": [
+      0,
+      9,
+      1232,
+      1254
+    ],
+    "size": [
+      443,
+      448
+    ],
+    "origin": [
+      34,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_07": {
+    "source": "负面情绪 icons/PaperBall_07.png",
+    "crop": [
+      0,
+      7,
+      1238,
+      1254
+    ],
+    "size": [
+      445,
+      448
+    ],
+    "origin": [
+      33,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_08": {
+    "source": "负面情绪 icons/PaperBall_08.png",
+    "crop": [
+      0,
+      17,
+      1240,
+      1254
+    ],
+    "size": [
+      448,
+      447
+    ],
+    "origin": [
+      32,
+      32
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_09": {
+    "source": "负面情绪 icons/PaperBall_09.png",
+    "crop": [
+      0,
+      19,
+      1240,
+      1254
+    ],
+    "size": [
+      448,
+      446
+    ],
+    "origin": [
+      32,
+      33
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBall_10": {
+    "source": "负面情绪 icons/PaperBall_10.png",
+    "crop": [
+      0,
+      9,
+      1254,
+      1254
+    ],
+    "size": [
+      448,
+      445
+    ],
+    "origin": [
+      32,
+      33
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  },
+  "PaperBin_Lid": {
+    "source": "负面情绪 icons/PaperBin_Lid.png",
+    "crop": [
+      62,
+      152,
+      454,
+      339
+    ],
+    "size": [
+      280,
+      134
+    ],
+    "origin": [
+      116,
+      4
+    ],
+    "canvas": [
+      512,
+      512
+    ]
+  }
+}
