@@ -4,6 +4,7 @@ struct ContainerRevealOverlay: View {
     @ObservedObject var controller: ContainerContentRevealController
     var onDismiss: () -> Void
     var onRespond: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { canvas in
@@ -64,7 +65,7 @@ struct ContainerRevealOverlay: View {
     @ViewBuilder
     private func flyingToken(token: RevealContentToken, sample: RevealSample) -> some View {
         let axis = rotationAxis(for: sample.rotationStrategy)
-        RevealTokenView(token: token)
+        RevealTokenView(token: token, opening: capsuleOpening(sample))
             .frame(width: token.visualSize.width, height: token.visualSize.height)
             .scaleEffect(sample.content.scale)
             .rotationEffect(.degrees(sample.content.rotationZ))
@@ -82,18 +83,25 @@ struct ContainerRevealOverlay: View {
             .allowsHitTesting(false)
     }
 
+    private func capsuleOpening(_ sample: RevealSample) -> CGFloat {
+        switch sample.stage {
+        case .focusPause, .collapse, .revealCard, .complete: return 1
+        default: return 0
+        }
+    }
+
     @ViewBuilder
     private func containerForeground(for type: ContentTokenType) -> some View {
         switch type {
         case .star:
-            Image("StarJarBottle")
+            Image("StarJar_Body")
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
         case .paperBall:
             TrashBinForegroundLayer()
         case .capsule:
-            Color.clear
+            CapsuleJarForeground()
         }
     }
 
@@ -109,6 +117,8 @@ struct ContainerRevealOverlay: View {
 
 struct RevealTokenView: View {
     let token: RevealContentToken
+    var opening: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         switch token.type {
@@ -122,7 +132,8 @@ struct RevealTokenView: View {
                 ParametricTokenView(kind: .star, seed: token.seed, filled: true)
             }
         case .capsule:
-            ParametricTokenView(kind: .capsule, seed: token.seed, filled: true)
+            CapsuleTokenView(opening: opening)
+                .animation(reduceMotion ? nil : AppMotion.settle, value: opening)
         case .paperBall:
             if let imageName = token.imageName {
                 Image(imageName)
@@ -147,7 +158,7 @@ struct RevealNoteCard: View {
             let bodyHeight = contentBodyHeight(in: proxy.size)
 
             ZStack(alignment: .topTrailing) {
-                Image("NotesCard")
+                Image("Note_Paper")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()

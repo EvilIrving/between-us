@@ -6,6 +6,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA9500000000000000000001 /* CapsuleJarSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9500000000000000000002 /* CapsuleJarSystem.swift */; };
 		4740B1FC053D132D2E61F742 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65796C232F2BAFAEA747C293 /* AppDelegate.swift */; };
 		E9646A634152075CCE23549E /* AppNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5768F969998374633EE2F588 /* AppNotifications.swift */; };
 		D8C97608ECD595BD67449C46 /* CloudShareAcceptanceBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825B6A7C15E0C35F7C3AAC09 /* CloudShareAcceptanceBroker.swift */; };
@@ -58,6 +59,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CA9500000000000000000002 /* CapsuleJarSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapsuleJarSystem.swift; sourceTree = "<group>"; };
 		17051CE815BBC1BA56D2673D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
 		1970C4A28E3AAA18F37B41B5 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Config.xcconfig"; sourceTree = "<group>"; };
 		6979E562FC8275AE0DE46BC9 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "CHANGELOG.md"; sourceTree = "<group>"; };
@@ -187,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				4553C9E5C18FF1A43B52E2D8 /* ContainerIllustrations.swift */,
+				CA9500000000000000000002 /* CapsuleJarSystem.swift */,
 				C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */,
 				C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */,
 				C3A1A0000000000000000005 /* StarBottleView.swift */,
@@ -362,6 +365,7 @@
 				854765C124C72762B24AE65C /* BetweenUsApp.swift in Sources */,
 				A10000000000000000000001 /* LocalizationManager.swift in Sources */,
 				3DBE773A9BDF8FC8399B918A /* ContainerIllustrations.swift in Sources */,
+				CA9500000000000000000001 /* CapsuleJarSystem.swift in Sources */,
 				C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */,
 				C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */,
 				C3A1A0000000000000000006 /* StarBottleView.swift in Sources */,

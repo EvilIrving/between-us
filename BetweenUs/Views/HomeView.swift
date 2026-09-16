@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var failedNudge: CGFloat = 0
     @State private var nudgeKind: ContainerKind?
     @State private var paperVisualCount = 0
+    @State private var capsuleVisualCount = 0
     @State private var composeStartCount = 0
     @State private var composeStartKind: ContainerKind?
     @State private var revealTask: Task<Void, Never>?
@@ -52,6 +53,7 @@ struct HomeView: View {
                     onDismiss: dismissReveal,
                     onRespond: {
                         if let kind = revealingKind ?? room.reveal.item?.kind {
+                            room.dismissReveal(reduceMotion: reduceMotion)
                             beginCompose(kind)
                         }
                     }
@@ -59,7 +61,7 @@ struct HomeView: View {
 
                 ContainerStoreOverlay(
                     controller: room.contentStore,
-                    containerFrame: revealAnchors[.paper]?.container ?? .zero
+                    containerFrame: revealAnchors[room.contentStore.token?.type.kind ?? .paper]?.container ?? .zero
                 )
 
                 ContainerRevealOverlay(
@@ -84,6 +86,7 @@ struct HomeView: View {
             .onPreferenceChange(RevealAnchorKey.self) { revealAnchors = $0 }
             .onAppear {
                 paperVisualCount = min(sharedCount(.paper), TrashBinPhysicsSystem.maximumVisibleCount)
+                capsuleVisualCount = min(sharedCount(.capsule), CapsuleJarMetrics.maximumVisibleCount)
             }
             .onChange(of: room.reveal.sample.showsToken) { showing in
                 liftedKind = showing ? revealingKind : nil
@@ -103,6 +106,8 @@ struct HomeView: View {
                 if kind == nil {
                     if composeStartKind == .paper {
                         playPaperStoreIfNeeded()
+                    } else if composeStartKind == .capsule {
+                        playCapsuleStoreIfNeeded()
                     }
                     composeStartKind = nil
                 }
@@ -112,6 +117,10 @@ struct HomeView: View {
                 if count < paperVisualCount {
                     paperVisualCount = min(count, TrashBinPhysicsSystem.maximumVisibleCount)
                 }
+            }
+            .onChange(of: sharedCount(.capsule)) { count in
+                guard composeKind != .capsule, !room.contentStore.sample.isPlaying else { return }
+                capsuleVisualCount = min(count, CapsuleJarMetrics.maximumVisibleCount)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $composeKind) { kind in
@@ -216,43 +225,23 @@ struct HomeView: View {
     private func roomObject(kind: ContainerKind) -> some View {
         let count = displayedCount(kind)
         let waiting = unopenedCount(kind)
-        return VStack(spacing: 2) {
-            Button {
-                handleContainerTap(kind)
-            } label: {
-                RoomObject(
-                    kind: kind,
-                    count: count,
-                    waiting: waiting,
-                    reportsRevealAnchors: true,
-                    trackedContentIndex: trackedIndex(kind, count: count),
-                    containerFeedback: feedback(for: kind),
-                    starPhysics: kind == .star ? room.starPhysics : nil,
-                    trashPhysics: kind == .paper ? room.trashPhysics : nil,
-                    trashLid: kind == .paper ? room.trashLid : nil
-                )
-            }
-            .buttonStyle(SoftScaleButtonStyle())
-            .disabled(room.isBusy)
-
-            Button {
-                RitualHaptics.selection()
-                if store.viewModel.canAddContent {
-                    beginCompose(kind)
-                } else {
-                    RitualHaptics.warning()
-                    isShowingLifetimeUnlock = true
-                }
-            } label: {
-                Text(kind.homeActionTitle)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(kind.tint.opacity(0.82))
-                    .frame(height: 28)
-            }
-            .buttonStyle(SoftScaleButtonStyle())
-            .disabled(room.isBusy)
-            .accessibilityLabel("在%@%@".localized(kind.title, kind.homeActionTitle))
+        return Button {
+            handleContainerTap(kind)
+        } label: {
+            RoomObject(
+                kind: kind,
+                count: count,
+                waiting: waiting,
+                reportsRevealAnchors: true,
+                trackedContentIndex: trackedIndex(kind, count: count),
+                containerFeedback: feedback(for: kind),
+                starPhysics: kind == .star ? room.starPhysics : nil,
+                trashPhysics: kind == .paper ? room.trashPhysics : nil,
+                trashLid: kind == .paper ? room.trashLid : nil
+            )
         }
+        .buttonStyle(SoftScaleButtonStyle())
+        .disabled(room.isBusy)
         .frame(maxWidth: .infinity)
     }
 
@@ -270,7 +259,7 @@ struct HomeView: View {
 
     private func displayedCount(_ kind: ContainerKind) -> Int {
         if kind == .paper { return paperVisualCount }
-        let count = sharedCount(kind)
+        let count = kind == .capsule ? capsuleVisualCount : sharedCount(kind)
         guard kind != .star else { return count }
         return liftedKind == kind ? max(0, count - 1) : count
     }
@@ -380,16 +369,26 @@ struct HomeView: View {
         )
     }
 
+    private func playCapsuleStoreIfNeeded() {
+        room.storeCapsuleIfNeeded(
+            currentCount: sharedCount(.capsule),
+            previousVisualCount: capsuleVisualCount,
+            composeStartCount: composeStartCount,
+            containerFrame: revealAnchors[.capsule]?.container ?? .zero,
+            canvasSize: canvasSize,
+            reduceMotion: reduceMotion,
+            onAttached: { capsuleVisualCount = $0 }
+        )
+    }
+
     private func dismissReveal() {
         room.dismissReveal(reduceMotion: reduceMotion)
     }
 }
 
 private enum HomeRoomMetrics {
-    static let canvas: CGFloat = 156
-    static let titleHeight: CGFloat = 23
-    static let glyphTitleSpacing: CGFloat = 9
-    static let cellHeight: CGFloat = canvas + glyphTitleSpacing + titleHeight
+    static let canvas: CGFloat = 156 * 1.25
+    static let cellHeight: CGFloat = canvas
     static let rowSpacing: CGFloat = 28
     static let topPadding: CGFloat = 94
 }
@@ -406,14 +405,7 @@ private struct RoomObject: View {
     var trashLid: TrashLidController? = nil
 
     var body: some View {
-        VStack(spacing: HomeRoomMetrics.glyphTitleSpacing) {
-            containerGlyph
-
-            Text(kind.title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.primaryText)
-                .frame(height: HomeRoomMetrics.titleHeight, alignment: .top)
-        }
+        containerGlyph
         .frame(maxWidth: .infinity)
         .frame(height: HomeRoomMetrics.cellHeight, alignment: .top)
         .contentShape(Rectangle())
@@ -439,14 +431,6 @@ private struct RoomObject: View {
         .frame(width: HomeRoomMetrics.canvas, height: HomeRoomMetrics.canvas)
         .rotationEffect(containerFeedback.rotation)
         .offset(x: containerFeedback.offsetX)
-        .overlay(alignment: .topTrailing) {
-            if waiting > 0 {
-                Circle()
-                    .fill(kind.tint)
-                    .frame(width: 8, height: 8)
-                    .padding(4)
-            }
-        }
     }
 }
 

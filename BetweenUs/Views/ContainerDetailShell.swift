@@ -70,6 +70,7 @@ struct ContainerRitualScene: View {
     @State private var revealAnchors: [ContainerKind: RevealAnchorFrames] = [:]
     @State private var liftedContent = false
     @State private var paperVisualCount = 0
+    @State private var capsuleVisualCount = 0
     @State private var composeStartCount = 0
 
     var body: some View {
@@ -114,13 +115,16 @@ struct ContainerRitualScene: View {
 
             ContainerStoreOverlay(
                 controller: room.contentStore,
-                containerFrame: revealAnchors[.paper]?.container ?? .zero
+                containerFrame: revealAnchors[kind]?.container ?? .zero
             )
 
             ContainerRevealOverlay(
                 controller: room.reveal,
                 onDismiss: dismissReveal,
-                onRespond: { showCompose = true }
+                onRespond: {
+                    room.dismissReveal(reduceMotion: reduceMotion)
+                    showCompose = true
+                }
             )
         }
         .coordinateSpace(name: ContainerRevealSpace.name)
@@ -138,6 +142,8 @@ struct ContainerRitualScene: View {
         .onAppear {
             if kind == .paper {
                 paperVisualCount = min(sharedCount, TrashBinPhysicsSystem.maximumVisibleCount)
+            } else {
+                capsuleVisualCount = min(sharedCount, CapsuleJarMetrics.maximumVisibleCount)
             }
         }
         .onChange(of: room.reveal.sample.showsToken) { showing in
@@ -154,7 +160,13 @@ struct ContainerRitualScene: View {
                 composeStartCount = sharedCount
             } else if kind == .paper {
                 playPaperStoreIfNeeded()
+            } else {
+                playCapsuleStoreIfNeeded()
             }
+        }
+        .onChange(of: sharedCount) { count in
+            guard kind == .capsule, !showCompose, !room.contentStore.sample.isPlaying else { return }
+            capsuleVisualCount = min(count, CapsuleJarMetrics.maximumVisibleCount)
         }
         .onDisappear {
             openingTask?.cancel()
@@ -163,6 +175,7 @@ struct ContainerRitualScene: View {
             if !room.reveal.isPlaying {
                 room.contentStore.cancel()
                 room.trashLid.finishRestoration()
+                room.capsuleLid.finishRestoration()
             }
         }
         .sheet(isPresented: $showCompose) {
@@ -176,7 +189,7 @@ struct ContainerRitualScene: View {
     private var sharedCount: Int { data.count(kind: kind) }
     private var displayedCount: Int {
         if kind == .paper { return paperVisualCount }
-        return liftedContent ? max(0, sharedCount - 1) : sharedCount
+        return liftedContent ? max(0, capsuleVisualCount - 1) : capsuleVisualCount
     }
     private var trackedContentIndex: Int? {
         let visible = min(max(displayedCount, 0), 14)
@@ -242,6 +255,18 @@ struct ContainerRitualScene: View {
     private func dismissReveal() {
         room.dismissReveal(reduceMotion: reduceMotion)
     }
+
+    private func playCapsuleStoreIfNeeded() {
+        room.storeCapsuleIfNeeded(
+            currentCount: sharedCount,
+            previousVisualCount: capsuleVisualCount,
+            composeStartCount: composeStartCount,
+            containerFrame: revealAnchors[.capsule]?.container ?? .zero,
+            canvasSize: canvasSize,
+            reduceMotion: reduceMotion,
+            onAttached: { capsuleVisualCount = $0 }
+        )
+    }
 }
 
 private struct ContainerHoldStage: View {
@@ -290,7 +315,7 @@ private struct ContainerHoldStage: View {
                         sharedTrashPhysics: trashPhysics,
                         sharedTrashLid: trashLid
                     )
-                    .padding(.horizontal, kind == .capsule ? 18 : 36)
+                    .padding(.horizontal, 36)
                     .padding(.vertical, 8)
                     .brightness(motionProgress * 0.035)
                     .shadow(
@@ -363,7 +388,7 @@ private struct ContainerHoldStage: View {
     private var promptOffset: CGFloat {
         switch kind {
         case .star: return -34
-        case .capsule: return -20
+        case .capsule: return -26
         case .paper: return -26
         }
     }

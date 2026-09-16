@@ -190,6 +190,23 @@ final class TrashBinPhysicsSystem: ObservableObject {
     @Published private(set) var scene: TrashBinPhysicsScene
 
     static let maximumVisibleCount = 10
+    // The artwork roster is independent of the number of balls visible in the bin.
+    static let imageNames = [
+        "PaperBall_01", "PaperBall_02", "PaperBall_03", "PaperBall_04", "PaperBall_05",
+        "PaperBall_06", "PaperBall_07", "PaperBall_08", "PaperBall_09", "PaperBall_10"
+    ]
+
+    static func imageName(for index: Int) -> String {
+        imageNames[((index % imageNames.count) + imageNames.count) % imageNames.count]
+    }
+
+    static func currentImageName(_ name: String) -> String {
+        let prefix = "TrashEmotion_"
+        guard name.hasPrefix(prefix),
+              let number = Int(name.dropFirst(prefix.count)),
+              (1...imageNames.count).contains(number) else { return name }
+        return imageName(for: number - 1)
+    }
     static let openingUnit = CGPoint(x: 0.50, y: 0.145)
     static let openingHalfWidthUnit: CGFloat = 0.205
     static let openingTopUnit: CGFloat = 0.085
@@ -332,7 +349,8 @@ final class TrashBinPhysicsScene: SKScene {
     func spawn(imageName: String?, animated: Bool) {
         let index = nextCreationIndex
         nextCreationIndex += 1
-        let resolvedName = imageName ?? "TrashEmotion_\((index % TrashBinPhysicsSystem.maximumVisibleCount) + 1)"
+        let resolvedName = imageName.map { TrashBinPhysicsSystem.currentImageName($0) }
+            ?? TrashBinPhysicsSystem.imageName(for: index)
         let visual = size.width * TrashBinPhysicsSystem.visualSizeUnit
         let texture = SKTexture(imageNamed: resolvedName)
         texture.filteringMode = .linear
@@ -533,7 +551,7 @@ final class TrashBinPhysicsScene: SKScene {
     }
 
     private func imageName(of node: SKSpriteNode) -> String {
-        node.userData?["imageName"] as? String ?? "TrashEmotion_1"
+        node.userData?["imageName"] as? String ?? "PaperBall_01"
     }
 }
 
@@ -562,7 +580,7 @@ struct TrashBinVisual: View {
                     .blur(radius: 9)
                     .position(x: frame.midX, y: frame.minY + side * 0.86)
 
-                Image("PaperBinFilled")
+                Image("PaperBin_Body")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -580,7 +598,7 @@ struct TrashBinVisual: View {
                     .frame(width: side, height: side)
                     .position(x: frame.midX, y: frame.midY)
 
-                Image("PaperBinEmpty")
+                Image("PaperBin_Lid")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -588,7 +606,7 @@ struct TrashBinVisual: View {
                     .rotationEffect(.degrees(lid.transform.rotationZ))
                     .offset(
                         x: lid.transform.offset.width * lidScale,
-                        y: -side * 0.34 + lid.transform.offset.height * lidScale
+                        y: lid.transform.offset.height * lidScale
                     )
                     .position(x: frame.midX, y: frame.midY)
 
@@ -634,7 +652,7 @@ struct TrashBinForegroundLayer: View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
             ZStack {
-                Image("PaperBinFilled")
+                Image("PaperBin_Body")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -646,7 +664,7 @@ struct TrashBinForegroundLayer: View {
                         }
                     }
 
-                Image("PaperBinFilled")
+                Image("PaperBin_Body")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()

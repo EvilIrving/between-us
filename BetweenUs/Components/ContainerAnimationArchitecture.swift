@@ -70,6 +70,7 @@ struct DriverSpring: Equatable {
     var mass: CGFloat = 1
 
     static let heavyMetal = DriverSpring(dampingRatio: 1.0, response: 0.72, mass: 1.35)
+    static let objectLid = DriverSpring(dampingRatio: 1.0, response: 0.56, mass: 1.0)
 }
 
 enum DriverCurve {

@@ -8,6 +8,7 @@ final class RoomWorld: ObservableObject {
     let starPhysics: StarJarPhysicsSystem
     let trashPhysics: TrashBinPhysicsSystem
     let trashLid: TrashLidController
+    let capsuleLid: CapsuleJarLidController
     let reveal: ContainerContentRevealController
     let starReveal: StarRevealAnimationController
     let contentStore: ContainerContentStoreController
@@ -19,6 +20,7 @@ final class RoomWorld: ObservableObject {
         starPhysics = StarJarPhysicsSystem()
         trashPhysics = TrashBinPhysicsSystem()
         trashLid = TrashLidController(animationDriver: clock)
+        capsuleLid = CapsuleJarLidController(animationDriver: clock)
         reveal = ContainerContentRevealController(animationDriver: clock)
         starReveal = StarRevealAnimationController(
             physics: starPhysics,
@@ -30,6 +32,7 @@ final class RoomWorld: ObservableObject {
             starPhysics.objectWillChange,
             trashPhysics.objectWillChange,
             trashLid.objectWillChange,
+            capsuleLid.objectWillChange,
             reveal.objectWillChange,
             starReveal.objectWillChange,
             contentStore.objectWillChange
@@ -125,9 +128,7 @@ final class RoomWorld: ObservableObject {
             let exit = anchors.hasExit
                 ? anchors.exitCenter
                 : ContainerRevealAnchors.point(ContainerRevealAnchors.exitUnit(for: .capsule), in: anchors.container)
-            let contentSize = anchors.hasContent
-                ? anchors.content.size
-                : ContainerRevealAnchors.contentSize(for: .capsule, in: anchors.container)
+            let contentSize = CapsuleJarMetrics.tokenSize(in: anchors.container)
             let (input, instance) = ContainerRevealLayout.makeInput(
                 kind: .capsule,
                 containerFrame: anchors.container,
@@ -137,18 +138,23 @@ final class RoomWorld: ObservableObject {
                 canvasSize: canvas,
                 safeArea: safeArea,
                 reduceMotion: reduceMotion,
-                seed: item.id.hashValue
+                seed: item.id.hashValue,
+                containerOpeningBounds: CapsuleJarMetrics.openingBounds(in: anchors.container),
+                releaseLift: contentSize.height * 0.6 + 12,
+                initialRotation: 0
             )
             reveal.play(
                 input: input,
                 instance: instance,
                 token: RevealContentToken(
                     type: .capsule,
-                    imageName: nil,
+                    imageName: "Capsule_Closed",
                     seed: abs(item.id.hashValue % 11),
                     visualSize: contentSize
                 ),
-                item: item
+                item: item,
+                preparation: capsuleLid,
+                restoration: capsuleLid
             )
             return true
         }
@@ -175,7 +181,7 @@ final class RoomWorld: ObservableObject {
         let opening = trashPhysics.globalOpeningCenter(containerFrame: containerFrame)
         let bounds = trashPhysics.globalOpeningBounds(containerFrame: containerFrame)
         let visualSide = containerFrame.width * TrashBinPhysicsSystem.visualSizeUnit
-        let imageName = "TrashEmotion_\(((current - 1) % TrashBinPhysicsSystem.maximumVisibleCount) + 1)"
+        let imageName = TrashBinPhysicsSystem.imageName(for: current - 1)
         contentStore.run(
             startPosition: CGPoint(x: canvasSize.width * 0.50, y: canvasSize.height * 0.72),
             openingCenter: opening,
@@ -197,6 +203,37 @@ final class RoomWorld: ObservableObject {
         )
     }
 
+    func storeCapsuleIfNeeded(
+        currentCount: Int,
+        previousVisualCount: Int,
+        composeStartCount: Int,
+        containerFrame: CGRect,
+        canvasSize: CGSize,
+        reduceMotion: Bool,
+        onAttached: @escaping (Int) -> Void
+    ) {
+        let current = min(currentCount, CapsuleJarMetrics.maximumVisibleCount)
+        guard current > previousVisualCount,
+              current > min(composeStartCount, CapsuleJarMetrics.maximumVisibleCount),
+              !contentStore.sample.isPlaying else { return }
+        guard containerFrame.width > 1 else { onAttached(current); return }
+        let opening = ContainerRevealAnchors.point(CapsuleJarMetrics.mouth, in: containerFrame)
+        let destination = ContainerRevealAnchors.point(CapsuleJarMetrics.slots[current - 1], in: containerFrame)
+        contentStore.run(
+            startPosition: CGPoint(x: canvasSize.width * 0.50, y: canvasSize.height * 0.72),
+            openingCenter: opening,
+            openingBounds: CapsuleJarMetrics.openingBounds(in: containerFrame),
+            token: RevealContentToken(type: .capsule, imageName: "Capsule_Closed", seed: current - 1,
+                                      visualSize: CapsuleJarMetrics.tokenSize(in: containerFrame)),
+            preset: .capsule,
+            preparation: capsuleLid,
+            restoration: capsuleLid,
+            reduceMotion: reduceMotion,
+            endPosition: destination,
+            attachDynamic: { onAttached(current) }
+        )
+    }
+
     func dismissReveal(reduceMotion: Bool) {
         if starReveal.isPlaying {
             guard starReveal.sample.cardInteractive || reduceMotion else { return }
@@ -210,6 +247,7 @@ final class RoomWorld: ObservableObject {
     func resetTransientPlayback() {
         contentStore.cancel()
         trashLid.finishRestoration()
+        capsuleLid.finishRestoration()
         if reveal.isPlaying {
             reveal.reset()
         }

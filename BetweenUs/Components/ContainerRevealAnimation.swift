@@ -193,20 +193,20 @@ struct ContainerRevealPreset: Equatable {
         flightArcRange: 42...120,
         sideBiasFactor: 0.86,
         feedbackDuration: 0.20,
-        preparationDuration: 0,
+        preparationDuration: 0.72,
         exitDuration: 1.00,
         flyDuration: 1.65,
         pauseDuration: 0.35,
         collapseDuration: 0.80,
         cardDuration: 1.25,
         cardOverlap: 0.25,
-        exitRotationY: 90,
-        flyRotationY: 140,
+        exitRotationY: 0,
+        flyRotationY: 0,
         peakScale: 2.0,
         motionExponent: 1.0,
         collapseExponent: 2.0,
-        rotationStrategy: .axis3D(x: 0, y: 1, z: 0),
-        rotationAmount: 230,
+        rotationStrategy: .zAxis2D,
+        rotationAmount: 12,
         flightGlow: 0.14,
         usesUnifiedFlightPath: true
     )
@@ -293,7 +293,7 @@ enum ContainerRevealAnchors {
     static func exitUnit(for kind: ContainerKind) -> CGPoint {
         switch kind {
         case .star: return CGPoint(x: 0.50, y: 0.11)
-        case .capsule: return CGPoint(x: 0.50, y: 0.34)
+        case .capsule: return CapsuleJarMetrics.mouth
         case .paper: return CGPoint(x: 0.50, y: 0.15)
         }
     }
@@ -303,11 +303,7 @@ enum ContainerRevealAnchors {
         case .star:
             return [CGPoint(x: 0.50, y: 0.62)]
         case .capsule:
-            return [
-                CGPoint(x: 0.36, y: 0.54), CGPoint(x: 0.55, y: 0.54), CGPoint(x: 0.67, y: 0.60),
-                CGPoint(x: 0.43, y: 0.63), CGPoint(x: 0.58, y: 0.64), CGPoint(x: 0.31, y: 0.63),
-                CGPoint(x: 0.48, y: 0.56), CGPoint(x: 0.70, y: 0.54)
-            ]
+            return CapsuleJarMetrics.slots
         case .paper:
             return [
                 CGPoint(x: 0.42, y: 0.72), CGPoint(x: 0.55, y: 0.74), CGPoint(x: 0.63, y: 0.69),
@@ -325,7 +321,7 @@ enum ContainerRevealAnchors {
             let side = width * 0.44
             return CGSize(width: side, height: side)
         case .capsule:
-            return CGSize(width: width * 0.22, height: width * 0.085)
+            return CapsuleJarMetrics.tokenSize(in: container)
         case .paper:
             let side = width * 0.16
             return CGSize(width: side, height: side)
@@ -690,8 +686,7 @@ enum RevealTransformEvaluator {
         }
 
         var contentLayer = RevealContentLayer.foregroundFlight
-        if (instance.contentType == .star || instance.contentType == .paperBall),
-           showsToken,
+        if showsToken,
            input.containerOpeningBounds != .zero {
             let halfHeight = input.contentVisualSize.height * content.scale * 0.5
             let contentBottom = content.position.y + halfHeight
@@ -1195,7 +1190,7 @@ final class ContainerContentRevealController: ObservableObject {
             dismissElapsed: dismissElapsed
         )
 
-        if session.instance.contentType == .star || session.instance.contentType == .paperBall {
+        if session.input.containerOpeningBounds != .zero {
             if session.hasClearedContainerOpening {
                 sample.contentLayer = .foregroundFlight
             } else if sample.contentLayer == .foregroundFlight, sample.showsToken {
@@ -1224,7 +1219,7 @@ final class ContainerContentRevealController: ObservableObject {
                 didCardHaptic = true
                 RitualHaptics.success()
             }
-            if session?.instance.contentType == .paperBall, !didStartRestoration {
+            if restorationPlugin != nil, !didStartRestoration {
                 didStartRestoration = true
                 restorationPlugin?.restore(reduceMotion: session?.input.animationConfiguration.reduceMotion ?? false)
             }
@@ -1245,7 +1240,7 @@ final class ContainerContentRevealController: ObservableObject {
         let elapsed = max(0, time - session.startedAt)
         let start = session.input.animationConfiguration.feedbackDuration
         let duration = session.input.animationConfiguration.preparationDuration
-        if duration > 0, elapsed >= start {
+        if duration > 0, elapsed >= start, !didStartRestoration {
             let progress = CGFloat((elapsed - start) / duration)
             preparationPlugin?.updatePreparation(progress: RevealEasing.clamp(progress))
             if progress >= 1 {

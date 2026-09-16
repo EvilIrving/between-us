@@ -144,45 +144,10 @@ private struct RevealObjectAnimation: View {
                     .shadow(color: kind.tint.opacity(0.28), radius: 18)
 
             case .capsule:
-                ZStack {
-                    CapsuleShellHalf(side: .leading)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.72, green: 0.80, blue: 0.73), kind.tint],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay { CapsuleShellHalf(side: .leading).stroke(kind.tint.opacity(0.44), lineWidth: 1) }
-                        .overlay(alignment: .trailing) {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.34))
-                                .frame(width: 2)
-                                .padding(.vertical, 3)
-                        }
-                        .frame(width: 52, height: 36)
-                        .offset(x: isUnsealed ? -39 : -26)
-
-                    CapsuleShellHalf(side: .trailing)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.96), AppTheme.paper],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay { CapsuleShellHalf(side: .trailing).stroke(kind.tint.opacity(0.30), lineWidth: 1) }
-                        .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(kind.tint.opacity(0.20))
-                                .frame(width: 2)
-                                .padding(.vertical, 3)
-                        }
-                        .frame(width: 52, height: 36)
-                        .offset(x: isUnsealed ? 39 : 26)
-                }
-                .rotationEffect(.degrees(-15))
-                .shadow(color: kind.tint.opacity(0.20), radius: 15)
+                CapsuleTokenView(opening: isUnsealed ? 1 : 0)
+                    .frame(width: 42, height: 112)
+                    .rotationEffect(.degrees(-12))
+                    .shadow(color: Color.black.opacity(0.12), radius: 10, y: 5)
 
             case .paper:
                 if isUnsealed {
@@ -208,49 +173,6 @@ private struct RevealObjectAnimation: View {
             value: isUnsealed
         )
         .accessibilityHidden(true)
-    }
-}
-
-private struct CapsuleShellHalf: Shape {
-    enum Side {
-        case leading
-        case trailing
-    }
-
-    let side: Side
-
-    func path(in rect: CGRect) -> Path {
-        let radius = rect.height / 2
-        var path = Path()
-
-        switch side {
-        case .leading:
-            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.minY))
-            path.addArc(
-                center: CGPoint(x: rect.minX + radius, y: rect.midY),
-                radius: radius,
-                startAngle: .degrees(-90),
-                endAngle: .degrees(90),
-                clockwise: true
-            )
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-
-        case .trailing:
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
-            path.addArc(
-                center: CGPoint(x: rect.maxX - radius, y: rect.midY),
-                radius: radius,
-                startAngle: .degrees(-90),
-                endAngle: .degrees(90),
-                clockwise: false
-            )
-            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        }
-
-        path.closeSubpath()
-        return path
     }
 }
 

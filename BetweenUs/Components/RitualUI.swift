@@ -121,8 +121,9 @@ struct RitualObjectGlyph: View {
                     .frame(width: size * 0.53, height: size * 0.53)
                     .rotationEffect(.degrees(-8))
             case .capsule:
-                ParametricTokenView(kind: kind, seed: 1, filled: filled)
-                    .frame(width: size * 0.64, height: size * 0.27)
+                CapsuleTokenView()
+                    .frame(width: size * 0.70 * CapsuleJarMetrics.tokenAspect, height: size * 0.70)
+                    .opacity(filled ? 1 : 0.72)
                     .rotationEffect(.degrees(-18))
             case .paper:
                 ParametricTokenView(kind: kind, seed: filled ? 3 : 1, filled: filled)

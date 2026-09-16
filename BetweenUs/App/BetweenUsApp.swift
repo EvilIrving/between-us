@@ -17,6 +17,7 @@ struct BetweenUsApp: App {
                 .environment(\.locale, localization.currentLocale)
                 .preferredColorScheme(.light)
                 .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background { room.resetTransientPlayback() }
                     guard newPhase == .active else { return }
                     Task { await store.sceneBecameActive() }
                 }

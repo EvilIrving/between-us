@@ -372,7 +372,9 @@ final class StarJarPhysicsSystem: ObservableObject {
 
     private func apply(placements: [StarPlacement]) {
         bodies = placements.map { placement in
-            let charm = StarCharm.all.first(where: { $0.imageName == placement.charmName })
+            let charm = StarCharm.all.first(where: {
+                $0.imageName == placement.charmName || $0.legacyImageName == placement.charmName
+            })
                 ?? StarCharm.displayCharms(count: placement.creationIndex + 1).last
                 ?? StarCharm.random()
             var body = makeBody(index: placement.creationIndex, charm: charm)

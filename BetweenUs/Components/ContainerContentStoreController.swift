@@ -18,6 +18,12 @@ struct ContentStorePreset: Equatable {
         rotationAmount: 24,
         scaleAtOpening: 0.72
     )
+
+    static let capsule = ContentStorePreset(
+        flightDuration: 0.90, entryDuration: 0.48, arcFactor: 0.12,
+        arcRange: 36...90, motionExponent: 1.1, rotationAmount: 0,
+        scaleAtOpening: 1
+    )
 }
 
 struct ContentStoreSample: Equatable {
@@ -34,6 +40,7 @@ final class ContainerContentStoreController: ObservableObject {
     private let animationDriver: AnimationDriver
     private var task: Task<Void, Never>?
     private var animationToken: UUID?
+    private weak var restorationPlugin: ContainerRestorationPlugin?
 
     init(animationDriver: AnimationDriver) {
         self.animationDriver = animationDriver
@@ -52,10 +59,12 @@ final class ContainerContentStoreController: ObservableObject {
         preparation: ContainerPreparationPlugin,
         restoration: ContainerRestorationPlugin,
         reduceMotion: Bool,
+        endPosition: CGPoint? = nil,
         attachDynamic: @escaping () -> Void
     ) {
         cancel()
         self.token = token
+        restorationPlugin = restoration
         sample = ContentStoreSample(
             content: ContentTransform(
                 position: startPosition,
@@ -80,7 +89,8 @@ final class ContainerContentStoreController: ObservableObject {
             self.sample.content.opacity = 1
             self.sample.content.position = startPosition
 
-            let release = CGPoint(x: openingCenter.x, y: openingCenter.y - 20)
+            let destination = endPosition ?? openingCenter
+            let release = CGPoint(x: openingCenter.x, y: openingCenter.y - max(20, token.visualSize.height * 0.6))
             let distance = hypot(startPosition.x - openingCenter.x, startPosition.y - openingCenter.y)
             let arc = min(max(distance * preset.arcFactor, preset.arcRange.lowerBound), preset.arcRange.upperBound)
             let side: CGFloat = startPosition.x <= openingCenter.x ? -1 : 1
@@ -89,7 +99,7 @@ final class ContainerContentStoreController: ObservableObject {
                 y: min(startPosition.y, release.y) - arc
             )
             let exitLength = max(hypot(release.x - startPosition.x, release.y - startPosition.y), 1)
-            let entryLength = max(hypot(openingCenter.x - release.x, openingCenter.y - release.y), 1)
+            let entryLength = max(hypot(destination.x - release.x, destination.y - release.y), 1)
             let total = exitLength + entryLength
             let duration = reduceMotion ? 0.36 : (preset.flightDuration + preset.entryDuration)
 
@@ -102,7 +112,7 @@ final class ContainerContentStoreController: ObservableObject {
                     self.sample.layer = .foregroundFlight
                 } else {
                     let local = (travel - exitLength) / entryLength
-                    self.sample.content.position = RevealEasing.lerp(release, openingCenter, local)
+                    self.sample.content.position = RevealPath.quadratic(release, openingCenter, destination, local)
                     let top = self.sample.content.position.y - token.visualSize.height * self.sample.content.scale * 0.5
                     if top >= openingBounds.minY {
                         self.sample.layer = .behindContainerForeground
@@ -119,7 +129,9 @@ final class ContainerContentStoreController: ObservableObject {
             await animateProgress(duration: reduceMotion ? 0.12 : restoration.restorationDuration) { progress in
                 restoration.updateRestoration(progress: progress)
             }
+            guard !Task.isCancelled else { return }
             restoration.finishRestoration()
+            restorationPlugin = nil
             sample = ContentStoreSample()
             self.token = nil
             task = nil
@@ -128,6 +140,8 @@ final class ContainerContentStoreController: ObservableObject {
 
     func cancel() {
         task?.cancel()
+        restorationPlugin?.finishRestoration()
+        restorationPlugin = nil
         task = nil
         if let animationToken {
             animationDriver.cancel(animationToken)
@@ -178,7 +192,13 @@ struct ContainerStoreOverlay: View {
                         .allowsHitTesting(false)
 
                     if controller.sample.layer == .behindContainerForeground {
-                        TrashBinForegroundLayer()
+                        Group {
+                            if token.type == .capsule {
+                                CapsuleJarForeground()
+                            } else {
+                                TrashBinForegroundLayer()
+                            }
+                        }
                             .frame(width: containerFrame.width, height: containerFrame.height)
                             .position(x: containerFrame.midX, y: containerFrame.midY)
                             .allowsHitTesting(false)

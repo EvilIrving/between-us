@@ -125,11 +125,8 @@ struct ContainerVisual: View {
                         reportsRevealAnchors: reportsRevealAnchors
                     )
                 case .capsule:
-                    CapsuleKeepsakeVisual(
+                    CapsuleJarVisual(
                         count: min(max(count, 0), style.contentLimit),
-                        progress: interactionProgress,
-                        isActive: isActive,
-                        shadowScale: style.shadowScale,
                         trackedContentIndex: trackedContentIndex
                     )
                 case .paper:
@@ -202,38 +199,14 @@ struct ParametricTokenView: View {
                 .shadow(color: kind.tint.opacity(filled ? 0.18 : 0.08), radius: proxy.size.width * 0.10, y: proxy.size.width * 0.06)
 
             case .capsule:
-                let capsule = SpherocylinderShape()
-                ZStack {
-                    HStack(spacing: 0) {
-                        Rectangle()
-                            .fill(filled ? capsuleColor : AppTheme.paper)
-                        Rectangle()
-                            .fill(filled ? Color(red: 0.92, green: 0.89, blue: 0.78) : Color.white.opacity(0.86))
-                    }
-                    .clipShape(capsule)
-                    capsule
-                        .stroke(Color(red: 0.22, green: 0.29, blue: 0.25).opacity(0.30), lineWidth: max(0.7, proxy.size.height * 0.035))
-                    Rectangle()
-                        .fill(Color.white.opacity(0.42))
-                        .frame(width: max(0.8, proxy.size.width * 0.018))
-                        .padding(.vertical, proxy.size.height * 0.12)
-                }
-                .shadow(color: kind.tint.opacity(filled ? 0.15 : 0.06), radius: proxy.size.height * 0.18, y: proxy.size.height * 0.10)
+                CapsuleTokenView()
+                    .opacity(filled ? 1 : 0.72)
 
             case .paper:
                 CrumpledPaper(index: seed)
                     .opacity(filled ? 1 : 0.82)
                     .shadow(color: Color.black.opacity(0.07), radius: proxy.size.width * 0.09, y: proxy.size.width * 0.06)
             }
-        }
-    }
-
-    private var capsuleColor: Color {
-        switch seed % 4 {
-        case 0: return Color(red: 0.47, green: 0.62, blue: 0.53)
-        case 1: return Color(red: 0.71, green: 0.51, blue: 0.39)
-        case 2: return Color(red: 0.42, green: 0.56, blue: 0.63)
-        default: return Color(red: 0.64, green: 0.57, blue: 0.68)
         }
     }
 
@@ -269,185 +242,6 @@ struct ParametricTokenView: View {
                 Color(red: 0.52, green: 0.76, blue: 0.28),
                 Color(red: 0.30, green: 0.48, blue: 0.16)
             ]
-        }
-    }
-}
-
-private struct CapsuleKeepsakeVisual: View {
-    let count: Int
-    let progress: CGFloat
-    let isActive: Bool
-    let shadowScale: CGFloat
-    var trackedContentIndex: Int? = nil
-
-    private let positions: [CGPoint] = [
-        .init(x: 0.36, y: 0.54), .init(x: 0.55, y: 0.54), .init(x: 0.67, y: 0.60),
-        .init(x: 0.43, y: 0.63), .init(x: 0.58, y: 0.64), .init(x: 0.31, y: 0.63),
-        .init(x: 0.48, y: 0.56), .init(x: 0.70, y: 0.54)
-    ]
-
-    var body: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
-            let clampedProgress = min(max(progress, 0), 1)
-            let shell = SuperellipseShape(exponent: ParametricPreset.keepsakeBoxExponent)
-            let reveal = pow(clampedProgress, 0.72)
-
-            ZStack {
-                Ellipse()
-                    .fill(Color.black.opacity(0.10))
-                    .frame(width: width * 0.72, height: height * 0.08)
-                    .blur(radius: 9 * shadowScale)
-                    .offset(y: height * 0.28)
-
-                ProceduralSurface(
-                    shape: shell,
-                    palette: .sageEnamel,
-                    edgeWidth: max(1, width * 0.006),
-                    shadowRadius: 10 * shadowScale,
-                    shadowY: 6 * shadowScale
-                )
-                .frame(width: width * 0.88, height: height * 0.48)
-                .offset(y: height * 0.06)
-
-                shell
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.91, green: 0.89, blue: 0.80),
-                                Color(red: 0.76, green: 0.78, blue: 0.68)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay {
-                        shell.stroke(Color.white.opacity(0.62), lineWidth: max(1, width * 0.005))
-                    }
-                    .frame(width: width * 0.76, height: height * 0.32)
-                    .offset(y: height * 0.03)
-                    .opacity(0.12 + reveal * 0.88)
-
-                HStack(spacing: 0) {
-                    Rectangle().fill(Color.white.opacity(0.42))
-                    Rectangle().fill(Color.white.opacity(0.24))
-                    Rectangle().fill(Color.white.opacity(0.34))
-                }
-                .frame(width: width * 0.58, height: 1)
-                .offset(y: height * 0.03)
-                .opacity(reveal * 0.55)
-
-                ForEach(0..<min(count, positions.count), id: \.self) { index in
-                    let position = positions[index]
-                    ParametricTokenView(kind: .capsule, seed: index)
-                        .frame(width: width * 0.17, height: width * 0.066)
-                        .rotationEffect(.degrees(Double(index.isMultiple(of: 2) ? -15 : 13)))
-                        .background {
-                            if trackedContentIndex == index {
-                                RevealAnchorProbe(kind: .capsule, id: .content)
-                            }
-                        }
-                        .position(x: width * position.x, y: height * (position.y - 0.06))
-                        .offset(y: -reveal * height * CGFloat(0.008 + Double(index % 3) * 0.004))
-                        .scaleEffect(0.88 + reveal * 0.12)
-                        .opacity(reveal)
-                }
-
-                HStack(spacing: width * 0.28) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color(red: 0.66, green: 0.53, blue: 0.31).opacity(0.72))
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color(red: 0.66, green: 0.53, blue: 0.31).opacity(0.72))
-                }
-                .frame(width: width * 0.46, height: max(3, height * 0.02))
-                .offset(y: -height * 0.14)
-                .opacity(0.35 + reveal * 0.65)
-
-                ZStack {
-                    ProceduralSurface(
-                        shape: shell,
-                        palette: .sageEnamel,
-                        edgeWidth: max(1, width * 0.006),
-                        highlightStrength: isActive ? 1 : 0.76,
-                        shadowRadius: (7 + reveal * 6) * shadowScale,
-                        shadowY: (4 + reveal * 3) * shadowScale
-                    )
-
-                    shell
-                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
-                        .padding(width * 0.032)
-
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color(red: 0.72, green: 0.58, blue: 0.34).opacity(0.76))
-                        .frame(width: width * 0.10, height: max(3, height * 0.024))
-                        .offset(y: height * 0.17)
-                }
-                .frame(width: width * 0.88, height: height * 0.48)
-                .offset(y: height * (0.02 - clampedProgress * 0.012))
-                .rotation3DEffect(
-                    .degrees(-Double(clampedProgress) * 72),
-                    axis: (x: 1, y: 0, z: 0),
-                    anchor: .top,
-                    perspective: 0.55
-                )
-
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Color(red: 0.68, green: 0.54, blue: 0.31).opacity(0.76))
-                    .frame(width: width * 0.11, height: max(3, height * 0.024))
-                    .offset(y: height * 0.26)
-            }
-        }
-    }
-}
-
-private struct PaperHolderVisual: View {
-    let count: Int
-    let progress: CGFloat
-    let isActive: Bool
-    let shadowScale: CGFloat
-    var trackedContentIndex: Int? = nil
-
-    var body: some View {
-        GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height)
-            let clampedProgress = min(max(progress, 0), 1)
-            let imageName = count > 0 ? "PaperBinFilled" : "PaperBinEmpty"
-
-            ZStack {
-                Ellipse()
-                    .fill(Color.black.opacity(0.12))
-                    .frame(width: side * 0.58, height: side * 0.08)
-                    .blur(radius: 9 * shadowScale)
-                    .offset(y: side * 0.34)
-
-                Image(imageName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: side, height: side)
-                    .scaleEffect(1 + clampedProgress * 0.02)
-                    .offset(y: -clampedProgress * side * 0.018)
-                    .shadow(
-                        color: ContainerKind.paper.tint.opacity(isActive ? 0.18 : 0.08),
-                        radius: (isActive ? 14 : 10) * shadowScale,
-                        y: 6 * shadowScale
-                    )
-                    .overlay {
-                        if trackedContentIndex != nil {
-                            GeometryReader { geometry in
-                                RevealAnchorProbe(kind: .paper, id: .content)
-                                    .frame(width: 2, height: 2)
-                                    .position(
-                                        x: geometry.size.width * 0.50,
-                                        y: geometry.size.height * 0.42
-                                    )
-                            }
-                            .allowsHitTesting(false)
-                        }
-                    }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
 }

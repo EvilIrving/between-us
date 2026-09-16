@@ -34,7 +34,7 @@ actor NotificationManager {
         content.title = "耳语".localized
         switch kind {
         case .star: content.body = "星星瓶里多了一颗星星。".localized
-        case .capsule: content.body = "胶囊盒里多了一颗胶囊。".localized
+        case .capsule: content.body = "胶囊瓶里多了一颗胶囊。".localized
         case .paper: content.body = "纸团篓里多了一个纸团。".localized
         }
         content.sound = .default

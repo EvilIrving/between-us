@@ -33,7 +33,7 @@
 
 /* Containers */
 "星星瓶" = "Star Jar";
-"胶囊盒" = "Capsule Box";
+"胶囊瓶" = "Capsule Jar";
 "纸团篓" = "Paper Bin";
 "星星" = "Stars";
 "胶囊" = "Capsules";
@@ -58,7 +58,7 @@
 "写下建议、鼓励或需要认真说的事" = "Write a suggestion, some encouragement, or something to talk through";
 "写下让你委屈、生气或不开心的事" = "Write about what made you feel hurt, angry, or upset";
 "折好，放进瓶子" = "Fold it and place it in the jar";
-"封好，放进盒子" = "Seal it and place it in the box";
+"封好，放进瓶子" = "Seal it and place it in the jar";
 "揉好，放进纸篓" = "Crumple it and place it in the bin";
 "可打开" = "Available";
 "待打开" = "Waiting";
@@ -261,7 +261,7 @@
 
 /* Notifications */
 "星星瓶里多了一颗星星。" = "A new star was added to the Star Jar.";
-"胶囊盒里多了一颗胶囊。" = "A new capsule was added to the Capsule Box.";
+"胶囊瓶里多了一颗胶囊。" = "A new capsule was added to the Capsule Jar.";
 "纸团篓里多了一个纸团。" = "A new note was added to the Paper Bin.";
 "对方打开了你放入的星星。" = "Your partner opened the star you left.";
 "对方打开了你放入的胶囊。" = "Your partner opened the capsule you left.";

@@ -10,7 +10,7 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .star: return "星星瓶".localized
-        case .capsule: return "胶囊盒".localized
+        case .capsule: return "胶囊瓶".localized
         case .paper: return "纸团篓".localized
         }
     }
@@ -66,7 +66,7 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
     var depositButtonTitle: String {
         switch self {
         case .star: return "折好，放进瓶子".localized
-        case .capsule: return "封好，放进盒子".localized
+        case .capsule: return "封好，放进瓶子".localized
         case .paper: return "揉好，放进纸篓".localized
         }
     }

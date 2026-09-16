@@ -7,16 +7,22 @@ struct StarCharm: Hashable, Identifiable {
 
     var id: String { imageName }
 
+    // Stable ordering preserves the identity of stars in existing saved placements.
+    private static let styles = ["Candy", "Silver", "Handmade", "Iridescent", "Gift"]
+    private static let moods = ["Joy", "Love", "Missing", "Thanks", "Comfort", "Hope"]
+
+    var legacyImageName: String { "StarCharm_\(series)_\(mood)" }
+
     static let all: [StarCharm] = {
-        (1...5).flatMap { series in
-            (1...6).map { mood in
-                StarCharm(imageName: "StarCharm_\(series)_\(mood)", series: series, mood: mood)
+        styles.enumerated().flatMap { series, style in
+            moods.enumerated().map { mood, emotion in
+                StarCharm(imageName: "StarCharm_\(style)_\(emotion)", series: series + 1, mood: mood + 1)
             }
         }
     }()
 
     static func random() -> StarCharm {
-        all.randomElement() ?? StarCharm(imageName: "StarCharm_1_1", series: 1, mood: 1)
+        all.randomElement() ?? StarCharm(imageName: "StarCharm_Candy_Joy", series: 1, mood: 1)
     }
 
     static func displayCharms(count: Int) -> [StarCharm] {
@@ -57,21 +63,6 @@ struct StarBottleView: View {
             let bottleFrame = CGRect(origin: origin, size: CGSize(width: side, height: side))
 
             ZStack(alignment: .topLeading) {
-                BottleInteriorShape()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.52, green: 0.80, blue: 0.98).opacity(0.16),
-                                Color(red: 0.76, green: 0.91, blue: 0.99).opacity(0.10),
-                                Color.white.opacity(0.04)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: side, height: side)
-                    .position(x: bottleFrame.midX, y: bottleFrame.midY)
-
                 ForEach(physics.stars) { star in
                     StarCharmImage(charm: star.charm)
                         .frame(width: star.visualSize, height: star.visualSize)
@@ -87,7 +78,7 @@ struct StarBottleView: View {
                         }
                 }
 
-                Image("StarJarBottle")
+                Image("StarJar_Body")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
@@ -130,25 +121,6 @@ struct StarBottleView: View {
                 physics.setStarCount(newCount, animated: animateCountChanges)
             }
         }
-    }
-}
-
-private struct BottleInteriorShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let points = StarJarMetrics.interiorContour.map { unit in
-            CGPoint(
-                x: rect.minX + unit.x * rect.width,
-                y: rect.minY + unit.y * rect.height
-            )
-        }
-        guard let first = points.first else { return Path() }
-        var path = Path()
-        path.move(to: first)
-        for point in points.dropFirst() {
-            path.addLine(to: point)
-        }
-        path.closeSubpath()
-        return path
     }
 }
 
