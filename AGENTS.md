@@ -52,7 +52,7 @@
 2. 每个核心物件要覆盖产品真正需要的状态和动画中间态。现有正式资产至少包括：
    - 星星瓶：`StarJar_Body`，以及 `StarCharm_Candy_Joy` 等五系列六情绪挂件。
    - 纸团篓：`PaperBin_Body`、`PaperBin_Lid`，以及 `PaperBall_01` 到 `PaperBall_10`。
-   - 源文件与提示词参考放在 `DesignAssets/`，正式运行时资产进入 `BetweenUs/Assets.xcassets`。
+   - 源文件与画布约定放在 `DesignAssets/`，见 `DesignAssets/README.md`；正式运行时资产进入 `BetweenUs/Assets.xcassets`。
 3. 同一物件的系列资产必须保持身份、比例、相机角度、构图、光源、材质和色彩一致；需要叠加、开盖、出瓶、前景遮挡时必须能准确配准。
 4. 透明资产必须提供真实 Alpha 通道，不得带白底、灰底、棋盘格、桌面、画布阴影或其他背景像素。
 5. 需要交给图像模型的提示词必须可以独立成立，写清产品背景、用途、物件形态、材质、视角、光线、透明要求、禁止项和与既有资产的配准关系。

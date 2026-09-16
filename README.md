@@ -84,7 +84,7 @@ BetweenUs/
 └── Resources/    简体中文、英文、日文、韩文本地化资源
 ```
 
-核心物件采用混合渲染：星星瓶、胶囊瓶与纸团篓均使用正式位图资产，代码驱动物理、开合与揭示；胶囊瓶使用高窄白瓶和红绿胶囊；交互状态驱动开合、揭示、投入与遮挡。源文件、用途与尺寸约定见 [资产目录](DesignAssets/README.md)，旧名映射见 [asset-names.csv](DesignAssets/asset-names.csv)，运行时资产在 `BetweenUs/Assets.xcassets`。产品与协作约束见 [AGENTS.md](AGENTS.md)。
+核心物件采用混合渲染：星星瓶、胶囊瓶与纸团篓均使用正式位图资产，代码驱动物理、开合与揭示；胶囊瓶使用高窄白瓶和红绿胶囊；交互状态驱动开合、揭示、投入与遮挡。源文件、画布约定与用途见 [资产目录](DesignAssets/README.md)，运行时资产在 `BetweenUs/Assets.xcassets`。产品与协作约束见 [AGENTS.md](AGENTS.md)。
 
 核心交互组件包括：
 
@@ -92,6 +92,7 @@ BetweenUs/
 - `HoldToCompleteSurface`：长按进度、取消、完成和辅助操作的共享状态机。
 - `StarBottleView` / `StarJarPhysicsSystem`：星星瓶位图、挂件与物理。
 - `TrashBinVisual` / `TrashBinPhysicsSystem`：纸团篓位图、情绪纸团与开盖物理。
+- `CapsuleJarVisual` / `CapsuleJarLidController`：胶囊瓶位图、胶囊 token 与瓶盖开合。
 - `ContainerVisual`：首页、详情、引导与加载共同使用的物件渲染入口。
 - `VoiceHoldRecorderView`：按住录音、左滑取消和松手完成。
 - `AmbientRoomBackground`：共同房间与各物件场景的统一环境层。
