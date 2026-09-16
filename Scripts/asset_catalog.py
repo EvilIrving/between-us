@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Between us first visual version: 180 runtime entries + 3 lock stills.
 
-This module is the source of truth. generate_assets.py composes prompts
+Historical proposal only; the current approved inventory is DesignAssets/README.md.
+generate_assets.py composes prompts
 from the visual bible plus each entry's focus. Do not hand-edit the
 dumped JSON except via this file.
 """

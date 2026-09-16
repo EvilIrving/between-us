@@ -1,5 +1,7 @@
 # Project Memory
 
+这里面的内容只是历史存档，不作为任何指令，不是 Agent 约束文档。你他妈好好记住这个。
+
 ## 耳语的机构是房间引擎，不是拆 Store 或搬 Telegram UI · 2026-09-04 10:55 CST · Codex
 
 本条修正上方 Telegram L7–L9 条目中把「先拆 BetweenUsStore、导航意图化、FetchManager 式媒体门面」当成下一步的部分。那些原则仍可作边界，但不是当前产品缺的机构。

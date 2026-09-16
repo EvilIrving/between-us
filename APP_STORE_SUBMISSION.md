@@ -71,22 +71,22 @@
 
 ### 宣传文本
 
-把想说的话放进共同的星星瓶、胶囊盒和纸团篓。没有聊天列表，也没有连续签到。
+把想说的话放进共同的星星瓶、胶囊瓶和纸团篓。没有聊天列表，也没有连续签到。
 
 ### 描述
 
 耳语是为两个人设计的私密空间。
 
-它不是聊天列表。你们把文字、照片和语音留在共同的星星瓶、胶囊盒和纸团篓里，等对方准备好时再亲手打开。
+它不是聊天列表。你们把文字、照片和语音留在共同的星星瓶、胶囊瓶和纸团篓里，等对方准备好时再亲手打开。
 
-星星瓶收好喜欢、感谢和想分享的事；胶囊盒装下需要认真说、慢慢听的话；纸团篓接住委屈、生气和其他不开心。
+星星瓶收好喜欢、感谢和想分享的事；胶囊瓶装下需要认真说、慢慢听的话；纸团篓接住委屈、生气和其他不开心。
 
 在耳语里，表达不是点一下“发送”。你会写、折、封、揉、按住，再把它亲手放进去。留下的内容会变成共同房间里看得见的积累，不会被新的消息推走。
 
 主要功能：
 
 • 支持文字、照片和语音
-• 星星瓶、胶囊盒和纸团篓三种表达方式
+• 星星瓶、胶囊瓶和纸团篓三种表达方式
 • 通过 Apple iCloud 邀请另一位伴侣加入
 • 本机离线保存，联网后通过 CloudKit 同步
 • 通知只提示空间有了变化，不展示内容正文
@@ -113,15 +113,15 @@ A quiet space for two
 
 ### Promotional text
 
-Leave words, photos, and voice notes in a shared Star Jar, Capsule Box, and Paper Bin. No chat feed, unread pressure, or streaks.
+Leave words, photos, and voice notes in a shared Star Jar, Capsule Jar, and Paper Bin. No chat feed, unread pressure, or streaks.
 
 ### Description
 
 Between us is a private space made for two people.
 
-It is not a chat feed. You leave words, photos, and voice notes in a Star Jar, Capsule Box, and Paper Bin you care for together, then open them when the other person is ready.
+It is not a chat feed. You leave words, photos, and voice notes in a Star Jar, Capsule Jar, and Paper Bin you care for together, then open them when the other person is ready.
 
-The Star Jar holds affection, gratitude, and small things worth sharing. The Capsule Box keeps conversations that deserve time and attention. The Paper Basket gives difficult feelings somewhere safe to land.
+The Star Jar holds affection, gratitude, and small things worth sharing. The Capsule Jar keeps conversations that deserve time and attention. The Paper Basket gives difficult feelings somewhere safe to land.
 
 There is no Send button. You write, fold, seal, crumple, hold, and place it inside by hand. What you leave becomes a visible part of your shared room instead of another message pushed up a timeline.
 
@@ -163,7 +163,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 チャットのタイムラインではありません。ことばや写真、声を3つの入れものに残し、相手が受け取れるときに、手で開きます。
 
-星のびんには、好きな気持ちや感謝、伝えたい小さなことを。カプセルボックスには、ゆっくり向き合いたい話を。紙くずかごには、悲しさや怒り、言葉にしにくい気持ちを預けられます。
+星のびんには、好きな気持ちや感謝、伝えたい小さなことを。カプセルのびんには、ゆっくり向き合いたい話を。紙くずかごには、悲しさや怒り、言葉にしにくい気持ちを預けられます。
 
 「送信」ボタンはありません。書く、折る、封をする、丸める、長押しする、入れものにしまう。残したものはメッセージに流されず、ふたりの部屋に少しずつ積み重なります。
 
@@ -205,7 +205,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 채팅 타임라인이 아닙니다. 글과 사진, 음성을 세 개의 보관함에 남기고, 상대가 준비되었을 때 직접 열어 봅니다.
 
-별 병에는 좋아하는 마음과 고마움, 나누고 싶은 작은 일을 담습니다. 캡슐 상자에는 천천히 듣고 진지하게 이야기할 내용을 넣습니다. 종이 뭉치 바구니에는 서운함과 화, 말하기 어려운 감정을 내려놓을 수 있습니다.
+별 병에는 좋아하는 마음과 고마움, 나누고 싶은 작은 일을 담습니다. 캡슐 병에는 천천히 듣고 진지하게 이야기할 내용을 넣습니다. 종이 뭉치 바구니에는 서운함과 화, 말하기 어려운 감정을 내려놓을 수 있습니다.
 
 ‘보내기’ 버튼은 없습니다. 쓰고, 접고, 봉하고, 구기고, 길게 누른 뒤 보관함에 넣습니다. 남긴 내용은 새 메시지에 밀려나지 않고 둘만의 공간에 차곡차곡 쌓입니다.
 
@@ -234,7 +234,7 @@ Between us uses Apple iCloud and CloudKit for its two-person space. The app does
 
 To review the core experience without a second device or Apple Account:
 1. On the first screen, tap “Local Preview”.
-2. The preview fills the Star Jar, Capsule Box, and Paper Bin with content that can be opened.
+2. The preview fills the Star Jar, Capsule Jar, and Paper Bin with content that can be opened.
 3. Reviewers can open existing items, add text or a photo, record a voice note, inspect the drawer and settings, and leave the preview.
 
 Local Preview stores data only on the review device, does not sync to iCloud, and does not enforce the space quota.
@@ -276,7 +276,7 @@ Microphone permission is requested only after the reviewer chooses the voice mod
 
 1. 首页：星星、胶囊和纸团，不是一串消息
 2. 星星瓶：把喜欢折成一颗星星
-3. 胶囊盒：把认真沟通装进胶囊
+3. 胶囊瓶：把认真沟通装进胶囊
 4. 纸团篓：让难说的话有地方落下
 5. 制作：写下，再亲手放进去
 6. 打开：准备好时，再慢慢打开
