@@ -52,6 +52,27 @@ enum GeometryMath {
                  CGPoint(x: frame.maxX,y: bottom.y), CGPoint(x: frame.minX,y: bottom.y)],
                 topCap, bottomCap]
     }
+    // 实体真实占位半径：碰撞几何自己覆盖的范围，不含贴图透明留白，旋转后也不会超出。
+    static func halfExtent(_ geometry: TokenGeometry) -> CGFloat {
+        var extent: CGFloat = 0
+        func cover(_ points: [CGPoint]) {
+            for point in points { extent = max(extent, abs(point.x), abs(point.y)) }
+        }
+        for piece in geometry.pieces {
+            switch piece {
+            case .convexPolygon(let points):
+                cover(points.map(geometry.localPoint))
+            case .circle(let center, let radius):
+                let local = geometry.localPoint(center)
+                let reach = radius * geometry.unitsPerPixel
+                extent = max(extent, abs(local.x) + reach, abs(local.y) + reach)
+            case .capsule(let frame):
+                cover(capsulePolygons(frame: frame).flatMap { $0 }.map(geometry.localPoint))
+            }
+        }
+        return extent > 0 ? extent : geometry.displaySize.height / 2
+    }
+
     static func expandedPolygons(_ geometry: TokenGeometry) -> [[CGPoint]] {
         geometry.pieces.flatMap { piece in
             switch piece {
@@ -103,6 +124,7 @@ enum GeometryMath {
         require(p.spawn.interval > 0 && p.spawn.clearanceHalfSize.width > 0 &&
                 p.spawn.clearanceHalfSize.height > 0 && p.spawn.jitterX >= 0, "投放策略无效")
         require(p.maximumLinearSpeed > 0 && p.maximumAngularSpeed > 0 && p.recoveryMargin >= 0, "速度或恢复边界无效")
+        require(p.contentCeilingPixel > 0 && p.contentCeilingPixel < c.mapping.sourceSize.height, "内容上限超出素材范围")
         require(p.drag.maximumStretch > 0 && p.drag.maximumHandleSpeed > 0, "拖拽限幅无效")
         return errors
     }

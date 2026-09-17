@@ -43,6 +43,7 @@
 		C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */; };
 		C3A1A0000000000000000006 /* StarBottleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000005 /* StarBottleView.swift */; };
 		C405AFDC61B81DA8D21EE5D7 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C46EA0194F21F1251962D92 /* Attachment.swift */; };
+		C4A100000000000000000001 /* RoomJolt.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A100000000000000000002 /* RoomJolt.swift */; };
 		CA885F408F687DE73A30AB70 /* LocalStateRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA9FE55A21111E41777F95D /* LocalStateRepository.swift */; };
 		CA9500000000000000000001 /* CapsuleJarSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9500000000000000000002 /* CapsuleJarSystem.swift */; };
 		D2AE31D063D0228D541E27F0 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D523D00A2F589521E9C8ED31 /* AudioRecorder.swift */; };
@@ -69,6 +70,7 @@
 		1970C4A28E3AAA18F37B41B5 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		1EAC603F8BA05554DF4AEBD9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2AB0AF820FEB4D15ADB7FDF2 /* VesselPhysicsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselPhysicsScene.swift; sourceTree = "<group>"; };
+		C4A100000000000000000002 /* RoomJolt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomJolt.swift; sourceTree = "<group>"; };
 		2C46EA0194F21F1251962D92 /* Attachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Attachment.swift; sourceTree = "<group>"; };
 		2D70044E905F1AA7912ADB81 /* PaperBinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperBinView.swift; sourceTree = "<group>"; };
 		2EA9FE55A21111E41777F95D /* LocalStateRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStateRepository.swift; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 			isa = PBXGroup;
 			children = (
 				DA0EE995F1BF42F6BF6B96B0 /* PhysicsConfiguration.swift */,
+				C4A100000000000000000002 /* RoomJolt.swift */,
 				80405538476444BFBAAC7942 /* PhysicsGeometry.swift */,
 				4EF8B66161F14116AE039888 /* TokenQueue.swift */,
 				F6FF39C6ACD14DF7A0C875A1 /* ResourceCatalog.swift */,
@@ -423,6 +426,7 @@
 				F69021DBAC644D938D51CC00 /* PhysicsFactory.swift in Sources */,
 				6A1C1405AE6D4CFE86CCF735 /* VesselRenderer.swift in Sources */,
 				92E897E9849E4EAE9996DF86 /* VesselPhysicsScene.swift in Sources */,
+				C4A100000000000000000001 /* RoomJolt.swift in Sources */,
 				35395B5185BA4DC0A4523AD6 /* PhysicsSceneView.swift in Sources */,
 				D81226184B7545DAA7267E77 /* ContainerPhysicsStage.swift in Sources */,
 			);

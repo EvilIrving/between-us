@@ -34,6 +34,7 @@ final class ContainerPhysicsModel: ObservableObject {
 struct ContainerPhysicsStage: View {
     let kind: ContainerKind
     let items: [SecretItem]
+    var jolt: RoomJolt?
     var isPaused = false
     var onOpenItem: (SecretItem) -> Void
     var onEmptyTap: () -> Void
@@ -43,12 +44,14 @@ struct ContainerPhysicsStage: View {
     init(
         kind: ContainerKind,
         items: [SecretItem],
+        jolt: RoomJolt? = nil,
         isPaused: Bool = false,
         onOpenItem: @escaping (SecretItem) -> Void,
         onEmptyTap: @escaping () -> Void
     ) {
         self.kind = kind
         self.items = items
+        self.jolt = jolt
         self.isPaused = isPaused
         self.onOpenItem = onOpenItem
         self.onEmptyTap = onEmptyTap
@@ -68,6 +71,7 @@ struct ContainerPhysicsStage: View {
     }
 
     private func wire() {
+        model.scene.jolt = jolt
         model.sync(items)
         let snapshot = items
         model.scene.onTokenTapped = { id in

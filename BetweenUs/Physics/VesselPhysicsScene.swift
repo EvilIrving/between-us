@@ -10,6 +10,20 @@ struct VesselStatus: Equatable {
     var error: String? = nil
 }
 
+// 晃一晃的手感：位图管身份，这里只把「上推多远、多快」翻译成实体的受力与上限。
+private enum JoltTuning {
+    // SpriteKit 的重力按「150 点 = 1 米」换算成点/秒²，抬升按同一比例给才与重力同量纲。
+    static let pointsPerMeter: CGFloat = 150
+    static let liftInGravity: CGFloat = 9      // 抬升加速度上限，按配方重力的倍数给
+    static let liftResponse: CGFloat = 26      // 离目标高度越远抬得越猛（每秒）
+    static let followGain: CGFloat = 1.4       // 推一点，容器里的东西跟着抬多少点
+    static let speedLift: CGFloat = 2.6        // 推得越快，额外给多少向上的加速度（每秒）
+    static let shakeSpeed: CGFloat = 520       // 到这个上推速度就算满幅抖动，点/秒
+    static let jostleVelocity: CGFloat = 130   // 横向扰动速度，点/秒
+    static let jostleResponse: CGFloat = 5     // 扰动收敛速度（每秒）
+    static let spinVelocity: CGFloat = 2.6     // 转动扰动，弧度/秒
+}
+
 // 唯一场景执行器：不出现产品类型判断，不把「看不见」当成移除、冻结或压平的理由。
 @MainActor
 final class VesselPhysicsScene: SKScene {
@@ -18,6 +32,8 @@ final class VesselPhysicsScene: SKScene {
     var onEmptyTapped: (() -> Void)?
     var onRecovery: ((UUID) -> Void)?
     var onStatusChanged: ((VesselStatus) -> Void)?
+    // 首页的上推信号；详情页等不需要晃动的场景保持为空。
+    var jolt: RoomJolt?
 
     private let assets = VesselAssets()
     private let renderer: VesselRenderer
@@ -40,8 +56,22 @@ final class VesselPhysicsScene: SKScene {
     private var debugTokens: [UUID: SKNode] = [:]
     private var debugBuilt = false
     private var showGeometry = false
-    private var tapFallback = false
+    private var tapFallback: TapFallback?
+
+    // 按在空白处或容器本身上的那次触摸：只有真按一下才算「打开下一件」，
+    // 把它当成手指拖动（例如上推晃瓶）时不能顺手打开内容。
+    private struct TapFallback {
+        let touch: UITouch
+        let point: CGPoint
+        let time: TimeInterval
+    }
     private var drag: Drag?
+    private var joltTravel: CGFloat = 0
+    private var joltSpeed: CGFloat = 0
+    private var joltRest: [UUID: (height: CGFloat, factor: CGFloat)] = [:]
+    private var containedTokens: Set<UUID> = []
+    private let bodyHalfExtent: CGFloat
+    private let joltCeiling: CGFloat
 
     private struct Drag {
         let touch: UITouch
@@ -59,6 +89,9 @@ final class VesselPhysicsScene: SKScene {
         self.recipe = recipe
         renderer = VesselRenderer(container:recipe.container)
         queue = TokenQueue(capacity:recipe.policy.capacity)
+        bodyHalfExtent = GeometryMath.halfExtent(recipe.entity.geometry)
+        // 内容上限：配方按素材像素标定的最高一行，实体中心不得超过它再减掉自身占位半径。
+        joltCeiling = recipe.container.mapping.scenePoint(CGPoint(x:0,y:recipe.policy.contentCeilingPixel)).y
         super.init(size:recipe.container.mapping.sceneSize)
         scaleMode = .aspectFit
         anchorPoint = .zero
@@ -103,7 +136,7 @@ final class VesselPhysicsScene: SKScene {
     }
 
     override func willMove(from view: SKView) { prepareForSuspension() }
-    func prepareForSuspension() { cancelDrag(); previousTime = 0 }
+    func prepareForSuspension() { cancelDrag(); previousTime = 0; joltRest.removeAll(); containedTokens.removeAll(); joltTravel = 0; joltSpeed = 0 }
 
     // 只改变渲染；墙、实体、位置、速度、质量、队列和休眠状态均不修改。
     func setInspection(showGeometry: Bool, xRay: Bool) {
@@ -249,6 +282,7 @@ final class VesselPhysicsScene: SKScene {
         simulationTime += dt
         spawnIfClear()
         updateDrag(dt:dt)
+        applyJolt(dt:dt)
         for node in nodesByID.values {
             guard let body = node.physicsBody, !body.isResting else { continue }
             let speed = hypot(body.velocity.dx,body.velocity.dy)
@@ -286,6 +320,7 @@ final class VesselPhysicsScene: SKScene {
                 shape.position = node.position; shape.zRotation = node.zRotation
             }
         }
+        containJolt()
         reportStatus()
     }
 
@@ -300,6 +335,57 @@ final class VesselPhysicsScene: SKScene {
         guard force || status != lastReported else { return }
         lastReported = status
         onStatusChanged?(status)
+    }
+
+    // 晃瓶：推多远就抬多高，推多快就冲多猛，抖动只在上推的当下出现。
+    // 不预设抬升幅度，只加向上速度，不写位置；回落完全交给重力。
+    private func applyJolt(dt: TimeInterval) {
+        let state = jolt?.sample() ?? (travel: 0, speed: 0)
+        joltTravel = state.travel
+        joltSpeed = state.speed
+        guard joltTravel > 0.01 else {
+            joltRest.removeAll()
+            return
+        }
+        let limit = joltCeiling - bodyHalfExtent
+        for (id, node) in nodesByID where containedTokens.contains(id) && joltRest[id] == nil {
+            // 每个实体记住晃动前的高度，并各自错开一点，堆在一起才会松散而不是整块平移。
+            joltRest[id] = (min(node.position.y, limit), CGFloat.random(in:0.85...1.12))
+        }
+        guard let highest = joltRest.values.map({ $0.height }).max() else { return }
+        // 抬多高只取决于推了多远；容器里还能抬多高是唯一的上限。
+        let rise = min(joltTravel * JoltTuning.followGain, max(0, limit - highest) / 1.12)
+        let accelerationLimit = abs(recipe.policy.gravity.y) * JoltTuning.pointsPerMeter * JoltTuning.liftInGravity
+        let shake = min(1, joltSpeed / JoltTuning.shakeSpeed)
+        for (id, rest) in joltRest {
+            guard let node = nodesByID[id], let body = node.physicsBody else { continue }
+            body.isResting = false
+            let gap = min(rest.height + rise * rest.factor, limit) - node.position.y
+            var acceleration = joltSpeed * JoltTuning.speedLift
+            if gap > 0 { acceleration += min(gap * JoltTuning.liftResponse, accelerationLimit) }
+            body.velocity.dy += acceleration * CGFloat(dt)
+            let blend = min(1, CGFloat(dt) * JoltTuning.jostleResponse)
+            let targetDX = CGFloat.random(in:-1...1) * JoltTuning.jostleVelocity * shake
+            body.velocity.dx += (targetDX - body.velocity.dx) * blend
+            let targetSpin = CGFloat.random(in:-1...1) * JoltTuning.spinVelocity * shake
+            body.angularVelocity += (targetSpin - body.angularVelocity) * blend
+        }
+    }
+
+    // 晃的时候实体锁在内容上限以下：越线的压回容器里并清掉向上的速度。
+    // 名单按位置收口，从口外落进来的实体不会被误压。
+    private func containJolt() {
+        let limit = joltCeiling - bodyHalfExtent
+        if joltTravel > 0.01 || joltSpeed > 1 {
+            for (id, node) in nodesByID where containedTokens.contains(id) && node.position.y > limit {
+                node.position.y = limit
+                if let body = node.physicsBody {
+                    body.velocity.dy = min(body.velocity.dy, 0)
+                    body.angularVelocity *= 0.5
+                }
+            }
+        }
+        containedTokens = Set(nodesByID.compactMap { $0.value.position.y <= limit ? $0.key : nil })
     }
 
     private func updateDrag(dt: TimeInterval) {
@@ -324,7 +410,7 @@ final class VesselPhysicsScene: SKScene {
         let point = touch.location(in:self)
         guard !renderer.blocksHit(at:point) else {
             // 不透明前壁也算物件本身，按空白处理。
-            tapFallback = true
+            tapFallback = TapFallback(touch:touch,point:point,time:touch.timestamp)
             return
         }
         // 顶层优先；隐藏实体不会被隔着桶壁点中，透视检查时可以主动测试内部拖拽。
@@ -334,10 +420,10 @@ final class VesselPhysicsScene: SKScene {
         }), let node = nodesByID[id], let body = node.physicsBody else {
             // 空白处松手由宿主决定，例如继续按顺序打开下一件内容。
             drag = nil
-            tapFallback = true
+            tapFallback = TapFallback(touch:touch,point:point,time:touch.timestamp)
             return
         }
-        tapFallback = false
+        tapFallback = nil
         body.isResting = false
         let handle = SKNode(); handle.position = point
         let handleBody = SKPhysicsBody(circleOfRadius:1)
@@ -363,7 +449,15 @@ final class VesselPhysicsScene: SKScene {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let state = drag, let touch = touches.first(where:{ $0 === state.touch }) else {
-            if tapFallback { tapFallback = false; onEmptyTapped?() }
+            if let fallback = tapFallback, let touch = touches.first(where:{ $0 === fallback.touch }) {
+                tapFallback = nil
+                let end = touch.location(in:self)
+                let travel = hypot(end.x-fallback.point.x,end.y-fallback.point.y)
+                let isTap = travel < recipe.policy.drag.tapDistance &&
+                            touch.timestamp-fallback.time < recipe.policy.drag.tapDuration
+                if isTap { onEmptyTapped?() }
+            }
+            tapFallback = nil
             return
         }
         let end = touch.location(in:self)
@@ -374,11 +468,11 @@ final class VesselPhysicsScene: SKScene {
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        tapFallback = false
+        tapFallback = nil
         if let state = drag, touches.contains(where:{ $0 === state.touch }) { cancelDrag() }
     }
     func cancelDrag() {
-        tapFallback = false
+        tapFallback = nil
         guard let state = drag else { return }
         physicsWorld.remove(state.joint); state.handle.removeFromParent(); drag = nil
     }
