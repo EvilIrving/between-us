@@ -12,17 +12,7 @@ struct MyDepositsView: View {
             AmbientRoomBackground()
 
             VStack(spacing: 16) {
-                HStack {
-                        SceneCloseControl(label: "返回首页") { dismiss() }
-                    Spacer()
-                }
-
-                VStack(spacing: 6) {
-                    Text("抽屉")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                }
-                .padding(.top, -20)
+                drawerHeader
 
                 sectionTokens
 
@@ -54,6 +44,19 @@ struct MyDepositsView: View {
             .frame(maxWidth: .infinity)
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    // 与设置页共用一套页头：返回控件在左，标题紧跟其右。
+    private var drawerHeader: some View {
+        HStack(spacing: 14) {
+            SceneCloseControl(label: "返回首页") { dismiss() }
+
+            Text("抽屉")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Spacer()
+        }
     }
 
     private var sectionTokens: some View {
@@ -223,38 +226,44 @@ private struct DrawerItemCard: View {
             ContainerItemIcon(kind: item.kind, id: item.id)
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 7) {
-                    Text(item.kind.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(item.kind.tint)
-                    if let attachmentSummary {
-                        Label(attachmentSummary.text, systemImage: attachmentSummary.systemImage)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
+                if !attachmentBadges.isEmpty {
+                    HStack(spacing: 7) {
+                        ForEach(attachmentBadges) { badge in
+                            HStack(spacing: 2) {
+                                Image(systemName: badge.symbol)
+                                if badge.showsCount {
+                                    Text("\(badge.count)")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded).monospacedDigit())
+                                }
+                            }
+                        }
                     }
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.58))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(attachmentAccessibilityText)
                 }
 
-                Text(item.previewText)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(2)
+                if let itemText {
+                    Text(itemText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .lineLimit(2)
+                }
 
                 Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
             }
 
-            Spacer(minLength: 5)
+            Spacer(minLength: 10)
 
-            VStack(spacing: 7) {
-                Circle()
-                    .fill(statusIsActive ? item.kind.tint.opacity(0.78) : AppTheme.secondaryText.opacity(0.16))
-                    .frame(width: 9, height: 9)
-                    .shadow(color: statusIsActive ? item.kind.tint.opacity(0.34) : .clear, radius: 5)
-                Text(statusText)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(statusIsActive ? item.kind.tint : AppTheme.secondaryText.opacity(0.56))
-            }
+            // 状态只保留圆点：文案表达留待后续用别的方式呈现。
+            Circle()
+                .fill(statusIsActive ? item.kind.tint.opacity(0.78) : AppTheme.secondaryText.opacity(0.16))
+                .frame(width: 9, height: 9)
+                .shadow(color: statusIsActive ? item.kind.tint.opacity(0.34) : .clear, radius: 5)
+                .accessibilityLabel(statusText)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 14)
@@ -274,27 +283,70 @@ private struct DrawerItemCard: View {
         section == .openedFromOther || item.openedAt != nil
     }
 
-    private var attachmentSummary: (text: String, systemImage: String)? {
+    // 列表只留图标：录音、照片、视频依次排列，图标区分一到三件，三件以上再补数字。
+    private var attachmentBadges: [AttachmentBadge] {
         let images = item.allAttachments.filter { $0.kind == .image }
-        if !images.isEmpty {
-            return (
-                images.count == 1 ? "照片".localized : "%d 张".localized(images.count),
-                images.count == 1 ? "photo" : "photo.stack"
-            )
-        }
         let videos = item.allAttachments.filter { $0.kind == .video }
+        let audioCount = item.allAttachments.filter { $0.kind == .audio }.count
+
+        var badges: [AttachmentBadge] = []
+        if audioCount > 0 {
+            badges.append(AttachmentBadge(symbol: "waveform", count: audioCount))
+        }
+        if !images.isEmpty {
+            badges.append(AttachmentBadge(symbol: Self.photoSymbol(count: images.count), count: images.count))
+        }
         if !videos.isEmpty {
-            return (
-                videos.count == 1 ? "视频".localized : "%d 个视频".localized(videos.count),
-                "video"
-            )
+            badges.append(AttachmentBadge(symbol: Self.videoSymbol(count: videos.count), count: videos.count))
         }
-        if let audio = item.allAttachments.first(where: { $0.kind == .audio }) {
-            return ((audio.duration ?? 0).formattedDuration, "waveform")
-        }
-        return nil
+        return badges
     }
 
+    // 一张、斜叠两张、整齐一叠三张。
+    private static func photoSymbol(count: Int) -> String {
+        switch count {
+        case 1: return "photo"
+        case 2: return "photo.on.rectangle.angled"
+        default: return "photo.stack"
+        }
+    }
+
+    private static func videoSymbol(count: Int) -> String {
+        switch count {
+        case 1: return "video"
+        case 2: return "play.rectangle.on.rectangle"
+        default: return "film.stack"
+        }
+    }
+
+    // 仅供 VoiceOver 使用，界面不再显示附件类型文案。
+    private var attachmentAccessibilityText: String {
+        let images = item.allAttachments.filter { $0.kind == .image }
+        let videos = item.allAttachments.filter { $0.kind == .video }
+        let audio = item.allAttachments.first { $0.kind == .audio }
+
+        var parts: [String] = []
+        if let audio, let duration = audio.duration, duration > 0 {
+            parts.append(duration.formattedDuration)
+        } else if audio != nil {
+            parts.append("语音".localized)
+        }
+        if !images.isEmpty {
+            parts.append(images.count == 1 ? "一张照片".localized : "%d 张照片".localized(images.count))
+        }
+        if !videos.isEmpty {
+            parts.append(videos.count == 1 ? "一段视频".localized : "%d 个视频".localized(videos.count))
+        }
+        return parts.joined(separator: "、")
+    }
+
+    // 只有真实文字才占一行，纯媒体内容用图标和日期表达。
+    private var itemText: String? {
+        let trimmed = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    // 仅供 VoiceOver 使用，界面不再显示文案。
     private var statusText: String {
         switch section {
         case .leftByMe: return item.openedAt == nil ? "未打开".localized : "已打开".localized
@@ -304,6 +356,15 @@ private struct DrawerItemCard: View {
 
     private var rotation: Double {
         Double(abs(item.id.uuidString.hashValue % 5) - 2) * 0.22
+    }
+
+    private struct AttachmentBadge: Identifiable {
+        let symbol: String
+        let count: Int
+
+        var id: String { symbol }
+        // 图标只表达到三件，三件以上再补数量。
+        var showsCount: Bool { count >= 3 }
     }
 }
 
@@ -405,8 +466,6 @@ private struct DrawerItemDetailView: View {
                             ProgressView()
                                 .controlSize(.small)
                                 .tint(.red)
-                        } else {
-                            Image(systemName: "trash")
                         }
                         Text(isDeleting ? "正在删除".localized : "按住删除".localized)
                             .font(.subheadline.weight(.semibold))
