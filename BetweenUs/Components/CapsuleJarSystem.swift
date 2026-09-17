@@ -3,7 +3,8 @@ import SwiftUI
 /// Token coordinates still belong to the capsule artwork, not the box frames.
 enum CapsuleJarMetrics {
     static let maximumVisibleCount = 10
-    static let tokenAspect: CGFloat = 192.0 / 512.0
+    /// 与 `Capsule_Closed` 不透明主体 75×228 @256 画布一致。
+    static let tokenAspect: CGFloat = 75.0 / 228.0
     static let tokenHeight: CGFloat = 0.19
     static let slots: [CGPoint] = [
         CGPoint(x: 0.38, y: 0.81), CGPoint(x: 0.50, y: 0.80), CGPoint(x: 0.62, y: 0.81),
