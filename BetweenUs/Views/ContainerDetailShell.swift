@@ -54,47 +54,21 @@ struct ContainerDetailShell<Content: View>: View {
     }
 }
 
-/// Shared state and interaction shell for capsule and paper scenes.
 struct ContainerRitualScene: View {
     let kind: ContainerKind
 
     @EnvironmentObject private var store: BetweenUsStore
-    @EnvironmentObject private var room: RoomWorld
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showCompose = false
     @State private var isOpening = false
-    @State private var openingTask: Task<Void, Never>?
-    @State private var canvasSize: CGSize = .zero
-    @State private var safeArea = EdgeInsets()
-    @State private var revealAnchors: [ContainerKind: RevealAnchorFrames] = [:]
-    @State private var liftedContent = false
-    @State private var paperVisualCount = 0
-    @State private var capsuleVisualCount = 0
-    @State private var composeStartCount = 0
+    @State private var openedItem: SecretItem?
 
     var body: some View {
         ZStack {
-            ContainerDetailShell(
-                kind: kind,
-                title: kind.title
-            ) {
+            ContainerDetailShell(kind: kind, title: kind.title) {
                 VStack(spacing: 14) {
-                    ContainerHoldStage(
-                        kind: kind,
-                        count: displayedCount,
-                        duration: AppMotion.holdDuration(for: kind),
-                        isEnabled: canOpen,
-                        isWorking: isOpening || room.reveal.isPlaying,
-                        title: hasOpenableItem ? kind.openActionTitle : unavailableWhisper,
-                        reportsRevealAnchors: true,
-                        trackedContentIndex: trackedContentIndex,
-                        containerFeedback: room.reveal.sample.container,
-                        trashPhysics: kind == .paper ? room.trashPhysics : nil,
-                        trashLid: kind == .paper ? room.trashLid : nil,
-                        onComplete: openNext
-                    )
-                    .frame(height: 272)
+                    containerStage
+                        .frame(height: 272)
 
                     ExchangeBalanceView(
                         kind: kind,
@@ -102,80 +76,25 @@ struct ContainerRitualScene: View {
                         waiting: unopenedCount
                     )
 
-                    RitualActionToken(
-                        kind: kind,
-                        title: kind.homeActionTitle
-                    ) {
+                    RitualActionToken(kind: kind, title: kind.homeActionTitle) {
                         showCompose = true
                     }
                     .padding(.top, 2)
                     .padding(.bottom, 4)
                 }
             }
+            .disabled(openedItem != nil)
+            .accessibilityHidden(openedItem != nil)
 
-            ContainerStoreOverlay(
-                controller: room.contentStore,
-                containerFrame: revealAnchors[kind]?.container ?? .zero
-            )
-
-            ContainerRevealOverlay(
-                controller: room.reveal,
-                onDismiss: dismissReveal,
-                onRespond: {
-                    room.dismissReveal(reduceMotion: reduceMotion)
-                    showCompose = true
-                }
-            )
-        }
-        .coordinateSpace(name: ContainerRevealSpace.name)
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear {
-                        canvasSize = proxy.size
-                        safeArea = proxy.safeAreaInsets
+            if let openedItem {
+                ContainerRevealOverlay(
+                    item: openedItem,
+                    onDismiss: { self.openedItem = nil },
+                    onRespond: {
+                        self.openedItem = nil
+                        showCompose = true
                     }
-                    .onChange(of: proxy.size) { canvasSize = $0 }
-            }
-        }
-        .onPreferenceChange(RevealAnchorKey.self) { revealAnchors = $0 }
-        .onAppear {
-            if kind == .paper {
-                paperVisualCount = min(sharedCount, TrashBinPhysicsSystem.maximumVisibleCount)
-            } else {
-                capsuleVisualCount = min(sharedCount, CapsuleJarMetrics.maximumVisibleCount)
-            }
-        }
-        .onChange(of: room.reveal.sample.showsToken) { showing in
-            liftedContent = showing
-        }
-        .onChange(of: room.reveal.isPlaying) { playing in
-            if !playing {
-                liftedContent = false
-                isOpening = false
-            }
-        }
-        .onChange(of: showCompose) { showing in
-            if showing {
-                composeStartCount = sharedCount
-            } else if kind == .paper {
-                playPaperStoreIfNeeded()
-            } else {
-                playCapsuleStoreIfNeeded()
-            }
-        }
-        .onChange(of: sharedCount) { count in
-            guard kind == .capsule, !showCompose, !room.contentStore.sample.isPlaying else { return }
-            capsuleVisualCount = min(count, CapsuleJarMetrics.maximumVisibleCount)
-        }
-        .onDisappear {
-            openingTask?.cancel()
-            openingTask = nil
-            isOpening = false
-            if !room.reveal.isPlaying {
-                room.contentStore.cancel()
-                room.trashLid.finishRestoration()
-                room.capsuleLid.finishRestoration()
+                )
             }
         }
         .sheet(isPresented: $showCompose) {
@@ -183,258 +102,58 @@ struct ContainerRitualScene: View {
         }
     }
 
+    private var containerStage: some View {
+        VStack(spacing: 8) {
+            ContainerVisual(kind: kind, count: sharedCount, style: .detail)
+                .padding(.horizontal, kind == .star ? 0 : 36)
+                .padding(.vertical, kind == .star ? 0 : 8)
+
+            if kind != .star || !hasOpenableItem {
+                Text(stageTitle.localized)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
+                    .frame(height: 20)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if kind == .star { openNext() }
+        }
+        .onLongPressGesture(minimumDuration: AppMotion.holdDuration(for: kind)) {
+            if kind != .star { openNext() }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("%@，里面积累了 %d 件内容。%@".localized(kind.title, sharedCount, stageTitle.localized))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { openNext() }
+    }
+
     private var data: AppData { store.viewModel.data }
     private var credits: Int { data.activeCredits(kind: kind) }
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: kind) }
     private var sharedCount: Int { data.count(kind: kind) }
-    private var displayedCount: Int {
-        if kind == .paper { return paperVisualCount }
-        return liftedContent ? max(0, capsuleVisualCount - 1) : capsuleVisualCount
-    }
-    private var trackedContentIndex: Int? {
-        let visible = min(max(displayedCount, 0), 14)
-        guard visible > 0 else { return nil }
-        return visible - 1
-    }
     private var hasOpenableItem: Bool { credits > 0 && unopenedCount > 0 }
-    private var canOpen: Bool {
-        room.canPresent(kind: kind, data: store.viewModel.data) && !isOpening
-    }
-
-    private var unavailableWhisper: String {
+    private var stageTitle: String {
         if credits == 0 { return kind.creditRequirementTitle }
-        return kind.emptyWaitingTitle
+        if unopenedCount == 0 { return kind.emptyWaitingTitle }
+        return kind.openActionTitle
     }
 
     private func openNext() {
-        guard canOpen else { return }
+        guard !isOpening, openedItem == nil else { return }
+        guard hasOpenableItem else {
+            RitualHaptics.warning()
+            return
+        }
         isOpening = true
-        openingTask?.cancel()
-        openingTask = Task { @MainActor in
-            let frames = revealAnchors[kind] ?? RevealAnchorFrames()
-            guard room.canPresent(kind: kind, data: store.viewModel.data), frames.hasContainer else {
-                isOpening = false
+        Task { @MainActor in
+            defer { isOpening = false }
+            guard let item = await store.openNext(kind: kind) else {
                 RitualHaptics.warning()
                 return
             }
-            guard let item = await store.peekOpenable(kind: kind) else {
-                isOpening = false
-                RitualHaptics.warning()
-                return
-            }
-            let started = room.beginReveal(
-                kind: kind,
-                item: item,
-                anchors: frames,
-                canvasSize: canvasSize,
-                safeArea: safeArea,
-                reduceMotion: reduceMotion
-            )
-            openingTask = nil
-            if started {
-                _ = await store.commitOpen(item)
-            } else {
-                isOpening = false
-                RitualHaptics.warning()
-            }
+            openedItem = item
         }
-    }
-
-    private func playPaperStoreIfNeeded() {
-        room.storePaperIfNeeded(
-            currentCount: sharedCount,
-            previousVisualCount: paperVisualCount,
-            composeStartCount: composeStartCount,
-            containerFrame: revealAnchors[.paper]?.container ?? .zero,
-            canvasSize: canvasSize,
-            reduceMotion: reduceMotion,
-            onAttached: { paperVisualCount = $0 }
-        )
-    }
-
-    private func dismissReveal() {
-        room.dismissReveal(reduceMotion: reduceMotion)
-    }
-
-    private func playCapsuleStoreIfNeeded() {
-        room.storeCapsuleIfNeeded(
-            currentCount: sharedCount,
-            previousVisualCount: capsuleVisualCount,
-            composeStartCount: composeStartCount,
-            containerFrame: revealAnchors[.capsule]?.container ?? .zero,
-            canvasSize: canvasSize,
-            reduceMotion: reduceMotion,
-            onAttached: { capsuleVisualCount = $0 }
-        )
-    }
-}
-
-private struct ContainerHoldStage: View {
-    let kind: ContainerKind
-    let count: Int
-    let duration: TimeInterval
-    let isEnabled: Bool
-    let isWorking: Bool
-    let title: String
-    var reportsRevealAnchors = false
-    var trackedContentIndex: Int? = nil
-    var containerFeedback: ContainerFeedbackTransform = .identity
-    var trashPhysics: TrashBinPhysicsSystem? = nil
-    var trashLid: TrashLidController? = nil
-    let onComplete: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        HoldToCompleteSurface(
-            duration: duration,
-            isEnabled: isEnabled,
-            isWorking: isWorking,
-            onComplete: onComplete
-        ) { progress, isPressing in
-            let motionProgress = reduceMotion ? 0 : min(max(progress, 0), 1)
-
-            VStack(spacing: 8) {
-                ZStack {
-                    AppTheme.glow(for: kind)
-                        .scaleEffect(1 + motionProgress * 0.20)
-                        .opacity(
-                            isPressing || isWorking
-                                ? 1
-                                : (isEnabled ? 0.70 : 0.34)
-                        )
-
-                    ContainerVisual(
-                        kind: kind,
-                        count: count,
-                        style: .detail,
-                        interactionProgress: motionProgress,
-                        isActive: isPressing || isWorking,
-                        reportsRevealAnchors: reportsRevealAnchors,
-                        trackedContentIndex: trackedContentIndex,
-                        sharedTrashPhysics: trashPhysics,
-                        sharedTrashLid: trashLid
-                    )
-                    .padding(.horizontal, 36)
-                    .padding(.vertical, 8)
-                    .brightness(motionProgress * 0.035)
-                    .shadow(
-                        color: kind.tint.opacity(motionProgress * 0.24),
-                        radius: motionProgress * 16,
-                        y: motionProgress * 4
-                    )
-                }
-                .scaleEffect(reduceMotion ? 1 : 1 - motionProgress * 0.045)
-                .offset(y: reduceMotion ? 0 : motionProgress * 6)
-                .rotationEffect(containerFeedback.rotation)
-                .offset(x: containerFeedback.offsetX)
-                .animation(.easeOut(duration: AppMotion.pressDuration), value: isPressing)
-
-                ShimmeringHoldLabel(
-                    text: title,
-                    tint: kind.tint,
-                    baseStyle: labelStyle(progress: progress),
-                    isShimmering: isPressing && !reduceMotion
-                )
-                .offset(y: promptOffset)
-            }
-            .contentShape(Rectangle())
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("%@，里面积累了 %d 件内容。%@".localized(kind.title, count, title.localized))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("持续按住完成，提前松开取消".localized)
-        .accessibilityAction {
-            guard isEnabled, !isWorking else { return }
-            onComplete()
-        }
-    }
-
-    private func labelStyle(progress: CGFloat) -> LinearGradient {
-        let restingColor = isEnabled
-            ? AppTheme.secondaryText.opacity(0.42)
-            : AppTheme.secondaryText.opacity(0.54)
-        let filledColor = isWorking ? kind.tint : kind.tint.opacity(0.96)
-        let fill = isWorking ? 1 : min(max(progress, 0), 1)
-
-        if !isEnabled || fill == 0 {
-            return LinearGradient(
-                colors: [restingColor, restingColor],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
-
-        if fill == 1 {
-            return LinearGradient(
-                colors: [filledColor, filledColor],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
-
-        return LinearGradient(
-            stops: [
-                .init(color: filledColor, location: 0),
-                .init(color: filledColor, location: fill),
-                .init(color: restingColor, location: min(fill + 0.018, 1)),
-                .init(color: restingColor, location: 1)
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var promptOffset: CGFloat {
-        switch kind {
-        case .star: return -34
-        case .capsule: return -26
-        case .paper: return -26
-        }
-    }
-}
-
-private struct ShimmeringHoldLabel: View {
-    let text: String
-    let tint: Color
-    let baseStyle: LinearGradient
-    let isShimmering: Bool
-
-    var body: some View {
-        Text(text.localized)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(baseStyle)
-            .overlay {
-                if isShimmering {
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
-                        GeometryReader { proxy in
-                            let width = max(28, proxy.size.width * 0.42)
-                            let cycle = timeline.date.timeIntervalSinceReferenceDate
-                                .truncatingRemainder(dividingBy: 1.75) / 1.75
-
-                            LinearGradient(
-                                colors: [
-                                    .clear,
-                                    tint.opacity(0.16),
-                                    Color.white.opacity(0.94),
-                                    tint.opacity(0.26),
-                                    .clear
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .frame(width: width)
-                            .offset(x: CGFloat(cycle) * (proxy.size.width + width) - width)
-                            .blendMode(.screen)
-                        }
-                        .mask {
-                            Text(text.localized)
-                                .font(.caption.weight(.semibold))
-                        }
-                    }
-                }
-            }
-            .frame(height: 20)
     }
 }
 

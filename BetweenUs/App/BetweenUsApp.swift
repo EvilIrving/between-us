@@ -7,17 +7,14 @@ struct BetweenUsApp: App {
     @StateObject private var localization = LocalizationManager.shared
 
     private let store = BetweenUsStore()
-    @StateObject private var room = RoomWorld()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
-                .environmentObject(room)
                 .environment(\.locale, localization.currentLocale)
                 .preferredColorScheme(.light)
                 .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .background { room.resetTransientPlayback() }
                     guard newPhase == .active else { return }
                     Task { await store.sceneBecameActive() }
                 }

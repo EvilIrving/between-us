@@ -15,16 +15,8 @@
 		A10000000000000000000001 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* LocalizationManager.swift */; };
 		3DBE773A9BDF8FC8399B918A /* ContainerIllustrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4553C9E5C18FF1A43B52E2D8 /* ContainerIllustrations.swift */; };
 		4B4B9B2D318CED2EDE1F98A7 /* Shapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5F7F1CD6AE444E05A99127 /* Shapes.swift */; };
-		77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2755B132754367E7794616EC /* StarPhysicsView.swift */; };
-		A30000000000000000000001 /* StarJarPhysicsSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* StarJarPhysicsSystem.swift */; };
-		A30000000000000000000003 /* StarRevealAnimationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* StarRevealAnimationController.swift */; };
-		B30000000000000000000001 /* ContainerAnimationArchitecture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* ContainerAnimationArchitecture.swift */; };
-		B30000000000000000000003 /* Wave in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000004 /* Wave */; };
 		B30000000000000000000006 /* TrashBinSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* TrashBinSystem.swift */; };
-		B30000000000000000000008 /* ContainerContentStoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* ContainerContentStoreController.swift */; };
-		B40000000000000000000001 /* RoomWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002 /* RoomWorld.swift */; };
 		113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */; };
-		C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */; };
 		C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */; };
 		C3A1A0000000000000000006 /* StarBottleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1A0000000000000000005 /* StarBottleView.swift */; };
 		0F4BF63734AFBDF0CBA26B0E /* VoiceHoldRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */; };
@@ -47,7 +39,6 @@
 		979B87360A0683491654FBCB /* MyDepositsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D262D87293047848152BE8 /* MyDepositsView.swift */; };
 		EC16E22AC60F0F907A7F8CB4 /* PaperBinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D70044E905F1AA7912ADB81 /* PaperBinView.swift */; };
 		B8DAAC4883450804F6FA33A4 /* RelationshipOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AA16F99E107A8998CBFD0D /* RelationshipOnboardingView.swift */; };
-		30E5D03AE5E5816874CED689 /* RevealSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */; };
 		6D817E658D0A2B12B5E1AB2F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */; };
 		4304686EF989AABCFF8299C7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */; };
 		B20000000000000000000001 /* LifetimeUnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* LifetimeUnlockView.swift */; };
@@ -82,15 +73,8 @@
 		A1000000000000000000000E /* ko InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = "ko.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		4553C9E5C18FF1A43B52E2D8 /* ContainerIllustrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerIllustrations.swift"; sourceTree = "<group>"; };
 		8E5F7F1CD6AE444E05A99127 /* Shapes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shapes.swift"; sourceTree = "<group>"; };
-		2755B132754367E7794616EC /* StarPhysicsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarPhysicsView.swift"; sourceTree = "<group>"; };
-		A30000000000000000000002 /* StarJarPhysicsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarJarPhysicsSystem.swift"; sourceTree = "<group>"; };
-		A30000000000000000000004 /* StarRevealAnimationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarRevealAnimationController.swift"; sourceTree = "<group>"; };
-		B30000000000000000000002 /* ContainerAnimationArchitecture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerAnimationArchitecture.swift"; sourceTree = "<group>"; };
 		B30000000000000000000007 /* TrashBinSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrashBinSystem.swift"; sourceTree = "<group>"; };
-		B30000000000000000000009 /* ContainerContentStoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerContentStoreController.swift"; sourceTree = "<group>"; };
-		B40000000000000000000002 /* RoomWorld.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RoomWorld.swift"; sourceTree = "<group>"; };
 		1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RitualUI.swift"; sourceTree = "<group>"; };
-		C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealAnimation.swift"; sourceTree = "<group>"; };
 		C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContainerRevealOverlay.swift"; sourceTree = "<group>"; };
 		C3A1A0000000000000000005 /* StarBottleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarBottleView.swift"; sourceTree = "<group>"; };
 		E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VoiceHoldRecorderView.swift"; sourceTree = "<group>"; };
@@ -113,7 +97,6 @@
 		B2D262D87293047848152BE8 /* MyDepositsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MyDepositsView.swift"; sourceTree = "<group>"; };
 		2D70044E905F1AA7912ADB81 /* PaperBinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PaperBinView.swift"; sourceTree = "<group>"; };
 		F3AA16F99E107A8998CBFD0D /* RelationshipOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RelationshipOnboardingView.swift"; sourceTree = "<group>"; };
-		AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RevealSheet.swift"; sourceTree = "<group>"; };
 		76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RootView.swift"; sourceTree = "<group>"; };
 		E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
 		B20000000000000000000002 /* LifetimeUnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LifetimeUnlockView.swift"; sourceTree = "<group>"; };
@@ -126,7 +109,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		69680EDE0CF9B24DB8DBFE04 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B30000000000000000000003 /* Wave in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+		69680EDE0CF9B24DB8DBFE04 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -190,17 +173,10 @@
 			children = (
 				4553C9E5C18FF1A43B52E2D8 /* ContainerIllustrations.swift */,
 				CA9500000000000000000002 /* CapsuleJarSystem.swift */,
-				C3A1A0000000000000000001 /* ContainerRevealAnimation.swift */,
 				C3A1A0000000000000000003 /* ContainerRevealOverlay.swift */,
 				C3A1A0000000000000000005 /* StarBottleView.swift */,
 				8E5F7F1CD6AE444E05A99127 /* Shapes.swift */,
-				2755B132754367E7794616EC /* StarPhysicsView.swift */,
-				A30000000000000000000002 /* StarJarPhysicsSystem.swift */,
-				A30000000000000000000004 /* StarRevealAnimationController.swift */,
-				B30000000000000000000002 /* ContainerAnimationArchitecture.swift */,
 				B30000000000000000000007 /* TrashBinSystem.swift */,
-				B30000000000000000000009 /* ContainerContentStoreController.swift */,
-				B40000000000000000000002 /* RoomWorld.swift */,
 				1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */,
 				E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */,
 			);
@@ -257,7 +233,6 @@
 				B2D262D87293047848152BE8 /* MyDepositsView.swift */,
 				2D70044E905F1AA7912ADB81 /* PaperBinView.swift */,
 				F3AA16F99E107A8998CBFD0D /* RelationshipOnboardingView.swift */,
-				AFAAFCC7BB3E62C4BD7ED2A2 /* RevealSheet.swift */,
 				76A46CB0E6BFF9BEC5BC26CE /* RootView.swift */,
 				E2B1549BFA85DAA624B80DA7 /* SettingsView.swift */,
 				B20000000000000000000002 /* LifetimeUnlockView.swift */,
@@ -303,7 +278,6 @@
 			dependencies = ();
 			name = BetweenUs;
 			packageProductDependencies = (
-				B30000000000000000000004 /* Wave */,
 			);
 			productName = "Between us";
 			productReference = D957E19B16B69713B7749A90 /* Between us.app */;
@@ -336,7 +310,6 @@
 			knownRegions = ("zh-Hans", en, ja, ko, Base);
 			mainGroup = 870B3294C0CBD48AF6BBCC1B;
 			packageReferences = (
-				B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */,
 			);
 			productRefGroup = 615B463D1028E4E24B674CF7 /* Products */;
 			projectDirPath = "";
@@ -366,17 +339,10 @@
 				A10000000000000000000001 /* LocalizationManager.swift in Sources */,
 				3DBE773A9BDF8FC8399B918A /* ContainerIllustrations.swift in Sources */,
 				CA9500000000000000000001 /* CapsuleJarSystem.swift in Sources */,
-				C3A1A0000000000000000002 /* ContainerRevealAnimation.swift in Sources */,
 				C3A1A0000000000000000004 /* ContainerRevealOverlay.swift in Sources */,
 				C3A1A0000000000000000006 /* StarBottleView.swift in Sources */,
 				4B4B9B2D318CED2EDE1F98A7 /* Shapes.swift in Sources */,
-				77641E8E2C3584A1B7CF88E6 /* StarPhysicsView.swift in Sources */,
-				A30000000000000000000001 /* StarJarPhysicsSystem.swift in Sources */,
-				A30000000000000000000003 /* StarRevealAnimationController.swift in Sources */,
-				B30000000000000000000001 /* ContainerAnimationArchitecture.swift in Sources */,
 				B30000000000000000000006 /* TrashBinSystem.swift in Sources */,
-				B30000000000000000000008 /* ContainerContentStoreController.swift in Sources */,
-				B40000000000000000000001 /* RoomWorld.swift in Sources */,
 				113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */,
 				0F4BF63734AFBDF0CBA26B0E /* VoiceHoldRecorderView.swift in Sources */,
 				6FB26D15A39A01D54C6A3298 /* Theme.swift in Sources */,
@@ -398,7 +364,6 @@
 				979B87360A0683491654FBCB /* MyDepositsView.swift in Sources */,
 				EC16E22AC60F0F907A7F8CB4 /* PaperBinView.swift in Sources */,
 				B8DAAC4883450804F6FA33A4 /* RelationshipOnboardingView.swift in Sources */,
-				30E5D03AE5E5816874CED689 /* RevealSheet.swift in Sources */,
 				6D817E658D0A2B12B5E1AB2F /* RootView.swift in Sources */,
 				4304686EF989AABCFF8299C7 /* SettingsView.swift in Sources */,
 				B20000000000000000000001 /* LifetimeUnlockView.swift in Sources */,
@@ -491,25 +456,6 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/jtrivedi/Wave.git";
-			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 0.3.3;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		B30000000000000000000004 /* Wave */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000000000000000000005 /* XCRemoteSwiftPackageReference "Wave" */;
-			productName = Wave;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		6650A2B5E24FA7522CE6B81C /* Build configuration list for PBXProject "BetweenUs" */ = {isa = XCConfigurationList; buildConfigurations = (D12546C7310DEE778E55E187 /* Debug */, AA23A758EC6A71B7321371F8 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };

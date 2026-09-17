@@ -102,64 +102,19 @@ struct ContainerVisual: View {
     let kind: ContainerKind
     let count: Int
     var style: ContainerVisualStyle = .room
-    var interactionProgress: CGFloat = 0
-    var isActive = false
-    var reportsRevealAnchors = false
-    var trackedContentIndex: Int? = nil
-    var sharedStarPhysics: StarJarPhysicsSystem? = nil
-    var sharedTrashPhysics: TrashBinPhysicsSystem? = nil
-    var sharedTrashLid: TrashLidController? = nil
-
-    @StateObject private var starPhysics = StarJarPhysicsSystem()
-    @StateObject private var trashPhysics = TrashBinPhysicsSystem()
-    @StateObject private var trashLid = TrashLidController(animationDriver: RoomWorld.sharedClock)
-
     var body: some View {
         GeometryReader { proxy in
             ZStack {
                 switch kind {
                 case .star:
-                    StarBottleView(
-                        physics: sharedStarPhysics ?? starPhysics,
-                        count: min(max(count, 0), style.contentLimit),
-                        reportsRevealAnchors: reportsRevealAnchors
-                    )
+                    StarBottleView(count: min(max(count, 0), style.contentLimit))
                 case .capsule:
-                    CapsuleJarVisual(
-                        count: min(max(count, 0), style.contentLimit),
-                        trackedContentIndex: trackedContentIndex
-                    )
+                    CapsuleJarVisual(count: min(max(count, 0), style.contentLimit))
                 case .paper:
-                    TrashBinVisual(
-                        physics: sharedTrashPhysics ?? trashPhysics,
-                        lid: sharedTrashLid ?? trashLid,
-                        count: min(max(count, 0), style.contentLimit),
-                        reportsRevealAnchors: reportsRevealAnchors
-                    )
+                    TrashBinVisual()
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .scaleEffect(1 - min(max(interactionProgress, 0), 1) * 0.012)
-            .offset(y: min(max(interactionProgress, 0), 1) * 2)
-            .background {
-                if reportsRevealAnchors, kind != .star {
-                    RevealAnchorProbe(kind: kind, id: .container)
-                }
-            }
-            .overlay {
-                if reportsRevealAnchors, kind != .star {
-                    GeometryReader { geometry in
-                        let unit = ContainerRevealAnchors.exitUnit(for: kind)
-                        RevealAnchorProbe(kind: kind, id: .exit)
-                            .frame(width: 2, height: 2)
-                            .position(
-                                x: geometry.size.width * unit.x,
-                                y: geometry.size.height * unit.y
-                            )
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityHidden(true)

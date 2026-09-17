@@ -1,149 +1,28 @@
 import SwiftUI
 
 struct ContainerRevealOverlay: View {
-    @ObservedObject var controller: ContainerContentRevealController
-    var onDismiss: () -> Void
-    var onRespond: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let item: SecretItem
+    let onDismiss: () -> Void
+    let onRespond: () -> Void
 
     var body: some View {
         GeometryReader { canvas in
-            let sample = controller.sample
-            let cardSize = controller.cardFrame.size == .zero
-                ? ContainerRevealAnchors.cardLayoutSize(in: canvas.size)
-                : controller.cardFrame.size
+            let cardWidth = min(max(canvas.size.width - 8, 300), 440)
 
             ZStack {
-                Color.black.opacity(sample.dim)
+                Color.black.opacity(0.22)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        if sample.cardInteractive {
-                            onDismiss()
-                        }
-                    }
-                    .allowsHitTesting(sample.cardInteractive)
+                    .onTapGesture(perform: onDismiss)
+                    .accessibilityHidden(true)
 
-                if let token = controller.token,
-                   sample.showsToken,
-                   sample.contentLayer == .behindContainerForeground {
-                    flyingToken(token: token, sample: sample)
-
-                    if controller.containerFrame.width > 1 {
-                        containerForeground(for: token.type)
-                            .frame(
-                                width: controller.containerFrame.width,
-                                height: controller.containerFrame.height
-                            )
-                            .position(
-                                x: controller.containerFrame.midX,
-                                y: controller.containerFrame.midY
-                            )
-                            .allowsHitTesting(false)
-                    }
-                }
-
-                if let item = controller.item {
-                    RevealNoteCard(item: item, onDismiss: onDismiss, onRespond: onRespond)
-                        .frame(width: cardSize.width, height: cardSize.height)
-                        .scaleEffect(sample.card.scale)
-                        .opacity(sample.card.opacity)
-                        .position(sample.card.position == .zero ? CGPoint(x: canvas.size.width / 2, y: canvas.size.height * 0.46) : sample.card.position)
-                        .allowsHitTesting(sample.cardInteractive)
-                }
-
-                if let token = controller.token,
-                   sample.showsToken,
-                   sample.contentLayer == .foregroundFlight {
-                    flyingToken(token: token, sample: sample)
-                }
+                RevealNoteCard(item: item, onDismiss: onDismiss, onRespond: onRespond)
+                    .frame(width: cardWidth, height: cardWidth * (1024.0 / 1536.0))
             }
             .frame(width: canvas.size.width, height: canvas.size.height)
         }
-        .allowsHitTesting(controller.isPlaying)
-    }
-
-    @ViewBuilder
-    private func flyingToken(token: RevealContentToken, sample: RevealSample) -> some View {
-        let axis = rotationAxis(for: sample.rotationStrategy)
-        RevealTokenView(token: token, opening: capsuleOpening(sample))
-            .frame(width: token.visualSize.width, height: token.visualSize.height)
-            .scaleEffect(sample.content.scale)
-            .rotationEffect(.degrees(sample.content.rotationZ))
-            .rotation3DEffect(
-                .degrees(sample.content.rotationY),
-                axis: axis,
-                perspective: 0.62
-            )
-            .shadow(
-                color: token.type.kind.tint.opacity(Double(0.22 * sample.content.glow * sample.content.opacity)),
-                radius: 10 + 16 * Double(sample.content.glow)
-            )
-            .opacity(sample.content.opacity)
-            .position(sample.content.position)
-            .allowsHitTesting(false)
-    }
-
-    private func capsuleOpening(_ sample: RevealSample) -> CGFloat {
-        switch sample.stage {
-        case .focusPause, .collapse, .revealCard, .complete: return 1
-        default: return 0
-        }
-    }
-
-    @ViewBuilder
-    private func containerForeground(for type: ContentTokenType) -> some View {
-        switch type {
-        case .star:
-            Image("StarJar_Body")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-        case .paperBall:
-            TrashBinForegroundLayer()
-        case .capsule:
-            CapsuleJarForeground()
-        }
-    }
-
-    private func rotationAxis(for strategy: RotationStrategy) -> (x: CGFloat, y: CGFloat, z: CGFloat) {
-        switch strategy {
-        case let .axis3D(x, y, z):
-            return (CGFloat(x), CGFloat(y), CGFloat(z))
-        case .none, .zAxis2D:
-            return (0, 1, 0)
-        }
-    }
-}
-
-struct RevealTokenView: View {
-    let token: RevealContentToken
-    var opening: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        switch token.type {
-        case .star:
-            if let imageName = token.imageName {
-                Image(imageName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-            } else {
-                ParametricTokenView(kind: .star, seed: token.seed, filled: true)
-            }
-        case .capsule:
-            CapsuleTokenView(opening: opening)
-                .animation(reduceMotion ? nil : AppMotion.settle, value: opening)
-        case .paperBall:
-            if let imageName = token.imageName {
-                Image(imageName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-            } else {
-                ParametricTokenView(kind: .paper, seed: token.seed, filled: true)
-            }
-        }
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, onDismiss)
+        .transaction { $0.animation = nil }
     }
 }
 
@@ -216,7 +95,7 @@ struct RevealNoteCard: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 28)
                     }
-                    .buttonStyle(SoftScaleButtonStyle())
+                    .buttonStyle(.plain)
                 }
                 .padding(.leading, writing.minX)
                 .padding(.trailing, proxy.size.width - writing.maxX)
@@ -231,7 +110,7 @@ struct RevealNoteCard: View {
                         .background(Color.white.opacity(0.52))
                         .clipShape(Circle())
                 }
-                .buttonStyle(SoftScaleButtonStyle())
+                .buttonStyle(.plain)
                 .frame(width: 44, height: 44)
                 .position(
                     x: proxy.size.width * 0.76 + 30,
