@@ -198,61 +198,146 @@ enum LocalPreview {
     ) -> Bool {
         guard data.isLocalPreview else { return false }
         guard let firstImage = attachments.images.first else { return false }
-        let remainingImages = Array(attachments.images.dropFirst())
+        let images = attachments.images
+        let firstVideo = attachments.videos.first
+        let secondVideo = attachments.videos.count > 1 ? attachments.videos[1] : attachments.videos.first
+        let audio = attachments.audio
         let now = Date()
-        let imageDate = Date(timeIntervalSince1970: 1_704_067_200)
-        let audioDate = imageDate.addingTimeInterval(60)
-        let demos = [
-            SecretItem(
-                id: UUID(uuidString: "56A0C0DE-0001-4000-8000-000000000001")!,
-                kind: .capsule,
-                authorID: currentUserID,
-                text: "下班路上拍的，想问问你觉得怎么样。",
-                createdAt: now.addingTimeInterval(-240),
-                updatedAt: now.addingTimeInterval(-240),
-                attachment: firstImage,
-                additionalAttachments: remainingImages
-            ),
-            SecretItem(
-                id: UUID(uuidString: "56A0C0DE-0002-4000-8000-000000000002")!,
-                kind: .capsule,
-                authorID: currentUserID,
-                text: "有件事想跟你说，我录下来了。",
-                createdAt: now.addingTimeInterval(-120),
-                updatedAt: now.addingTimeInterval(-120),
-                attachment: attachments.audio
-            ),
-            SecretItem(
-                id: UUID(uuidString: "56A0C0DE-0003-4000-8000-000000000003")!,
-                kind: .capsule,
-                authorID: counterpartID,
-                text: "今天在窗边拍的，你看看。",
-                createdAt: imageDate,
-                updatedAt: imageDate,
-                attachment: firstImage,
-                additionalAttachments: remainingImages
-            ),
-            SecretItem(
-                id: UUID(uuidString: "56A0C0DE-0004-4000-8000-000000000004")!,
-                kind: .capsule,
-                authorID: counterpartID,
-                text: "我录了一段话，有空听一下。",
-                createdAt: audioDate,
-                updatedAt: audioDate,
-                attachment: attachments.audio
+
+        func minutesAgo(_ minutes: Double) -> Date { now.addingTimeInterval(-minutes * 60) }
+
+        func demo(
+            index: Int,
+            kind: ContainerKind,
+            author: String,
+            text: String,
+            minutesAgo minutes: Double,
+            attachment: AttachmentMetadata?,
+            additional: [AttachmentMetadata] = [],
+            openedByCurrentUser: Bool = false
+        ) -> SecretItem {
+            let date = minutesAgo(minutes)
+            let openedAt = openedByCurrentUser ? date.addingTimeInterval(1_800) : nil
+            return SecretItem(
+                id: UUID(uuidString: String(format: "56A0C0DE-%04d-4000-8000-000000000%03d", index, index))!,
+                kind: kind,
+                authorID: author,
+                text: text,
+                createdAt: date,
+                updatedAt: date,
+                openedByID: openedByCurrentUser ? currentUserID : nil,
+                openedAt: openedAt,
+                attachment: attachment,
+                additionalAttachments: additional.isEmpty ? nil : additional
             )
-        ]
+        }
+
+        let demos: [SecretItem] = [
+            // 文字 + 多张照片
+            demo(
+                index: 1, kind: .capsule, author: currentUserID,
+                text: "下班路上拍的，想问问你觉得怎么样。",
+                minutesAgo: 240, attachment: firstImage, additional: Array(images.dropFirst())
+            ),
+            // 只有语音
+            demo(
+                index: 2, kind: .capsule, author: currentUserID,
+                text: "", minutesAgo: 180, attachment: audio
+            ),
+            // 文字 + 两张照片
+            demo(
+                index: 3, kind: .capsule, author: counterpartID,
+                text: "今天在窗边拍的，你看看。",
+                minutesAgo: 150, attachment: firstImage, additional: Array(images.dropFirst().prefix(1))
+            ),
+            // 语音 + 视频
+            demo(
+                index: 4, kind: .capsule, author: counterpartID,
+                text: "", minutesAgo: 120, attachment: audio,
+                additional: [firstVideo].compactMap { $0 }
+            ),
+            // 文字 + 照片 + 视频
+            demo(
+                index: 5, kind: .capsule, author: currentUserID,
+                text: "周末想去的地方，我拍了一段。",
+                minutesAgo: 90, attachment: firstImage,
+                additional: Array(images.dropFirst().prefix(1)) + [firstVideo].compactMap { $0 }
+            ),
+            // 只有照片和视频，没有文字
+            demo(
+                index: 6, kind: .capsule, author: counterpartID,
+                text: "", minutesAgo: 70, attachment: firstImage,
+                additional: [firstVideo].compactMap { $0 }
+            ),
+            // 文字 + 一张照片
+            demo(
+                index: 7, kind: .star, author: counterpartID,
+                text: "谢谢你今天来接我，路上看到的花顺便拍了下来。",
+                minutesAgo: 60, attachment: images.count > 1 ? images[1] : firstImage
+            ),
+            // 语音 + 照片 + 视频
+            demo(
+                index: 8, kind: .star, author: currentUserID,
+                text: "", minutesAgo: 45, attachment: audio,
+                additional: Array(images.prefix(2)) + [secondVideo ?? firstVideo].compactMap { $0 }
+            ),
+            // 语音，已被对方打开
+            demo(
+                index: 9, kind: .star, author: counterpartID,
+                text: "", minutesAgo: 30, attachment: audio, openedByCurrentUser: true
+            ),
+            // 文字 + 视频
+            demo(
+                index: 10, kind: .star, author: currentUserID,
+                text: "今天你笑起来的样子，我偷偷录了一段。",
+                minutesAgo: 25, attachment: firstVideo
+            ),
+            // 只有一张照片
+            demo(
+                index: 14, kind: .star, author: counterpartID,
+                text: "", minutesAgo: 20,
+                attachment: images.count > 2 ? images[2] : firstImage
+            ),
+            // 只有视频
+            demo(
+                index: 15, kind: .star, author: currentUserID,
+                text: "", minutesAgo: 12, attachment: secondVideo ?? firstVideo
+            ),
+            // 文字 + 一张照片
+            demo(
+                index: 11, kind: .paper, author: currentUserID,
+                text: "刚才那句话让我有点难受，我把当时的画面留下来了。",
+                minutesAgo: 100, attachment: images.count > 1 ? images[1] : firstImage
+            ),
+            // 只有语音
+            demo(
+                index: 12, kind: .paper, author: counterpartID,
+                text: "", minutesAgo: 40, attachment: audio
+            ),
+            // 文字 + 视频
+            demo(
+                index: 13, kind: .paper, author: currentUserID,
+                text: "我不知道怎么说，你看看这个。",
+                minutesAgo: 15, attachment: firstVideo
+            )
+        ].filter(\.hasContent)
 
         var changed = false
         for demo in demos {
             if var existing = data.items[demo.recordName] {
-                if existing.attachment != demo.attachment
-                    || existing.additionalAttachments != demo.additionalAttachments {
-                    existing.attachment = demo.attachment
-                    existing.additionalAttachments = demo.additionalAttachments
-                    data.items[demo.recordName] = existing
-                    changed = true
-                }
+                let presentationChanged = existing.kind != demo.kind
+                    || existing.authorID != demo.authorID
+                    || existing.text != demo.text
+                    || existing.attachment != demo.attachment
+                    || existing.additionalAttachments != demo.additionalAttachments
+                guard presentationChanged else { continue }
+                existing.kind = demo.kind
+                existing.authorID = demo.authorID
+                existing.text = demo.text
+                existing.attachment = demo.attachment
+                existing.additionalAttachments = demo.additionalAttachments
+                data.items[demo.recordName] = existing
+                changed = true
             } else {
                 data.items[demo.recordName] = demo
                 changed = true
