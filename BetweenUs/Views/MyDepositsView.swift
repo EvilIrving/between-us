@@ -250,23 +250,31 @@ private struct DrawerItemCard: View {
                         .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(2)
                 }
-
-                Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
             }
-
-            Spacer(minLength: 10)
-
+            // 给右侧状态圆点留出宽度，正文和它不会互相压住。
+            .padding(.trailing, 23)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 15)
+        .padding(.top, 14)
+        // 纯媒体内容没有正文行，日期直接落进右下角；有正文时才为它留出一行。
+        .padding(.bottom, itemText == nil ? 14 : 33)
+        .overlay(alignment: .bottomTrailing) {
+            Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+                .padding(.trailing, 15)
+                .padding(.bottom, 12)
+        }
+        .overlay(alignment: .trailing) {
             // 状态只保留圆点：文案表达留待后续用别的方式呈现。
             Circle()
                 .fill(statusIsActive ? item.kind.tint.opacity(0.78) : AppTheme.secondaryText.opacity(0.16))
                 .frame(width: 9, height: 9)
                 .shadow(color: statusIsActive ? item.kind.tint.opacity(0.34) : .clear, radius: 5)
                 .accessibilityLabel(statusText)
+                .padding(.trailing, 15)
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 14)
         .background(AppTheme.paper.opacity(0.78))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
