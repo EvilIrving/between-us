@@ -1,0 +1,50 @@
+[
+  {
+    "path": "Assets.xcassets/Capsule_Closed.imageset/Capsule_Closed.png",
+    "pixels": [
+      512,
+      512
+    ],
+    "sha256": "1e312faeaa60234c7e00273be622bab8cef8354f18616787949ee8edc0ce79e1"
+  },
+  {
+    "path": "Assets.xcassets/Capsule_Open_04.imageset/Capsule_Open_04.png",
+    "pixels": [
+      724,
+      724
+    ],
+    "sha256": "210fcf4024da450f61367ed4918806510c3ac92cf16335b5bc2e8225eb15abd2"
+  },
+  {
+    "path": "Assets.xcassets/PaperBall_10.imageset/PaperBall_10.png",
+    "pixels": [
+      256,
+      256
+    ],
+    "sha256": "c0c8c6db0a61faa5d82a55f07d19c17fa410fbcddcb30670583035f92fb01bb3"
+  },
+  {
+    "path": "Assets.xcassets/PaperBin_Body.imageset/PaperBin_Body.png",
+    "pixels": [
+      724,
+      724
+    ],
+    "sha256": "d4718fe886e71e9788717f0d339b8a3f8f41b61e2eda3a15e13186270ae07389"
+  },
+  {
+    "path": "Assets.xcassets/StarCharm_Gift_Love.imageset/StarCharm_Gift_Love.png",
+    "pixels": [
+      256,
+      256
+    ],
+    "sha256": "2555f19a74a46d6b36e462d717dbe2fe6660414835cc722ef6425940c164dd5c"
+  },
+  {
+    "path": "Assets.xcassets/StarJar_Body.imageset/StarJar_Body.png",
+    "pixels": [
+      724,
+      724
+    ],
+    "sha256": "aeda558543bc90f3e16e7a3125361478186bdd2b4f51b88adbb22b63d427183e"
+  }
+]

@@ -1,0 +1,67 @@
+Test Suite 'All tests' started at 2026-09-17 10:26:50.232
+Test Suite 'debug.xctest' started at 2026-09-17 10:26:50.233
+Test Suite 'PhysicsCoreTests' started at 2026-09-17 10:26:50.233
+Test Case 'PhysicsCoreTests.testAllConvexPiecesWithinVertexLimit' started at 2026-09-17 10:26:50.233
+Test Case 'PhysicsCoreTests.testAllConvexPiecesWithinVertexLimit' passed (0.002 seconds)
+Test Case 'PhysicsCoreTests.testAllRecipesValidate' started at 2026-09-17 10:26:50.235
+Test Case 'PhysicsCoreTests.testAllRecipesValidate' passed (0.101 seconds)
+Test Case 'PhysicsCoreTests.testCapsuleHasThreeNonoverlappingConvexPieces' started at 2026-09-17 10:26:50.336
+Test Case 'PhysicsCoreTests.testCapsuleHasThreeNonoverlappingConvexPieces' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testCatalogRoundTrip' started at 2026-09-17 10:26:50.336
+Test Case 'PhysicsCoreTests.testCatalogRoundTrip' passed (0.105 seconds)
+Test Case 'PhysicsCoreTests.testClearResetsBothStates' started at 2026-09-17 10:26:50.441
+Test Case 'PhysicsCoreTests.testClearResetsBothStates' passed (0.001 seconds)
+Test Case 'PhysicsCoreTests.testCoordinateRoundTrip' started at 2026-09-17 10:26:50.441
+Test Case 'PhysicsCoreTests.testCoordinateRoundTrip' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testDetachFreesOnlyRequestedIdentity' started at 2026-09-17 10:26:50.442
+Test Case 'PhysicsCoreTests.testDetachFreesOnlyRequestedIdentity' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testDifferentEntitySkinRejected' started at 2026-09-17 10:26:50.442
+Test Case 'PhysicsCoreTests.testDifferentEntitySkinRejected' passed (0.1 seconds)
+Test Case 'PhysicsCoreTests.testNonuniformScaleRejected' started at 2026-09-17 10:26:50.542
+Test Case 'PhysicsCoreTests.testNonuniformScaleRejected' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testOriginalStarGeometryAndMaterialUnchanged' started at 2026-09-17 10:26:50.543
+Test Case 'PhysicsCoreTests.testOriginalStarGeometryAndMaterialUnchanged' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testQueueCapacityIncludesWaiting' started at 2026-09-17 10:26:50.543
+Test Case 'PhysicsCoreTests.testQueueCapacityIncludesWaiting' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testQueueDeduplicatesBothStates' started at 2026-09-17 10:26:50.543
+Test Case 'PhysicsCoreTests.testQueueDeduplicatesBothStates' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testRecoveryRetainsIdentityAndCapacity' started at 2026-09-17 10:26:50.543
+Test Case 'PhysicsCoreTests.testRecoveryRetainsIdentityAndCapacity' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotJSONRoundTrip' started at 2026-09-17 10:26:50.543
+Test Case 'PhysicsCoreTests.testSnapshotJSONRoundTrip' passed (0.001 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsDifferentGeometryVersion' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsDifferentGeometryVersion' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsDuplicateIDs' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsDuplicateIDs' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsNonfiniteMotion' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsNonfiniteMotion' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsOtherRecipe' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsOtherRecipe' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsOutOfScenePlacement' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsOutOfScenePlacement' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testSnapshotRejectsUnknownSkin' started at 2026-09-17 10:26:50.544
+Test Case 'PhysicsCoreTests.testSnapshotRejectsUnknownSkin' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testStarSkinsCanShareOneGeometry' started at 2026-09-17 10:26:50.545
+Test Case 'PhysicsCoreTests.testStarSkinsCanShareOneGeometry' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testTokenAnchorMapsReferenceCenterToOrigin' started at 2026-09-17 10:26:50.545
+Test Case 'PhysicsCoreTests.testTokenAnchorMapsReferenceCenterToOrigin' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testTransparentArtworkDoesNotChangeCollisionConfiguration' started at 2026-09-17 10:26:50.545
+Test Case 'PhysicsCoreTests.testTransparentArtworkDoesNotChangeCollisionConfiguration' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testWallChainDoesNotSelfIntersect' started at 2026-09-17 10:26:50.545
+Test Case 'PhysicsCoreTests.testWallChainDoesNotSelfIntersect' passed (0.0 seconds)
+Test Case 'PhysicsCoreTests.testWallsAreOpenAndExtendToRealInteriorBottom' started at 2026-09-17 10:26:50.545
+Test Case 'PhysicsCoreTests.testWallsAreOpenAndExtendToRealInteriorBottom' passed (0.0 seconds)
+Test Suite 'PhysicsCoreTests' passed at 2026-09-17 10:26:50.545
+	 Executed 25 tests, with 0 failures (0 unexpected) in 0.312 (0.312) seconds
+Test Suite 'debug.xctest' passed at 2026-09-17 10:26:50.545
+	 Executed 25 tests, with 0 failures (0 unexpected) in 0.312 (0.312) seconds
+Test Suite 'All tests' passed at 2026-09-17 10:26:50.545
+	 Executed 25 tests, with 0 failures (0 unexpected) in 0.312 (0.312) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.2.1 (c9d57c83568b06d)
+↳ Target Platform: x86_64-unknown-linux-gnu
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+[0/1] Planning build
+Building for debugging...
+[0/4] Write swift-version--1BA0962812E73E12.txt
+Build complete! (0.11s)

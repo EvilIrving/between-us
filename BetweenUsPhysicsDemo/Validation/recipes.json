@@ -1,0 +1,1158 @@
+[
+  {
+    "container" : {
+      "entityDepth" : 10,
+      "id" : "glass-jar",
+      "innerWall" : [
+        [
+          238,
+          155
+        ],
+        [
+          237,
+          180
+        ],
+        [
+          239,
+          211
+        ],
+        [
+          232,
+          229
+        ],
+        [
+          215,
+          249
+        ],
+        [
+          201,
+          272
+        ],
+        [
+          192,
+          303
+        ],
+        [
+          189,
+          344
+        ],
+        [
+          189,
+          566
+        ],
+        [
+          192,
+          608
+        ],
+        [
+          201,
+          637
+        ],
+        [
+          219,
+          656
+        ],
+        [
+          247,
+          670
+        ],
+        [
+          283,
+          679
+        ],
+        [
+          323,
+          683
+        ],
+        [
+          366,
+          684
+        ],
+        [
+          409,
+          683
+        ],
+        [
+          451,
+          677
+        ],
+        [
+          486,
+          667
+        ],
+        [
+          513,
+          651
+        ],
+        [
+          530,
+          630
+        ],
+        [
+          538,
+          602
+        ],
+        [
+          541,
+          563
+        ],
+        [
+          541,
+          342
+        ],
+        [
+          536,
+          302
+        ],
+        [
+          525,
+          273
+        ],
+        [
+          509,
+          249
+        ],
+        [
+          493,
+          230
+        ],
+        [
+          487,
+          213
+        ],
+        [
+          491,
+          181
+        ],
+        [
+          493,
+          155
+        ]
+      ],
+      "layers" : [
+        {
+          "asset" : "StarJar_Body",
+          "blocksHitTesting" : false,
+          "depth" : 0,
+          "isForeground" : false,
+          "opacity" : 1
+        },
+        {
+          "asset" : "StarJar_Body",
+          "blocksHitTesting" : false,
+          "depth" : 20,
+          "isForeground" : true,
+          "opacity" : 0.1
+        },
+        {
+          "asset" : "StarJar_Body",
+          "blocksHitTesting" : false,
+          "depth" : 30,
+          "isForeground" : true,
+          "mask" : {
+            "commands" : [
+              {
+                "move" : {
+                  "_0" : [
+                    224,
+                    153
+                  ]
+                }
+              },
+              {
+                "cubic" : {
+                  "control1" : [
+                    263,
+                    184
+                  ],
+                  "control2" : [
+                    465,
+                    184
+                  ],
+                  "to" : [
+                    506,
+                    153
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    520,
+                    185
+                  ]
+                }
+              },
+              {
+                "quad" : {
+                  "control" : [
+                    530,
+                    205
+                  ],
+                  "to" : [
+                    499,
+                    217
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    493,
+                    237
+                  ]
+                }
+              },
+              {
+                "quad" : {
+                  "control" : [
+                    367,
+                    252
+                  ],
+                  "to" : [
+                    239,
+                    237
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    231,
+                    216
+                  ]
+                }
+              },
+              {
+                "quad" : {
+                  "control" : [
+                    204,
+                    202
+                  ],
+                  "to" : [
+                    215,
+                    183
+                  ]
+                }
+              },
+              {
+                "close" : {
+
+                }
+              }
+            ]
+          },
+          "opacity" : 1
+        }
+      ],
+      "mapping" : {
+        "origin" : [
+          -112,
+          0
+        ],
+        "scale" : 1,
+        "sceneSize" : [
+          500,
+          724
+        ],
+        "sourceSize" : [
+          724,
+          724
+        ]
+      },
+      "mouth" : [
+        [
+          238,
+          155
+        ],
+        [
+          493,
+          155
+        ]
+      ],
+      "wallFriction" : 0.5,
+      "wallRestitution" : 0.08
+    },
+    "entity" : {
+      "geometry" : {
+        "displaySize" : [
+          108,
+          108
+        ],
+        "pieces" : [
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  85,
+                  90
+                ],
+                [
+                  168,
+                  75
+                ],
+                [
+                  204,
+                  137
+                ],
+                [
+                  146,
+                  196
+                ],
+                [
+                  74,
+                  169
+                ]
+              ]
+            }
+          },
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  85,
+                  90
+                ],
+                [
+                  101,
+                  44
+                ],
+                [
+                  114,
+                  33
+                ],
+                [
+                  131,
+                  36
+                ],
+                [
+                  168,
+                  75
+                ]
+              ]
+            }
+          },
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  168,
+                  75
+                ],
+                [
+                  218,
+                  73
+                ],
+                [
+                  231,
+                  79
+                ],
+                [
+                  233,
+                  93
+                ],
+                [
+                  204,
+                  137
+                ]
+              ]
+            }
+          },
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  204,
+                  137
+                ],
+                [
+                  219,
+                  187
+                ],
+                [
+                  218,
+                  198
+                ],
+                [
+                  209,
+                  205
+                ],
+                [
+                  146,
+                  196
+                ]
+              ]
+            }
+          },
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  146,
+                  196
+                ],
+                [
+                  105,
+                  226
+                ],
+                [
+                  80,
+                  226
+                ],
+                [
+                  76,
+                  214
+                ],
+                [
+                  74,
+                  169
+                ]
+              ]
+            }
+          },
+          {
+            "convexPolygon" : {
+              "_0" : [
+                [
+                  74,
+                  169
+                ],
+                [
+                  34,
+                  143
+                ],
+                [
+                  26,
+                  133
+                ],
+                [
+                  27,
+                  122
+                ],
+                [
+                  33,
+                  116
+                ],
+                [
+                  85,
+                  90
+                ]
+              ]
+            }
+          }
+        ],
+        "referenceFrame" : [
+          [
+            0,
+            0
+          ],
+          [
+            256,
+            256
+          ]
+        ]
+      },
+      "id" : "rounded-star",
+      "material" : {
+        "allowsRotation" : true,
+        "angularDamping" : 0.35,
+        "friction" : 0.55,
+        "linearDamping" : 0.22,
+        "mass" : 0.03,
+        "preciseCollisions" : true,
+        "restitution" : 0.12
+      }
+    },
+    "geometryVersion" : 1,
+    "id" : "star-jar",
+    "policy" : {
+      "capacity" : 10,
+      "drag" : {
+        "maximumHandleSpeed" : 480,
+        "maximumStretch" : 36,
+        "springDamping" : 0.85,
+        "springFrequency" : 5,
+        "tapDistance" : 8,
+        "tapDuration" : 0.3
+      },
+      "gravity" : [
+        0,
+        -2.4
+      ],
+      "initialCount" : 8,
+      "maximumAngularSpeed" : 7,
+      "maximumLinearSpeed" : 550,
+      "recoveryMargin" : 160,
+      "spawn" : {
+        "blockedNoticeDelay" : 2,
+        "center" : [
+          250,
+          662
+        ],
+        "clearanceHalfSize" : [
+          82,
+          82
+        ],
+        "initialRotation" : [
+          -0.4,
+          0.4
+        ],
+        "initialVelocityX" : [
+          -12,
+          12
+        ],
+        "initialVelocityY" : [
+          0,
+          0
+        ],
+        "interval" : 0.65,
+        "jitterX" : 45
+      }
+    },
+    "skins" : [
+      {
+        "asset" : "StarCharm_Gift_Love",
+        "contentRect" : [
+          [
+            0,
+            0
+          ],
+          [
+            256,
+            256
+          ]
+        ],
+        "entityID" : "rounded-star",
+        "id" : "star-gift-love",
+        "sourceSize" : [
+          256,
+          256
+        ]
+      }
+    ],
+    "title" : "星星瓶"
+  },
+  {
+    "container" : {
+      "entityDepth" : 10,
+      "id" : "open-keepsake-box",
+      "innerWall" : [
+        [
+          68,
+          365
+        ],
+        [
+          65,
+          397
+        ],
+        [
+          66,
+          470
+        ],
+        [
+          70,
+          550
+        ],
+        [
+          77,
+          574
+        ],
+        [
+          96,
+          586
+        ],
+        [
+          144,
+          594
+        ],
+        [
+          260,
+          609
+        ],
+        [
+          375,
+          624
+        ],
+        [
+          441,
+          632
+        ],
+        [
+          461,
+          630
+        ],
+        [
+          482,
+          619
+        ],
+        [
+          552,
+          576
+        ],
+        [
+          600,
+          544
+        ],
+        [
+          612,
+          528
+        ],
+        [
+          620,
+          503
+        ],
+        [
+          623,
+          420
+        ],
+        [
+          623,
+          329
+        ]
+      ],
+      "layers" : [
+        {
+          "asset" : "Capsule_Open_04",
+          "blocksHitTesting" : false,
+          "depth" : 0,
+          "isForeground" : false,
+          "opacity" : 1
+        },
+        {
+          "asset" : "Capsule_Open_04",
+          "blocksHitTesting" : true,
+          "depth" : 30,
+          "isForeground" : true,
+          "mask" : {
+            "commands" : [
+              {
+                "move" : {
+                  "_0" : [
+                    0,
+                    374
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    43,
+                    374
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    496,
+                    413
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    650,
+                    324
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    724,
+                    324
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    724,
+                    724
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    0,
+                    724
+                  ]
+                }
+              },
+              {
+                "close" : {
+
+                }
+              }
+            ]
+          },
+          "opacity" : 1
+        }
+      ],
+      "mapping" : {
+        "origin" : [
+          -12,
+          0
+        ],
+        "scale" : 1,
+        "sceneSize" : [
+          700,
+          800
+        ],
+        "sourceSize" : [
+          724,
+          724
+        ]
+      },
+      "mouth" : [
+        [
+          68,
+          365
+        ],
+        [
+          216,
+          299
+        ],
+        [
+          623,
+          329
+        ],
+        [
+          495,
+          410
+        ]
+      ],
+      "wallFriction" : 0.48,
+      "wallRestitution" : 0.06
+    },
+    "entity" : {
+      "geometry" : {
+        "displaySize" : [
+          38,
+          111.34
+        ],
+        "pieces" : [
+          {
+            "capsule" : {
+              "frame" : [
+                [
+                  218,
+                  114
+                ],
+                [
+                  86,
+                  274
+                ]
+              ]
+            }
+          }
+        ],
+        "referenceFrame" : [
+          [
+            212,
+            104
+          ],
+          [
+            100,
+            293
+          ]
+        ]
+      },
+      "id" : "capsule",
+      "material" : {
+        "allowsRotation" : true,
+        "angularDamping" : 0.28,
+        "friction" : 0.4,
+        "linearDamping" : 0.24,
+        "mass" : 0.022,
+        "preciseCollisions" : true,
+        "restitution" : 0.08
+      }
+    },
+    "geometryVersion" : 1,
+    "id" : "capsule-box",
+    "policy" : {
+      "capacity" : 10,
+      "drag" : {
+        "maximumHandleSpeed" : 440,
+        "maximumStretch" : 32,
+        "springDamping" : 0.88,
+        "springFrequency" : 5,
+        "tapDistance" : 8,
+        "tapDuration" : 0.3
+      },
+      "gravity" : [
+        0,
+        -2.4
+      ],
+      "initialCount" : 8,
+      "maximumAngularSpeed" : 8,
+      "maximumLinearSpeed" : 520,
+      "recoveryMargin" : 160,
+      "spawn" : {
+        "blockedNoticeDelay" : 2,
+        "center" : [
+          333,
+          522
+        ],
+        "clearanceHalfSize" : [
+          76,
+          95
+        ],
+        "initialRotation" : [
+          -0.65,
+          0.65
+        ],
+        "initialVelocityX" : [
+          -15,
+          15
+        ],
+        "initialVelocityY" : [
+          0,
+          0
+        ],
+        "interval" : 0.75,
+        "jitterX" : 82
+      }
+    },
+    "skins" : [
+      {
+        "asset" : "Capsule_Closed",
+        "contentRect" : [
+          [
+            212,
+            104
+          ],
+          [
+            100,
+            293
+          ]
+        ],
+        "entityID" : "capsule",
+        "id" : "capsule-red-green",
+        "sourceSize" : [
+          512,
+          512
+        ]
+      }
+    ],
+    "title" : "胶囊盒"
+  },
+  {
+    "container" : {
+      "entityDepth" : 10,
+      "id" : "red-paper-bin",
+      "innerWall" : [
+        [
+          166,
+          118
+        ],
+        [
+          170,
+          170
+        ],
+        [
+          179,
+          260
+        ],
+        [
+          190,
+          390
+        ],
+        [
+          202,
+          531
+        ],
+        [
+          212,
+          623
+        ],
+        [
+          219,
+          642
+        ],
+        [
+          232,
+          655
+        ],
+        [
+          269,
+          663
+        ],
+        [
+          333,
+          672
+        ],
+        [
+          402,
+          681
+        ],
+        [
+          435,
+          683
+        ],
+        [
+          455,
+          677
+        ],
+        [
+          482,
+          658
+        ],
+        [
+          505,
+          632
+        ],
+        [
+          516,
+          604
+        ],
+        [
+          528,
+          507
+        ],
+        [
+          542,
+          367
+        ],
+        [
+          552,
+          245
+        ],
+        [
+          560,
+          148
+        ],
+        [
+          562,
+          94
+        ]
+      ],
+      "layers" : [
+        {
+          "asset" : "PaperBin_Body",
+          "blocksHitTesting" : false,
+          "depth" : 0,
+          "isForeground" : false,
+          "opacity" : 1
+        },
+        {
+          "asset" : "PaperBin_Body",
+          "blocksHitTesting" : true,
+          "depth" : 30,
+          "isForeground" : true,
+          "mask" : {
+            "commands" : [
+              {
+                "move" : {
+                  "_0" : [
+                    0,
+                    118
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    128,
+                    118
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    477,
+                    141
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    604,
+                    80
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    724,
+                    80
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    724,
+                    724
+                  ]
+                }
+              },
+              {
+                "line" : {
+                  "_0" : [
+                    0,
+                    724
+                  ]
+                }
+              },
+              {
+                "close" : {
+
+                }
+              }
+            ]
+          },
+          "opacity" : 1
+        }
+      ],
+      "mapping" : {
+        "origin" : [
+          -80,
+          0
+        ],
+        "scale" : 1,
+        "sceneSize" : [
+          560,
+          860
+        ],
+        "sourceSize" : [
+          724,
+          724
+        ]
+      },
+      "mouth" : [
+        [
+          166,
+          111
+        ],
+        [
+          279,
+          72
+        ],
+        [
+          562,
+          91
+        ],
+        [
+          476,
+          136
+        ]
+      ],
+      "wallFriction" : 0.62,
+      "wallRestitution" : 0.06
+    },
+    "entity" : {
+      "geometry" : {
+        "displaySize" : [
+          88,
+          88
+        ],
+        "pieces" : [
+          {
+            "circle" : {
+              "center" : [
+                128,
+                129
+              ],
+              "radius" : 82
+            }
+          }
+        ],
+        "referenceFrame" : [
+          [
+            32,
+            32
+          ],
+          [
+            192,
+            192
+          ]
+        ]
+      },
+      "id" : "paper-ball",
+      "material" : {
+        "allowsRotation" : true,
+        "angularDamping" : 0.65,
+        "friction" : 0.74,
+        "linearDamping" : 0.38,
+        "mass" : 0.012,
+        "preciseCollisions" : true,
+        "restitution" : 0.08
+      }
+    },
+    "geometryVersion" : 1,
+    "id" : "paper-bin",
+    "policy" : {
+      "capacity" : 10,
+      "drag" : {
+        "maximumHandleSpeed" : 420,
+        "maximumStretch" : 32,
+        "springDamping" : 0.9,
+        "springFrequency" : 5,
+        "tapDistance" : 8,
+        "tapDuration" : 0.3
+      },
+      "gravity" : [
+        0,
+        -2.4
+      ],
+      "initialCount" : 8,
+      "maximumAngularSpeed" : 7,
+      "maximumLinearSpeed" : 500,
+      "recoveryMargin" : 160,
+      "spawn" : {
+        "blockedNoticeDelay" : 2,
+        "center" : [
+          275,
+          748
+        ],
+        "clearanceHalfSize" : [
+          70,
+          70
+        ],
+        "initialRotation" : [
+          -0.4,
+          0.4
+        ],
+        "initialVelocityX" : [
+          -12,
+          12
+        ],
+        "initialVelocityY" : [
+          0,
+          0
+        ],
+        "interval" : 0.6,
+        "jitterX" : 60
+      }
+    },
+    "skins" : [
+      {
+        "asset" : "PaperBall_10",
+        "contentRect" : [
+          [
+            32,
+            32
+          ],
+          [
+            192,
+            192
+          ]
+        ],
+        "entityID" : "paper-ball",
+        "id" : "paper-blue-sad",
+        "sourceSize" : [
+          256,
+          256
+        ]
+      }
+    ],
+    "title" : "纸团桶"
+  }
+]

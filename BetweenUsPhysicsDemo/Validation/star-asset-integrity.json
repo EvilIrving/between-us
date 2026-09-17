@@ -1,0 +1,14 @@
+[
+  {
+    "resource": "StarJar_Body",
+    "sha256": "aeda558543bc90f3e16e7a3125361478186bdd2b4f51b88adbb22b63d427183e",
+    "matches_uploaded_asset": true,
+    "matches_uploaded_resource_copy": true
+  },
+  {
+    "resource": "StarCharm_Gift_Love",
+    "sha256": "2555f19a74a46d6b36e462d717dbe2fe6660414835cc722ef6425940c164dd5c",
+    "matches_uploaded_asset": true,
+    "matches_uploaded_resource_copy": true
+  }
+]

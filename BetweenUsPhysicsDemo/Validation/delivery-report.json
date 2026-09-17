@@ -1,0 +1,28 @@
+{
+  "project": "BetweenUsPhysicsDemo",
+  "inputArchiveSHA256": "dfd3c9ae831873e4d193e9d2ac2785a05828606ef615a71b4a6e3c8a27856ed2",
+  "coreTests": {
+    "executed": true,
+    "count": 25,
+    "failed": 0,
+    "platform": "Linux / Swift 6.2.1"
+  },
+  "sourceParse": true,
+  "projectFormatCheck": true,
+  "projectFileReferencesComplete": true,
+  "starImageBytesPreserved": true,
+  "starGeometryPointsPreserved": true,
+  "recipeCount": 3,
+  "appleSDKBuild": "未执行",
+  "appleFrameworkTests": {
+    "attached": 5,
+    "executed": false
+  },
+  "deviceStackingAndRendering": "未执行；胶囊与纸团参数为初始标定",
+  "checks": {
+    "coreBuild": { "passed": true },
+    "coreTests": { "passed": true, "log": "core-tests.log" },
+    "sourceParse": { "passed": true },
+    "projectFormat": { "passed": true }
+  }
+}

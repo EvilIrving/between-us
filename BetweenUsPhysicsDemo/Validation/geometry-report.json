@@ -1,0 +1,257 @@
+[
+  {
+    "recipe": "star-jar",
+    "wall_points": 31,
+    "full_depth_pixels": 684,
+    "entity_geometry": {
+      "displaySize": [
+        108,
+        108
+      ],
+      "pieces": [
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                85,
+                90
+              ],
+              [
+                168,
+                75
+              ],
+              [
+                204,
+                137
+              ],
+              [
+                146,
+                196
+              ],
+              [
+                74,
+                169
+              ]
+            ]
+          }
+        },
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                85,
+                90
+              ],
+              [
+                101,
+                44
+              ],
+              [
+                114,
+                33
+              ],
+              [
+                131,
+                36
+              ],
+              [
+                168,
+                75
+              ]
+            ]
+          }
+        },
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                168,
+                75
+              ],
+              [
+                218,
+                73
+              ],
+              [
+                231,
+                79
+              ],
+              [
+                233,
+                93
+              ],
+              [
+                204,
+                137
+              ]
+            ]
+          }
+        },
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                204,
+                137
+              ],
+              [
+                219,
+                187
+              ],
+              [
+                218,
+                198
+              ],
+              [
+                209,
+                205
+              ],
+              [
+                146,
+                196
+              ]
+            ]
+          }
+        },
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                146,
+                196
+              ],
+              [
+                105,
+                226
+              ],
+              [
+                80,
+                226
+              ],
+              [
+                76,
+                214
+              ],
+              [
+                74,
+                169
+              ]
+            ]
+          }
+        },
+        {
+          "convexPolygon": {
+            "_0": [
+              [
+                74,
+                169
+              ],
+              [
+                34,
+                143
+              ],
+              [
+                26,
+                133
+              ],
+              [
+                27,
+                122
+              ],
+              [
+                33,
+                116
+              ],
+              [
+                85,
+                90
+              ]
+            ]
+          }
+        }
+      ],
+      "referenceFrame": [
+        [
+          0,
+          0
+        ],
+        [
+          256,
+          256
+        ]
+      ]
+    },
+    "runtime_physics_tested": false
+  },
+  {
+    "recipe": "capsule-box",
+    "wall_points": 18,
+    "full_depth_pixels": 632,
+    "entity_geometry": {
+      "displaySize": [
+        38,
+        111.34
+      ],
+      "pieces": [
+        {
+          "capsule": {
+            "frame": [
+              [
+                218,
+                114
+              ],
+              [
+                86,
+                274
+              ]
+            ]
+          }
+        }
+      ],
+      "referenceFrame": [
+        [
+          212,
+          104
+        ],
+        [
+          100,
+          293
+        ]
+      ]
+    },
+    "runtime_physics_tested": false
+  },
+  {
+    "recipe": "paper-bin",
+    "wall_points": 21,
+    "full_depth_pixels": 683,
+    "entity_geometry": {
+      "displaySize": [
+        88,
+        88
+      ],
+      "pieces": [
+        {
+          "circle": {
+            "center": [
+              128,
+              129
+            ],
+            "radius": 82
+          }
+        }
+      ],
+      "referenceFrame": [
+        [
+          32,
+          32
+        ],
+        [
+          192,
+          192
+        ]
+      ]
+    },
+    "runtime_physics_tested": false
+  }
+]
