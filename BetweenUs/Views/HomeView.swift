@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: BetweenUsStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var composeKind: ContainerKind?
     @State private var openedItem: SecretItem?
@@ -84,7 +85,7 @@ struct HomeView: View {
         VStack(spacing: HomeRoomMetrics.rowSpacing) {
             roomObject(kind: .star)
 
-            HStack(alignment: .top, spacing: HomeRoomMetrics.rowSpacing) {
+            HStack(alignment: .bottom, spacing: HomeRoomMetrics.rowSpacing) {
                 roomObject(kind: .capsule)
                 roomObject(kind: .paper)
             }
@@ -141,24 +142,32 @@ struct HomeView: View {
     }
 
     private func roomObject(kind: ContainerKind) -> some View {
-        Button {
-            openNext(kind)
-        } label: {
-            ContainerVisual(
-                kind: kind,
-                count: store.viewModel.data.count(kind: kind),
-                style: .room
-            )
-            .frame(maxWidth: HomeRoomMetrics.canvas)
-            .frame(height: HomeRoomMetrics.canvas)
-            .frame(maxWidth: .infinity)
-            .frame(height: HomeRoomMetrics.cellHeight, alignment: .top)
-            .contentShape(Rectangle())
+        // 房间里的物件就是真实内容的物理现场：点具体的一份内容直接打开它。
+        ContainerPhysicsStage(
+            kind: kind,
+            items: store.viewModel.data.allItems(kind: kind),
+            isPaused: scenePhase != .active || openedItem != nil,
+            onOpenItem: { open($0) },
+            onEmptyTap: { openNext(kind) }
+        )
+        .frame(maxWidth: kind == .star ? HomeRoomMetrics.starWidth : .infinity)
+    }
+
+    private func open(_ item: SecretItem) {
+        guard !isOpening, openedItem == nil else { return }
+        guard store.viewModel.data.isOpenableByMe(item) else {
+            RitualHaptics.warning()
+            return
         }
-        .buttonStyle(.plain)
-        .disabled(isOpening || openedItem != nil)
-        .accessibilityLabel(kind.title)
-        .accessibilityHint(kind.openActionTitle)
+        isOpening = true
+        Task { @MainActor in
+            defer { isOpening = false }
+            guard let opened = await store.commitOpen(item) else {
+                RitualHaptics.warning()
+                return
+            }
+            openedItem = opened
+        }
     }
 
     private func openNext(_ kind: ContainerKind) {
@@ -176,10 +185,9 @@ struct HomeView: View {
 }
 
 private enum HomeRoomMetrics {
-    static let canvas: CGFloat = 156 * 1.25
-    static let cellHeight: CGFloat = canvas
+    static let starWidth: CGFloat = 195
     static let rowSpacing: CGFloat = 28
-    static let topPadding: CGFloat = 94
+    static let topPadding: CGFloat = 16
 }
 
 private struct HomeCornerControl: View {

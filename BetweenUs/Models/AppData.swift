@@ -378,6 +378,14 @@ extension AppData {
         }
     }
 
+    // 房间里点中具体一份内容时的可打开判断，与顺序打开使用同一套条件。
+    func isOpenableByMe(_ item: SecretItem) -> Bool {
+        guard let current = items[item.recordName] else { return false }
+        return current.authorID != currentUserID
+            && current.openedAt == nil
+            && activeCredits(kind: current.kind) > 0
+    }
+
     func unopenedCountFromCounterpart(kind: ContainerKind) -> Int {
         unopenedFromCounterpart(kind: kind).count
     }

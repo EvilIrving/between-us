@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContainerRevealOverlay: View {
     let item: SecretItem
@@ -7,7 +8,7 @@ struct ContainerRevealOverlay: View {
 
     var body: some View {
         GeometryReader { canvas in
-            let cardWidth = min(max(canvas.size.width - 8, 300), 440)
+            let card = NotePaper.cardSize(for: item.id, in: canvas.size)
 
             ZStack {
                 Color.black.opacity(0.22)
@@ -16,7 +17,7 @@ struct ContainerRevealOverlay: View {
                     .accessibilityHidden(true)
 
                 RevealNoteCard(item: item, onDismiss: onDismiss, onRespond: onRespond)
-                    .frame(width: cardWidth, height: cardWidth * (1024.0 / 1536.0))
+                    .frame(width: card.width, height: card.height)
             }
             .frame(width: canvas.size.width, height: canvas.size.height)
         }
@@ -26,13 +27,30 @@ struct ContainerRevealOverlay: View {
     }
 }
 
-/// The six note papers are one family; a note keeps the same sheet on every open.
+/// 纸条纸面：一条内容永远用同一张纸，纸面尺寸只由这张纸自身决定。
+/// 运行时资产已按纸面边界裁掉透明留白，图片即纸面，右上角即纸面右上角。
 private enum NotePaper {
-    static let names = (1...6).map { "Note_Paper_0\($0)" }
+    static let names = ["Paper01", "Paper03", "Paper04", "Paper05", "Paper06"]
+
+    /// 纸面宽度占屏宽的比例，高度按纸面自身比例推导。
+    static let widthRatio: CGFloat = 0.8
+    /// 纵向兜底，纸面特别长时整体等比缩小，避免超出屏幕。
+    static let maxHeightRatio: CGFloat = 0.86
 
     static func name(for id: UUID) -> String {
         let bytes = withUnsafeBytes(of: id.uuid) { Array($0) }
         return names[Int(bytes[0] &+ bytes[1]) % names.count]
+    }
+
+    static func cardSize(for id: UUID, in canvas: CGSize) -> CGSize {
+        let width = canvas.width * widthRatio
+        guard let image = UIImage(named: name(for: id)), image.size.width > 0 else {
+            return CGSize(width: width, height: width)
+        }
+        let height = width * (image.size.height / image.size.width)
+        let limit = canvas.height * maxHeightRatio
+        guard height > limit else { return CGSize(width: width, height: height) }
+        return CGSize(width: width * (limit / height), height: limit)
     }
 }
 
@@ -88,20 +106,25 @@ struct RevealNoteCard: View {
 
                     Spacer(minLength: 0)
 
+                    // 用户明确要求：先隐藏回复入口的文字，入口本身保留（点击仍进入创作），
+                    // 之后会用别的形式重新露出，所以代码不删。
                     Button(action: onRespond) {
                         Text(item.kind.homeActionTitle)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(item.kind.tint)
                             .frame(maxWidth: .infinity)
                             .frame(height: 28)
+                            .opacity(0)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(item.kind.homeActionTitle)
                 }
                 .padding(.leading, writing.minX)
                 .padding(.trailing, proxy.size.width - writing.maxX)
                 .padding(.top, writing.minY)
                 .padding(.bottom, proxy.size.height - writing.maxY)
 
+                // 纸面尺寸不统一，关闭按钮统一落在纸面右上角。
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -112,10 +135,7 @@ struct RevealNoteCard: View {
                 }
                 .buttonStyle(.plain)
                 .frame(width: 44, height: 44)
-                .position(
-                    x: proxy.size.width * 0.76 + 30,
-                    y: proxy.size.height * 0.155
-                )
+                .position(x: proxy.size.width, y: 0)
                 .accessibilityLabel("关闭".localized)
             }
         }
@@ -123,17 +143,16 @@ struct RevealNoteCard: View {
     }
 
     private func writingRect(in size: CGSize) -> CGRect {
-        let width = size.width * 0.70 * (2.0 / 3.0)
+        let width = size.width * 0.76
         return CGRect(
             x: (size.width - width) / 2,
-            y: size.height * 0.29,
+            y: size.height * 0.26,
             width: width,
-            height: size.height * 0.55
+            height: size.height * 0.60
         )
     }
 
     private func contentBodyHeight(in size: CGSize) -> CGFloat {
-        // ~4 lines of 17pt text with line spacing, leaving respond lower on the note.
         min(max(size.height * 0.36, 112), writingRect(in: size).height - 36)
     }
 }

@@ -71,20 +71,11 @@ struct LifetimeUnlockView: View {
     }
 
     private var objectsShelf: some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(AppTheme.roomTable.opacity(0.20))
-                .frame(width: 256, height: 5)
-                .shadow(color: Color.black.opacity(0.07), radius: 7, y: 4)
-
-            HStack(alignment: .bottom, spacing: 22) {
-                RitualObjectGlyph(kind: .star, size: 78, filled: true)
-                RitualObjectGlyph(kind: .capsule, size: 78, filled: true)
-                RitualObjectGlyph(kind: .paper, size: 78, filled: true)
-            }
-            .padding(.bottom, 4)
+        HStack(alignment: .bottom, spacing: 22) {
+            RitualObjectGlyph(kind: .star, filled: true)
+            RitualObjectGlyph(kind: .capsule, filled: true)
+            RitualObjectGlyph(kind: .paper, filled: true)
         }
-        .frame(height: 88)
         .accessibilityHidden(true)
     }
 

@@ -76,7 +76,7 @@ struct MyDepositsView: View {
     private var filterTokens: some View {
         HStack(spacing: 8) {
             DrawerFilterToken(
-                title: "全部",
+                accessibilityTitle: "全部",
                 kind: nil,
                 systemImage: "circle.grid.3x3.fill",
                 tint: AppTheme.primaryText,
@@ -87,7 +87,7 @@ struct MyDepositsView: View {
 
             ForEach(ContainerKind.allCases) { kind in
                 DrawerFilterToken(
-                    title: shortTitle(for: kind),
+                    accessibilityTitle: kind.title,
                     kind: kind,
                     systemImage: nil,
                     tint: kind.tint,
@@ -105,14 +105,6 @@ struct MyDepositsView: View {
             return store.viewModel.data.ownItems(kind: selectedKind)
         case .openedFromOther:
             return store.viewModel.data.openedFromCounterpart(kind: selectedKind)
-        }
-    }
-
-    private func shortTitle(for kind: ContainerKind) -> String {
-        switch kind {
-        case .star: return "星星".localized
-        case .capsule: return "胶囊".localized
-        case .paper: return "纸团".localized
         }
     }
 
@@ -162,7 +154,7 @@ private struct DrawerSectionToken: View {
 }
 
 private struct DrawerFilterToken: View {
-    let title: String
+    let accessibilityTitle: String
     let kind: ContainerKind?
     let systemImage: String?
     let tint: Color
@@ -174,16 +166,14 @@ private struct DrawerFilterToken: View {
             RitualHaptics.selection()
             action()
         } label: {
-            VStack(spacing: 5) {
+            Group {
                 if let kind {
-                    RitualObjectGlyph(kind: kind, size: 28, filled: true)
+                    RitualObjectGlyph(kind: kind, filled: true)
                 } else if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(height: 28)
+                        .font(.system(size: 22, weight: .semibold))
+                        .frame(width: TokenIconMetrics.size, height: TokenIconMetrics.size)
                 }
-                Text(title.localized)
-                    .font(.caption2.weight(.semibold))
             }
             .foregroundStyle(isSelected ? tint : AppTheme.secondaryText.opacity(0.54))
             .frame(maxWidth: .infinity)
@@ -196,6 +186,7 @@ private struct DrawerFilterToken: View {
             }
         }
         .buttonStyle(SoftScaleButtonStyle())
+        .accessibilityLabel(accessibilityTitle.localized)
     }
 }
 
@@ -209,7 +200,7 @@ private struct EmptyDrawerView: View {
                     .fill(Color.white.opacity(0.30))
                     .frame(width: 124, height: 124)
                 if let kind {
-                    RitualObjectGlyph(kind: kind, size: 82, filled: false)
+                    RitualObjectGlyph(kind: kind, filled: false)
                 } else {
                     Image(systemName: "archivebox")
                         .font(.system(size: 38, weight: .light))
@@ -229,9 +220,7 @@ private struct DrawerItemCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            DrawerItemLeadingVisual(item: item)
-                .frame(width: 54, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            ContainerItemIcon(kind: item.kind, id: item.id)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 7) {
@@ -318,72 +307,6 @@ private struct DrawerItemCard: View {
     }
 }
 
-private struct DrawerItemLeadingVisual: View {
-    let item: SecretItem
-    private let mediaStore = MediaFileStore()
-
-    var body: some View {
-        let images = item.allAttachments.filter { $0.kind == .image }
-        if images.count > 1 {
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
-            LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(Array(images.prefix(9).enumerated()), id: \.offset) { _, attachment in
-                    if let image = UIImage(contentsOfFile: mediaStore.url(for: attachment).path) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .aspectRatio(1, contentMode: .fill)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        } else if let attachment = images.first,
-           let image = UIImage(contentsOfFile: mediaStore.url(for: attachment).path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.74), lineWidth: 1)
-                }
-        } else if item.allAttachments.contains(where: { $0.kind == .video }) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.black.opacity(0.08))
-                Image(systemName: "play.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
-                    .background(item.kind.tint.opacity(0.88))
-                    .clipShape(Circle())
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(item.kind.tint.opacity(0.16), lineWidth: 1)
-            }
-        } else if item.allAttachments.contains(where: { $0.kind == .audio }) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(item.kind.tint.opacity(0.11))
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.92))
-                    .frame(width: 22, height: 22)
-                    .background(item.kind.tint.opacity(0.88))
-                    .clipShape(Circle())
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(item.kind.tint.opacity(0.16), lineWidth: 1)
-            }
-        } else {
-            ContainerItemIcon(kind: item.kind)
-        }
-    }
-}
-
 private struct DrawerItemDetailView: View {
     let item: SecretItem
     let section: DrawerSection
@@ -405,7 +328,7 @@ private struct DrawerItemDetailView: View {
                             .foregroundStyle(section == .openedFromOther || item.openedAt != nil ? item.kind.tint : AppTheme.secondaryText)
                     }
 
-                    RevealObjectAnimationForDeposit(kind: item.kind)
+                    RevealObjectAnimationForDeposit(kind: item.kind, id: item.id)
                         .frame(height: 116)
 
                     VStack(spacing: 17) {
@@ -524,22 +447,19 @@ private struct DrawerItemDetailView: View {
 
 private struct RevealObjectAnimationForDeposit: View {
     let kind: ContainerKind
+    let id: UUID
 
     var body: some View {
-        ZStack {
-            AppTheme.glow(for: kind)
-                .frame(width: 190, height: 116)
-            RitualObjectGlyph(kind: kind, size: 92, filled: true)
-                .shadow(color: kind.tint.opacity(0.20), radius: 14)
-        }
-        .accessibilityHidden(true)
+        RitualObjectGlyph(kind: kind, filled: true, tokenID: id)
+            .accessibilityHidden(true)
     }
 }
 
 struct ContainerItemIcon: View {
     let kind: ContainerKind
+    var id: UUID? = nil
 
     var body: some View {
-        RitualObjectGlyph(kind: kind, size: 54, filled: true)
+        RitualObjectGlyph(kind: kind, filled: true, tokenID: id)
     }
 }
