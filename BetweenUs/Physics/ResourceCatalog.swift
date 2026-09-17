@@ -112,6 +112,7 @@ enum ResourceCatalog {
         policy:SimulationPolicy(
             gravity:.init(x:0,y:-2.4),capacity:10,initialCount:0,
             maximumLinearSpeed:550,maximumAngularSpeed:7,
+            contentCeilingPixel:254,
             spawn:SpawnPolicy(center:.init(x:250,y:662),jitterX:45,
                               initialRotation:-0.4...0.4,initialVelocityX:-12...12,
                               interval:0.65,clearanceHalfSize:.init(width:82,height:82)),
@@ -145,7 +146,7 @@ enum ResourceCatalog {
         entity:EntityProfile(
             id:"capsule",
             geometry:TokenGeometry(referenceFrame:.init(x:95,y:11,width:75,height:228),
-                                   displaySize:.init(width:36.62,height:111.34),
+                                   displaySize:.init(width:51.7,height:157.3),
                                    pieces:[.capsule(frame:.init(x:98,y:16,width:69,height:218))]),
             material:BodyMaterial(mass:0.022,friction:0.4,restitution:0.08,
                                   linearDamping:0.24,angularDamping:0.28)),
@@ -155,9 +156,10 @@ enum ResourceCatalog {
         policy:SimulationPolicy(
             gravity:.init(x:0,y:-2.4),capacity:10,initialCount:0,
             maximumLinearSpeed:520,maximumAngularSpeed:8,
+            contentCeilingPixel:320,
             spawn:SpawnPolicy(center:.init(x:333,y:522),jitterX:82,
                               initialRotation:-0.65...0.65,initialVelocityX:-15...15,
-                              interval:0.75,clearanceHalfSize:.init(width:76,height:95)),
+                              interval:0.75,clearanceHalfSize:.init(width:108,height:134)),
             drag:DragPolicy(springFrequency:5,springDamping:0.88,maximumStretch:32,maximumHandleSpeed:440)))
 
     static let paperBin = VesselRecipe(
@@ -187,7 +189,7 @@ enum ResourceCatalog {
         entity:EntityProfile(
             id:"paper-ball",
             geometry:TokenGeometry(referenceFrame:.init(x:32,y:32,width:192,height:192),
-                                   displaySize:.init(width:88,height:88),
+                                   displaySize:.init(width:142.5,height:142.5),
                                    pieces:[.circle(center:.init(x:128,y:129),radius:82)]),
             material:BodyMaterial(mass:0.012,friction:0.74,restitution:0.08,
                                   linearDamping:0.38,angularDamping:0.65)),
@@ -195,8 +197,9 @@ enum ResourceCatalog {
         policy:SimulationPolicy(
             gravity:.init(x:0,y:-2.4),capacity:10,initialCount:0,
             maximumLinearSpeed:500,maximumAngularSpeed:7,
+            contentCeilingPixel:88,
             spawn:SpawnPolicy(center:.init(x:275,y:748),jitterX:60,
                               initialRotation:-0.4...0.4,initialVelocityX:-12...12,
-                              interval:0.6,clearanceHalfSize:.init(width:70,height:70)),
+                              interval:0.6,clearanceHalfSize:.init(width:114,height:114)),
             drag:DragPolicy(springFrequency:5,springDamping:0.9,maximumStretch:32,maximumHandleSpeed:420)))
 }

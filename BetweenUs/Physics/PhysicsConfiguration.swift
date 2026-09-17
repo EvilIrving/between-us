@@ -126,6 +126,9 @@ struct SimulationPolicy: Codable, Equatable {
     var initialCount: Int
     var maximumLinearSpeed: CGFloat
     var maximumAngularSpeed: CGFloat
+    // 内容允许到达的最高一行素材像素：星星瓶停在颈圈以下，盒子和桶停在开口里侧。
+    // 用素材像素给出，与内壁和开口同一套标定，晃瓶时不会把东西顶出容器。
+    var contentCeilingPixel: CGFloat
     var recoveryMargin: CGFloat = 160
     var spawn: SpawnPolicy
     var drag: DragPolicy

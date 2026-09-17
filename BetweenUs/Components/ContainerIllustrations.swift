@@ -121,14 +121,15 @@ struct ContainerVisual: View {
     }
 }
 
-/// 物件身份挂件：和物理舞台取同一份皮肤和有效图框；高度固定为 `TokenIconMetrics.size`。
+/// 物件身份挂件：和物理舞台取同一份皮肤和有效图框；有效区高度为
+/// `TokenIconMetrics.size` 乘上该物件的画面系数。
 struct ContainerTokenImage: View {
     let kind: ContainerKind
     var id: UUID? = nil
 
     var body: some View {
         let skin = ResourceCatalog.tokenSkin(for: kind, id: id)
-        let height = TokenIconMetrics.size
+        let height = TokenIconMetrics.size * TokenIconMetrics.inkScale(for: kind)
         let scale = height / max(skin.contentRect.height, 1)
         Image(skin.asset)
             .resizable()

@@ -107,6 +107,16 @@ struct SoftScaleButtonStyle: ButtonStyle {
 /// 产品里所有情绪/物件身份挂件共用这一个名义尺寸，不允许各处再传大一点小一点。
 enum TokenIconMetrics {
     static let size: CGFloat = 54
+
+    /// 名义尺寸是挂件外框，不是画面尺寸。星星挂件的有效画面只占外框约八成，
+    /// 胶囊和纸团却把外框填满，所以这两件按同一个系数收回一点，三件视觉重量才齐。
+    static func inkScale(for kind: ContainerKind) -> CGFloat {
+        switch kind {
+        case .star: return 1
+        case .capsule: return 0.9
+        case .paper: return 0.9
+        }
+    }
 }
 
 struct RitualObjectGlyph: View {
