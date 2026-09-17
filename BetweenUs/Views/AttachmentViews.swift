@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -129,6 +130,11 @@ struct AttachmentCollectionView: View {
         let visualMedia = attachments.filter { $0.kind == .image || $0.kind == .video }
         let audioAttachments = attachments.filter { $0.kind == .audio }
         VStack(spacing: 10) {
+            // 录音排在最上面：它是这条内容的主表达，照片和视频跟在它后面。
+            ForEach(Array(audioAttachments.enumerated()), id: \.offset) { _, attachment in
+                AttachmentContentView(attachment: attachment, tint: tint, openMedia: nil)
+            }
+
             if visualMedia.count > 1 {
                 let columns = Array(
                     repeating: GridItem(.flexible(), spacing: 7),
@@ -151,10 +157,6 @@ struct AttachmentCollectionView: View {
                     tint: tint,
                     openMedia: { openMedia(at: 0) }
                 )
-            }
-
-            ForEach(Array(audioAttachments.enumerated()), id: \.offset) { _, attachment in
-                AttachmentContentView(attachment: attachment, tint: tint, openMedia: nil)
             }
         }
         .fullScreenCover(item: $mediaViewerRequest) { request in
@@ -350,7 +352,7 @@ private struct FullScreenMediaViewer: View {
 
                 Spacer()
 
-                if items.count > 1 {
+                if items.count > 1, !currentItemIsVideo {
                     Text("\(selectedIndex + 1) / \(items.count)")
                         .font(.caption.monospacedDigit().weight(.semibold))
                         .foregroundStyle(.white)
@@ -361,12 +363,13 @@ private struct FullScreenMediaViewer: View {
                         .padding(.bottom, 12)
                 }
             }
-            .opacity(controlsVisible ? 1 : 0)
-            .allowsHitTesting(controlsVisible)
+            .opacity((controlsVisible || currentItemIsVideo) ? 1 : 0)
+            .allowsHitTesting(controlsVisible || currentItemIsVideo)
         }
         .statusBarHidden(true)
         .presentationBackground(.clear)
         .simultaneousGesture(dismissGesture)
+        .onDisappear { PlaybackAudioSession.deactivate() }
         .onChange(of: selectedIndex) { _, _ in
             isCurrentImageZoomed = false
             withAnimation(.easeOut(duration: 0.16)) {
@@ -390,16 +393,16 @@ private struct FullScreenMediaViewer: View {
                 unavailablePhoto
             }
         case .video:
-            FullScreenVideoPage(
-                url: item.url,
-                isActive: isActive,
-                controlsVisible: controlsVisible,
-                toggleControls: toggleControls
-            )
-            .ignoresSafeArea()
+            FullScreenVideoPage(url: item.url, isActive: isActive)
+                .ignoresSafeArea()
         case .audio:
             EmptyView()
         }
+    }
+
+    /// 系统播放器自带底部控制条，视频页不再叠加页码。
+    private var currentItemIsVideo: Bool {
+        items.indices.contains(selectedIndex) && items[selectedIndex].kind == .video
     }
 
     private var unavailablePhoto: some View {
@@ -633,248 +636,91 @@ private struct VideoPosterView: View {
 }
 
 @MainActor
-private final class VideoPlaybackController: ObservableObject {
+private final class VideoPlaybackSession: ObservableObject {
     let player: AVPlayer
-
-    @Published private(set) var isPlaying = false
-    @Published private(set) var currentTime: TimeInterval = 0
-    @Published private(set) var duration: TimeInterval = 0
-
-    private var timeObserver: Any?
-    private var endObserver: NSObjectProtocol?
-    private var resumeAfterSeeking = false
 
     init(url: URL) {
         player = AVPlayer(url: url)
         player.actionAtItemEnd = .pause
-
-        timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.05, preferredTimescale: 600),
-            queue: .main
-        ) { [weak self] time in
-            Task { @MainActor in
-                guard let self else { return }
-                let seconds = time.seconds
-                if seconds.isFinite { self.currentTime = max(0, seconds) }
-                if let itemDuration = self.player.currentItem?.duration.seconds,
-                   itemDuration.isFinite,
-                   itemDuration > 0 {
-                    self.duration = itemDuration
-                }
-            }
-        }
-
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.isPlaying = false
-            }
-        }
-    }
-
-    var progress: Double {
-        guard duration > 0 else { return 0 }
-        return min(max(currentTime / duration, 0), 1)
     }
 
     func play() {
-        if duration > 0, currentTime >= duration - 0.05 {
+        let position = player.currentTime().seconds
+        if let duration = player.currentItem?.duration.seconds,
+           duration.isFinite,
+           duration > 0,
+           position.isFinite,
+           position >= duration - 0.05 {
             player.seek(to: .zero)
-            currentTime = 0
         }
         player.play()
-        isPlaying = true
     }
 
     func pause() {
         player.pause()
-        isPlaying = false
+    }
+}
+
+/// 最大化播放交给系统播放器，控制条、画中画、AirPlay、锁屏控制和字幕都由 AVKit 提供。
+private struct SystemVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.allowsPictureInPicturePlayback = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.updatesNowPlayingInfoCenter = true
+        controller.videoGravity = .resizeAspect
+        return controller
     }
 
-    func toggle() {
-        RitualHaptics.selection()
-        isPlaying ? pause() : play()
-    }
-
-    func beginSeeking() {
-        resumeAfterSeeking = isPlaying
-        pause()
-    }
-
-    func previewSeek(progress: Double) {
-        guard duration > 0 else { return }
-        currentTime = min(max(progress, 0), 1) * duration
-    }
-
-    func endSeeking(progress: Double) {
-        let clamped = min(max(progress, 0), 1)
-        let target = duration * clamped
-        player.seek(
-            to: CMTime(seconds: target, preferredTimescale: 600),
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
-        )
-        currentTime = target
-        if resumeAfterSeeking { play() }
-        resumeAfterSeeking = false
-    }
-
-    deinit {
-        if let timeObserver {
-            player.removeTimeObserver(timeObserver)
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player {
+            controller.player = player
         }
-        if let endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-        }
+    }
+}
+
+/// 播放期间使用 playback 会话，退到后台或锁屏后声音继续。
+private enum PlaybackAudioSession {
+    static func activate() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .moviePlayback)
+        try? session.setActive(true)
+    }
+
+    static func deactivate() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 
 private struct FullScreenVideoPage: View {
-    @StateObject private var controller: VideoPlaybackController
+    @StateObject private var session: VideoPlaybackSession
     let isActive: Bool
-    let controlsVisible: Bool
-    let toggleControls: () -> Void
 
-    init(
-        url: URL,
-        isActive: Bool,
-        controlsVisible: Bool,
-        toggleControls: @escaping () -> Void
-    ) {
-        _controller = StateObject(wrappedValue: VideoPlaybackController(url: url))
+    init(url: URL, isActive: Bool) {
+        _session = StateObject(wrappedValue: VideoPlaybackSession(url: url))
         self.isActive = isActive
-        self.controlsVisible = controlsVisible
-        self.toggleControls = toggleControls
     }
 
     var body: some View {
-        ZStack {
-            PlayerSurfaceView(player: controller.player)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: toggleControls)
-
-            if controlsVisible {
-                Button(action: controller.toggle) {
-                    Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 25, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .offset(x: controller.isPlaying ? 0 : 2)
-                        .frame(width: 68, height: 68)
-                        .background(.black.opacity(0.38))
-                        .clipShape(Circle())
-                        .overlay { Circle().stroke(.white.opacity(0.22), lineWidth: 1) }
-                }
-                .buttonStyle(SoftScaleButtonStyle())
-                .accessibilityLabel(controller.isPlaying ? "暂停视频".localized : "播放视频".localized)
-
-                VStack {
-                    Spacer()
-                    HStack(spacing: 11) {
-                        Text(controller.currentTime.formattedDuration)
-                        VideoProgressScrubber(
-                            progress: controller.progress,
-                            beginSeeking: controller.beginSeeking,
-                            previewSeek: controller.previewSeek,
-                            endSeeking: controller.endSeeking
-                        )
-                        .frame(height: 34)
-                        Text(max(0, controller.duration - controller.currentTime).formattedDuration)
-                    }
-                    .font(.caption.monospacedDigit().weight(.medium))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.black.opacity(0.42))
-                    .clipShape(Capsule())
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 64)
+        SystemVideoPlayer(player: session.player)
+            .onAppear {
+                guard isActive else { return }
+                PlaybackAudioSession.activate()
+                session.play()
+            }
+            .onChange(of: isActive) { _, active in
+                if active {
+                    PlaybackAudioSession.activate()
+                    session.play()
+                } else {
+                    session.pause()
                 }
             }
-        }
-        .animation(.easeOut(duration: 0.16), value: controlsVisible)
-        .onAppear {
-            if isActive { controller.play() }
-        }
-        .onChange(of: isActive) { _, active in
-            active ? controller.play() : controller.pause()
-        }
-        .onDisappear { controller.pause() }
-    }
-}
-
-private final class PlayerSurfaceUIView: UIView {
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-}
-
-private struct PlayerSurfaceView: UIViewRepresentable {
-    let player: AVPlayer
-
-    func makeUIView(context: Context) -> PlayerSurfaceUIView {
-        let view = PlayerSurfaceUIView()
-        view.backgroundColor = .black
-        view.playerLayer.videoGravity = .resizeAspect
-        view.playerLayer.player = player
-        return view
-    }
-
-    func updateUIView(_ view: PlayerSurfaceUIView, context: Context) {
-        view.playerLayer.player = player
-    }
-}
-
-private struct VideoProgressScrubber: View {
-    let progress: Double
-    let beginSeeking: () -> Void
-    let previewSeek: (Double) -> Void
-    let endSeeking: (Double) -> Void
-
-    @State private var scrubbingProgress: Double?
-
-    var body: some View {
-        GeometryReader { proxy in
-            let displayedProgress = scrubbingProgress ?? progress
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.white.opacity(0.24))
-                    .frame(height: 3)
-                Capsule()
-                    .fill(.white.opacity(0.92))
-                    .frame(width: proxy.size.width * displayedProgress, height: 3)
-                Circle()
-                    .fill(.white)
-                    .frame(width: scrubbingProgress == nil ? 10 : 15, height: scrubbingProgress == nil ? 10 : 15)
-                    .offset(x: max(0, proxy.size.width * displayedProgress - (scrubbingProgress == nil ? 5 : 7.5)))
-            }
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        guard proxy.size.width > 0 else { return }
-                        let value = min(max(Double(value.location.x / proxy.size.width), 0), 1)
-                        if scrubbingProgress == nil {
-                            RitualHaptics.selection()
-                            beginSeeking()
-                        }
-                        scrubbingProgress = value
-                        previewSeek(value)
-                    }
-                    .onEnded { value in
-                        guard proxy.size.width > 0 else { return }
-                        let value = min(max(Double(value.location.x / proxy.size.width), 0), 1)
-                        endSeeking(value)
-                        scrubbingProgress = nil
-                    }
-            )
-        }
-        .accessibilityElement()
-        .accessibilityLabel("视频播放进度".localized)
-        .accessibilityValue("百分之 %d".localized(Int(progress * 100)))
+            .onDisappear { session.pause() }
     }
 }
 
@@ -980,11 +826,13 @@ private final class AudioPlaybackController: NSObject, ObservableObject, AVAudio
 
 private struct AudioAttachmentView: View {
     @StateObject private var controller: AudioPlaybackController
+    private let url: URL
     let expectedDuration: TimeInterval?
     let tint: Color
 
     init(url: URL, expectedDuration: TimeInterval?, tint: Color) {
         _controller = StateObject(wrappedValue: AudioPlaybackController(url: url))
+        self.url = url
         self.expectedDuration = expectedDuration
         self.tint = tint
     }
@@ -1007,6 +855,7 @@ private struct AudioAttachmentView: View {
 
             VStack(spacing: 5) {
                 AudioWaveformScrubber(
+                    url: url,
                     progress: controller.progress,
                     isPlaying: controller.isPlaying,
                     tint: tint,
@@ -1043,6 +892,7 @@ private struct AudioAttachmentView: View {
 
 struct VoiceDraftPreviewPlayer: View {
     @StateObject private var controller: AudioPlaybackController
+    private let url: URL
     let expectedDuration: TimeInterval?
     let tint: Color
     let discard: () -> Void
@@ -1056,6 +906,7 @@ struct VoiceDraftPreviewPlayer: View {
         commit: @escaping () -> Void
     ) {
         _controller = StateObject(wrappedValue: AudioPlaybackController(url: url))
+        self.url = url
         self.expectedDuration = expectedDuration
         self.tint = tint
         self.discard = discard
@@ -1103,6 +954,7 @@ struct VoiceDraftPreviewPlayer: View {
                 .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
 
                 AudioWaveformScrubber(
+                    url: url,
                     progress: controller.progress,
                     isPlaying: controller.isPlaying,
                     tint: tint,
@@ -1146,6 +998,7 @@ struct VoiceDraftPreviewPlayer: View {
 }
 
 private struct AudioWaveformScrubber: View {
+    let url: URL
     let progress: Double
     let isPlaying: Bool
     let tint: Color
@@ -1154,19 +1007,26 @@ private struct AudioWaveformScrubber: View {
     let endSeeking: (Double) -> Void
 
     @State private var scrubbingProgress: Double?
+    @State private var loudness: [Float]?
 
     var body: some View {
         GeometryReader { proxy in
+            // 条形数量按可用宽度推导；宽度变化只重采样，不重新解码音频。
+            let spacing: CGFloat = 3
+            let barWidth: CGFloat = 3
+            let availableWidth = max(proxy.size.width, 1)
+            let barCount = max(6, Int((availableWidth + spacing) / (barWidth + spacing)))
+            let bars = AudioWaveformStore.resample(loudness, to: barCount)
             let displayedProgress = scrubbingProgress ?? progress
-            HStack(alignment: .center, spacing: 3) {
-                ForEach(0..<42, id: \.self) { index in
-                    let normalizedIndex = Double(index) / 41
-                    let pseudoWave = 0.26 + abs(sin(Double(index) * 1.73)) * 0.74
+            HStack(alignment: .center, spacing: spacing) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    let normalizedIndex = barCount > 1 ? Double(index) / Double(barCount - 1) : 0
                     let minimumBarHeight = max(3, proxy.size.height * 0.24)
-                    let barHeight = minimumBarHeight + max(0, proxy.size.height - minimumBarHeight) * pseudoWave
+                    let amplitude = CGFloat(bars?[index] ?? 0)
+                    let barHeight = minimumBarHeight + max(0, proxy.size.height - minimumBarHeight) * amplitude
                     Capsule()
                         .fill(normalizedIndex <= displayedProgress ? tint.opacity(0.84) : AppTheme.secondaryText.opacity(0.16))
-                        .frame(width: 3, height: barHeight)
+                        .frame(width: barWidth, height: barHeight)
                         .scaleEffect(y: isPlaying && abs(normalizedIndex - progress) < 0.08 ? 1.12 : 1)
                 }
             }
@@ -1193,6 +1053,9 @@ private struct AudioWaveformScrubber: View {
             )
         }
         .animation(.easeOut(duration: 0.14), value: progress)
+        .task(id: url) {
+            loudness = await AudioWaveformStore.shared.loudness(for: url)
+        }
         .accessibilityElement()
         .accessibilityLabel("语音播放进度".localized)
         .accessibilityValue("百分之 %d".localized(Int(progress * 100)))

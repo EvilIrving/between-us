@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B10000000000000000000002 /* AudioWaveformStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AudioWaveformStore.swift */; };
+		B10000000000000000000005 /* DSWaveformImage in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000004 /* DSWaveformImage */; };
 		0F4BF63734AFBDF0CBA26B0E /* VoiceHoldRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B35AB5ECC0459EFEC55FBC /* VoiceHoldRecorderView.swift */; };
 		0F7DF67F0ABF4176805EF13B /* PhysicsGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80405538476444BFBAAC7942 /* PhysicsGeometry.swift */; };
 		113BBB3544D35748459C1A2B /* RitualUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330EE88EDD3CFF4E91845E8 /* RitualUI.swift */; };
@@ -61,6 +63,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B10000000000000000000001 /* AudioWaveformStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioWaveformStore.swift; sourceTree = "<group>"; };
 		0E609322B7E78F879E9D804E /* BetweenUsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetweenUsStore.swift; sourceTree = "<group>"; };
 		105FDB402792C4E32EB26D47 /* AppData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppData.swift; sourceTree = "<group>"; };
 		1277E623A60BA816B14B48C4 /* CapsuleBoxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapsuleBoxView.swift; sourceTree = "<group>"; };
@@ -133,6 +136,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000005 /* DSWaveformImage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				D523D00A2F589521E9C8ED31 /* AudioRecorder.swift */,
+				B10000000000000000000001 /* AudioWaveformStore.swift */,
 				139D2E6EA5EADEBD3D9E8764 /* MediaFileStore.swift */,
 			);
 			path = Storage;
@@ -309,6 +314,7 @@
 			);
 			name = BetweenUs;
 			packageProductDependencies = (
+				B10000000000000000000004 /* DSWaveformImage */,
 			);
 			productName = "Between us";
 			productReference = D957E19B16B69713B7749A90 /* Between us.app */;
@@ -353,6 +359,7 @@
 			);
 			mainGroup = 870B3294C0CBD48AF6BBCC1B;
 			packageReferences = (
+				B10000000000000000000003 /* XCRemoteSwiftPackageReference "DSWaveformImage" */,
 			);
 			productRefGroup = 615B463D1028E4E24B674CF7 /* Products */;
 			projectDirPath = "";
@@ -404,6 +411,7 @@
 				B4B21D876F585420B212187E /* SecretItem.swift in Sources */,
 				D2AE31D063D0228D541E27F0 /* AudioRecorder.swift in Sources */,
 				E4B25DCBB8C473242EA7E7C5 /* MediaFileStore.swift in Sources */,
+				B10000000000000000000002 /* AudioWaveformStore.swift in Sources */,
 				CA885F408F687DE73A30AB70 /* LocalStateRepository.swift in Sources */,
 				745598D0D5F906A26483D7BD /* BetweenUsStore.swift in Sources */,
 				E4C33855B775D0DAF1D4F311 /* AttachmentViews.swift in Sources */,
@@ -579,6 +587,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B10000000000000000000003 /* XCRemoteSwiftPackageReference "DSWaveformImage" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/dmrschmidt/DSWaveformImage";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 14.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B10000000000000000000004 /* DSWaveformImage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000003 /* XCRemoteSwiftPackageReference "DSWaveformImage" */;
+			productName = DSWaveformImage;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
 }

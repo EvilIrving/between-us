@@ -29,7 +29,7 @@
 - CloudKit 使用 `BetweenUsRelationship`、`BetweenUsItem` 与系统 `cloudkit.share` 记录类型。
 - 支持 CloudKit 双人共享、离线缓存、同步、邀请、推送与空间管理。
 - 接入 StoreKit 2 非消耗型购买、交易监听与恢复购买，并把空间解锁状态同步到 `BetweenUsRelationship`。
-- 最低支持 iOS 17，无第三方依赖和自建业务服务器。
+- 最低支持 iOS 17。
 
 ### 本地化与公开页面
 
