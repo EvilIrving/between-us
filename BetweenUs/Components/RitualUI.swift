@@ -104,33 +104,41 @@ struct SoftScaleButtonStyle: ButtonStyle {
     }
 }
 
+/// 产品里所有情绪/物件身份挂件共用这一个名义尺寸，不允许各处再传大一点小一点。
+enum TokenIconMetrics {
+    static let size: CGFloat = 54
+}
+
 struct RitualObjectGlyph: View {
     let kind: ContainerKind
-    var size: CGFloat = 58
     var filled = true
+    /// 内容身份图标默认不带圆底；入口类场景可打开底色。
+    var showsBackground = false
+    /// 传入内容标识时用与物件舞台同一张皮肤，抽屉里的星星和瓶里的星星是同一颗。
+    var tokenID: UUID? = nil
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(kind.tint.opacity(filled ? 0.14 : 0.07))
-                .frame(width: size, height: size)
-
-            switch kind {
-            case .star:
-                ParametricTokenView(kind: kind, seed: 2, filled: filled)
-                    .frame(width: size * 0.53, height: size * 0.53)
-                    .rotationEffect(.degrees(-8))
-            case .capsule:
-                CapsuleTokenView()
-                    .frame(width: size * 0.70 * CapsuleJarMetrics.tokenAspect, height: size * 0.70)
-                    .opacity(filled ? 1 : 0.72)
-                    .rotationEffect(.degrees(-18))
-            case .paper:
-                ParametricTokenView(kind: kind, seed: filled ? 3 : 1, filled: filled)
-                    .frame(width: size * 0.56, height: size * 0.56)
+            if showsBackground {
+                Circle()
+                    .fill(kind.tint.opacity(filled ? 0.14 : 0.07))
+                    .frame(width: TokenIconMetrics.size, height: TokenIconMetrics.size)
             }
+
+            ContainerTokenImage(kind: kind, id: tokenID)
+                .rotationEffect(.degrees(rotation))
+                .opacity(filled ? 1 : 0.80)
         }
+        .frame(width: TokenIconMetrics.size, height: TokenIconMetrics.size)
         .accessibilityHidden(true)
+    }
+
+    private var rotation: Double {
+        switch kind {
+        case .star: return -8
+        case .capsule: return -14
+        case .paper: return 0
+        }
     }
 }
 
@@ -145,7 +153,7 @@ struct RitualActionToken: View {
             action()
         } label: {
             HStack(spacing: 13) {
-                RitualObjectGlyph(kind: kind, size: 52, filled: false)
+                RitualObjectGlyph(kind: kind, filled: false)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title.localized)
@@ -382,7 +390,7 @@ struct HoldToOpenControl: View {
             onComplete: onComplete
         ) { progress, isPressing in
             HStack(spacing: 14) {
-                RitualObjectGlyph(kind: kind, size: 54, filled: true)
+                RitualObjectGlyph(kind: kind, filled: true)
                     .scaleEffect(isPressing ? 0.94 : 1)
 
                 Text((isEnabled ? title : inactiveTitle).localized)

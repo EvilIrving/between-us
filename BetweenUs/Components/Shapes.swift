@@ -322,29 +322,3 @@ struct BinShape: Shape {
         )
     }
 }
-
-struct CrumpledPaper: View {
-    let index: Int
-
-    var body: some View {
-        GeometryReader { proxy in
-            let paper = OrganicPaperShape(seed: index, roughness: 0.105)
-            ZStack {
-                paper
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.98), AppTheme.paper.opacity(0.86)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                paper
-                    .stroke(Color.black.opacity(0.08), lineWidth: max(0.7, proxy.size.width * 0.018))
-                PaperCreaseShape(seed: index)
-                    .stroke(Color.black.opacity(0.10), lineWidth: max(0.6, proxy.size.width * 0.016))
-                    .padding(proxy.size.width * 0.11)
-            }
-        }
-        .rotationEffect(.degrees(Double((index * 17) % 31) - 15))
-    }
-}
