@@ -30,7 +30,7 @@ struct ContainerRevealOverlay: View {
 /// 纸条纸面：一条内容永远用同一张纸，纸面尺寸只由这张纸自身决定。
 /// 运行时资产已按纸面边界裁掉透明留白，图片即纸面，右上角即纸面右上角。
 private enum NotePaper {
-    static let names = ["Paper01", "Paper03", "Paper04", "Paper05", "Paper06"]
+    static let names = ["Paper01", "Paper04", "Paper05", "Paper06"]
 
     /// 纸面宽度占屏宽的比例，高度按纸面自身比例推导。
     static let widthRatio: CGFloat = 0.8
