@@ -12,6 +12,10 @@ struct SettingsView: View {
     @State private var isShowingLifetimeUnlock = false
     @State private var lifetimeUnlockContext: LifetimeUnlockContext = .settings
     @State private var releaseUpdateState: ReleaseUpdateState = .idle
+    #if DEBUG
+    @State private var isShowingConnectionPreview = false
+    #endif
+    @AppStorage(DeviceMotionMode.storageKey) private var deviceMotionModeRaw = DeviceMotionMode.standard.rawValue
 
     var body: some View {
         ZStack {
@@ -26,19 +30,21 @@ struct SettingsView: View {
                             SettingsFactRow(
                                 systemName: "person.2",
                                 title: "身份",
-                                value: relationship?.isOwner == true ? "创建者".localized : "参与者".localized,
+                                value: relationship?.isOwner == true ? T("创建者") : T("参与者"),
                                 tint: ContainerKind.capsule.tint
                             )
 
-                            SettingsRowDivider()
+                            if store.viewModel.showsInviteEntry {
+                                SettingsRowDivider()
 
-                            SettingsActionRow(
-                                systemName: "person.crop.circle.badge.plus",
-                                title: relationship?.isOwner == true ? "邀请对方".localized : "查看共享".localized,
-                                value: nil,
-                                tint: ContainerKind.capsule.tint
-                            ) {
-                                Task { await store.prepareShareSheet() }
+                                SettingsActionRow(
+                                    systemName: "person.crop.circle.badge.plus",
+                                    title: T("邀请对方"),
+                                    value: nil,
+                                    tint: ContainerKind.capsule.tint
+                                ) {
+                                    Task { await store.presentInvite() }
+                                }
                             }
 
                             SettingsRowDivider()
@@ -79,6 +85,10 @@ struct SettingsView: View {
 
                             SettingsRowDivider()
 
+                            SettingsDeviceMotionRow(selection: deviceMotionMode)
+
+                            SettingsRowDivider()
+
                             SettingsActionRow(
                                 systemName: "rectangle.portrait.and.arrow.right",
                                 title: "离开预览",
@@ -90,6 +100,22 @@ struct SettingsView: View {
                             .disabled(store.viewModel.isPerformingAction)
                         }
                     }
+
+                    #if DEBUG
+                    if !isLocalPreview {
+                        // 连接这一段动画要两台手机才走得完，开发时留一个单机看它的入口。
+                        SettingsSection(title: "测试功能") {
+                            SettingsActionRow(
+                                systemName: "sparkles",
+                                title: "重播连接动画",
+                                value: nil,
+                                tint: ContainerKind.star.tint
+                            ) {
+                                isShowingConnectionPreview = true
+                            }
+                        }
+                    }
+                    #endif
 
                     if !isLocalPreview {
                         SettingsSection(title: "") {
@@ -243,6 +269,11 @@ struct SettingsView: View {
         .sheet(isPresented: $isShowingLifetimeUnlock) {
             LifetimeUnlockView(context: lifetimeUnlockContext)
         }
+        #if DEBUG
+        .fullScreenCover(isPresented: $isShowingConnectionPreview) {
+            ConnectionView(mode: .preview)
+        }
+        #endif
     }
 
     private var settingsHeader: some View {
@@ -270,22 +301,13 @@ struct SettingsView: View {
 
     private var protectedEndSpaceZone: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 11) {
-                Image(systemName: "person.2.slash")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.red.opacity(0.72))
-                    .frame(width: 34, height: 34)
-                    .background(Color.red.opacity(0.08))
-                    .clipShape(Circle())
-
-                Text(endSpaceTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText.opacity(0.82))
-            }
+            Text(endSpaceTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText.opacity(0.82))
 
             CompactHoldAction(
                 title: endSpaceActionTitle,
-                workingTitle: "正在处理".localized,
+                workingTitle: T("正在处理"),
                 duration: 2.0,
                 isEnabled: !store.viewModel.isPerformingAction,
                 isWorking: store.viewModel.isPerformingAction && !isClearingContent
@@ -305,27 +327,20 @@ struct SettingsView: View {
     private var clearContentZone: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 11) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.red.opacity(0.72))
-                    .frame(width: 34, height: 34)
-                    .background(Color.red.opacity(0.08))
-                    .clipShape(Circle())
-
-                Text("清空内容".localized)
+                Text(T("清空内容"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText.opacity(0.82))
 
                 Spacer(minLength: 8)
 
-                Text("%d 条".localized(store.viewModel.data.items.count))
+                Text(T("%d 条", store.viewModel.data.items.count))
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
             }
 
             CompactHoldAction(
-                title: "按住清空".localized,
-                workingTitle: "正在清空".localized,
+                title: T("按住清空"),
+                workingTitle: T("正在清空"),
                 duration: 2.0,
                 isEnabled: !store.viewModel.data.items.isEmpty && !store.viewModel.isPerformingAction,
                 isWorking: isClearingContent
@@ -350,35 +365,42 @@ struct SettingsView: View {
         store.viewModel.data.relationship
     }
 
+    private var deviceMotionMode: Binding<DeviceMotionMode> {
+        Binding(
+            get: { DeviceMotionMode(rawValue: deviceMotionModeRaw) ?? .standard },
+            set: { deviceMotionModeRaw = $0.rawValue }
+        )
+    }
+
     private var isLocalPreview: Bool {
         store.viewModel.data.isLocalPreview
     }
 
     private var syncDetail: String {
         switch store.viewModel.syncStatus {
-        case .idle: return "等待 iCloud".localized
-        case .syncing: return "同步中".localized
+        case .idle: return T("等待 iCloud")
+        case .syncing: return T("同步中")
         case .upToDate(let date):
-            guard let date else { return "已同步".localized }
-            return "上次同步 %@".localized(date.formatted(date: .omitted, time: .shortened))
-        case .attention(let message): return message.localized
-        case .localPreview: return "仅保存在本机".localized
+            guard let date else { return T("已同步") }
+            return T("上次同步 %@", date.formatted(date: .omitted, time: .shortened))
+        case .attention(let message): return T(key: message)
+        case .localPreview: return T("仅保存在本机")
         }
     }
 
     private var notificationDetail: String {
         switch notificationState {
-        case .notDetermined: return "未设置".localized
-        case .enabled: return "已开启".localized
-        case .disabled: return "已关闭".localized
+        case .notDetermined: return T("未设置")
+        case .enabled: return T("已开启")
+        case .disabled: return T("已关闭")
         }
     }
 
     private var contentPlanDetail: String {
         if store.viewModel.hasUnlimitedContent {
-            return "不限量".localized
+            return T("不限量")
         }
-        return "%d / %d".localized(
+        return T("%d / %d", 
             store.viewModel.data.items.count,
             CommerceConfiguration.freeItemLimit
         )
@@ -440,11 +462,11 @@ struct SettingsView: View {
     }
 
     private var endSpaceTitle: String {
-        relationship?.isOwner == true ? "永久删除".localized : "退出空间".localized
+        relationship?.isOwner == true ? T("永久删除") : T("退出空间")
     }
 
     private var endSpaceActionTitle: String {
-        relationship?.isOwner == true ? "按住删除空间".localized : "按住退出空间".localized
+        relationship?.isOwner == true ? T("按住删除空间") : T("按住退出空间")
     }
 
     private func handleNotificationAction() {
@@ -498,6 +520,51 @@ struct SettingsView: View {
             try? await Task.sleep(for: .seconds(1.4))
             didCopyFeedbackEmail = false
         }
+    }
+}
+
+private struct SettingsDeviceMotionRow: View {
+    @Binding var selection: DeviceMotionMode
+
+    var body: some View {
+        HStack(spacing: 13) {
+            SettingsRowGlyph(systemName: "iphone", tint: Color(red: 0.50, green: 0.58, blue: 0.62))
+
+            Text("跟随手机动作")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Spacer(minLength: 10)
+
+            Menu {
+                ForEach(DeviceMotionMode.allCases) { mode in
+                    Button {
+                        RitualHaptics.selection()
+                        selection = mode
+                    } label: {
+                        if selection == mode {
+                            Label(mode.statusTitle, systemImage: "checkmark")
+                        } else {
+                            Text(mode.statusTitle)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selection.statusTitle)
+                        .font(.subheadline.weight(.medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(AppTheme.primaryText.opacity(0.72))
+                .padding(.horizontal, 11)
+                .frame(height: 34)
+                .background(Color.white.opacity(0.42))
+                .clipShape(Capsule())
+                .overlay { Capsule().stroke(Color.white.opacity(0.66), lineWidth: 1) }
+            }
+        }
+        .padding(.vertical, 11)
     }
 }
 
@@ -575,9 +642,6 @@ private struct CompactHoldAction: View {
                             ProgressView()
                                 .controlSize(.small)
                                 .tint(.red)
-                        } else {
-                            Image(systemName: "hand.point.up.left.fill")
-                                .font(.caption.weight(.semibold))
                         }
 
                         Text(isWorking ? workingTitle : title)
@@ -595,7 +659,7 @@ private struct CompactHoldAction: View {
         .frame(height: 50)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
-        .accessibilityHint("持续按住完成，松开取消".localized)
+        .accessibilityHint(T("持续按住完成，松开取消"))
         .accessibilityAction {
             guard isEnabled, !isWorking else { return }
             action()
@@ -615,7 +679,7 @@ private struct SettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if !title.isEmpty {
-                Text(title.localized)
+                Text(T(key: title))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
                     .textCase(.uppercase)
@@ -648,13 +712,13 @@ private struct SettingsFactRow: View {
         HStack(spacing: 13) {
             SettingsRowGlyph(systemName: systemName, tint: tint)
 
-            Text(title.localized)
+            Text(T(key: title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
 
             Spacer(minLength: 12)
 
-            Text(value.localized)
+            Text(T(key: value))
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                 .lineLimit(1)
@@ -679,14 +743,14 @@ private struct SettingsActionRow: View {
             HStack(spacing: 13) {
                 SettingsRowGlyph(systemName: systemName, tint: tint)
 
-                Text(title.localized)
+                Text(T(key: title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
 
                 Spacer()
 
                 if let value {
-                    Text(value.localized)
+                    Text(T(key: value))
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
                         .lineLimit(1)
@@ -724,7 +788,7 @@ private struct SettingsCopyRow: View {
             HStack(spacing: 13) {
                 SettingsRowGlyph(systemName: systemName, tint: tint)
 
-                Text(title.localized)
+                Text(T(key: title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -745,9 +809,9 @@ private struct SettingsCopyRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel("反馈问题".localized)
+        .accessibilityLabel(T("反馈问题"))
         .accessibilityValue(value)
-        .accessibilityHint((isCopied ? "已复制" : "点按复制").localized)
+        .accessibilityHint(isCopied ? T("已复制") : T("点按复制"))
     }
 }
 

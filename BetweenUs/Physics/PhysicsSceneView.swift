@@ -14,7 +14,9 @@ struct PhysicsSceneView: UIViewRepresentable {
         // 透出宿主房间背景，容器只画自己的位图和实体。
         view.backgroundColor = .clear
         view.allowsTransparency = true
-        view.preferredFramesPerSecond = 60
+        // 不把场景钉在 60 帧：同屏的滚动和导航在 ProMotion 上都是 120Hz，
+        // 钉死 60 会让容器里的物件显出手感割裂；没有高刷的设备会自动停在 60。
+        view.preferredFramesPerSecond = 120
         view.ignoresSiblingOrder = false
         view.presentScene(scene)
         apply(view)

@@ -59,7 +59,7 @@ struct LifetimeUnlockView: View {
             SceneCloseControl { dismiss() }
             Spacer()
 
-            Text("永久版".localized)
+            Text(T("永久版"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
                 .padding(.horizontal, 12)
@@ -80,7 +80,7 @@ struct LifetimeUnlockView: View {
     }
 
     private var usagePill: some View {
-        Text("已经留下 %d / %d".localized(
+        Text(T("已经留下 %d / %d", 
             store.viewModel.data.items.count,
             CommerceConfiguration.freeItemLimit
         ))
@@ -131,11 +131,11 @@ struct LifetimeUnlockView: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title.localized)
+                Text(T(key: title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
 
-                Text(detail.localized)
+                Text(T(key: detail))
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
@@ -160,7 +160,7 @@ struct LifetimeUnlockView: View {
                 RitualHaptics.success()
                 dismiss()
             } label: {
-                Text("继续使用".localized)
+                Text(T("继续使用"))
                     .font(.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -203,7 +203,7 @@ struct LifetimeUnlockView: View {
                     RitualHaptics.selection()
                     Task { await store.restoreLifetimePurchase() }
                 } label: {
-                    Text("恢复购买".localized)
+                    Text(T("恢复购买"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText.opacity(0.72))
                         .frame(height: 38)
@@ -218,11 +218,11 @@ struct LifetimeUnlockView: View {
 
     private var purchasePolicyLinks: some View {
         HStack(spacing: 8) {
-            Link("购买说明".localized, destination: Self.purchasesURL)
+            Link(T("购买说明"), destination: Self.purchasesURL)
             Text("·")
-            Link("使用条款".localized, destination: Self.termsURL)
+            Link(T("使用条款"), destination: Self.termsURL)
             Text("·")
-            Link("隐私政策".localized, destination: Self.privacyURL)
+            Link(T("隐私政策"), destination: Self.privacyURL)
         }
         .font(.caption)
         .foregroundStyle(AppTheme.secondaryText.opacity(0.62))
@@ -241,32 +241,32 @@ struct LifetimeUnlockView: View {
         if isUnlocked {
             if store.viewModel.purchase.ownsLifetimePurchase,
                store.viewModel.data.sharedSpaceEntitlement == nil {
-                return "这台设备已解锁".localized
+                return T("这台设备已解锁")
             }
-            return "已经解锁".localized
+            return T("已经解锁")
         }
-        if context == .quotaReached { return "已经放满".localized }
-        return "一直留着".localized
+        if context == .quotaReached { return T("已经放满") }
+        return T("一直留着")
     }
 
     private var primaryActionTitle: String {
         switch store.viewModel.purchase.activity {
         case .loadingProduct:
-            return "正在连接 App Store".localized
+            return T("正在连接 App Store")
         case .purchasing:
-            return "正在等待 App Store".localized
+            return T("正在等待 App Store")
         case .restoring:
-            return "正在恢复".localized
+            return T("正在恢复")
         case .pending:
-            return "等待购买确认".localized
+            return T("等待购买确认")
         case .idle:
             if store.viewModel.purchase.productLoadFailed {
-                return "重新连接 App Store".localized
+                return T("重新连接 App Store")
             }
             if let price = store.viewModel.purchase.displayPrice {
-                return "%@ 永久解锁".localized(price)
+                return T("%@ 永久解锁", price)
             }
-            return "永久解锁".localized
+            return T("永久解锁")
         }
     }
 

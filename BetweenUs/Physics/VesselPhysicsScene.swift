@@ -34,11 +34,16 @@ final class VesselPhysicsScene: SKScene {
     var onStatusChanged: ((VesselStatus) -> Void)?
     // 首页的上推信号；详情页等不需要晃动的场景保持为空。
     var jolt: RoomJolt?
+    // 设备姿态信号；没有传感器的场景保持为空，重力就用配方里的竖直重力。
+    var motion: DeviceMotionSource?
+    // 姿态反馈的开关与强度；由首页推送，设置页改的就是这里。
+    var motionSettings = DeviceMotionSettings()
 
-    private let assets = VesselAssets()
+    private let assets = VesselAssets.shared
     private let renderer: VesselRenderer
     private var queue: TokenQueue
     private var nodesByID: [UUID: SKSpriteNode] = [:]
+    private var lostBuffer: [UUID] = []
     private var insertionOrder: [UUID] = []
     private var textures: [String: SKTexture] = [:]
     private var hitPaths: [CGPath] = []
@@ -68,10 +73,19 @@ final class VesselPhysicsScene: SKScene {
     private var drag: Drag?
     private var joltTravel: CGFloat = 0
     private var joltSpeed: CGFloat = 0
+    private var motionShake: CGFloat = 0
     private var joltRest: [UUID: (height: CGFloat, factor: CGFloat)] = [:]
     private var containedTokens: Set<UUID> = []
+    // 晃动结束后余速还会往上带一点，上限约束多绷一会儿再接开。
+    private var containUrgency: CGFloat = 0
+    // 上一次真正施加的横向推力；力改了要叫醒休眠的刚体，不然它们不会响应。
+    private var appliedLateral: CGFloat = 0
+    private var lastMotionLog: TimeInterval = 0
     private let bodyHalfExtent: CGFloat
     private let joltCeiling: CGFloat
+    // 瓶口那条线以及瓶口的横向范围：内容从上方掉进来，只有这一段是合法的入口。
+    private let mouthLimit: CGFloat
+    private let mouthSpan: ClosedRange<CGFloat>
 
     private struct Drag {
         let touch: UITouch
@@ -92,6 +106,10 @@ final class VesselPhysicsScene: SKScene {
         bodyHalfExtent = GeometryMath.halfExtent(recipe.entity.geometry)
         // 内容上限：配方按素材像素标定的最高一行，实体中心不得超过它再减掉自身占位半径。
         joltCeiling = recipe.container.mapping.scenePoint(CGPoint(x:0,y:recipe.policy.contentCeilingPixel)).y
+        let mouthPoints = recipe.container.mouth.map { recipe.container.mapping.scenePoint($0) }
+        mouthLimit = mouthPoints.map { $0.y }.max() ?? recipe.container.mapping.sceneSize.height
+        let mouthXs = mouthPoints.map { $0.x }
+        mouthSpan = (mouthXs.min() ?? 0)...(mouthXs.max() ?? recipe.container.mapping.sceneSize.width)
         super.init(size:recipe.container.mapping.sceneSize)
         scaleMode = .aspectFit
         anchorPoint = .zero
@@ -136,7 +154,14 @@ final class VesselPhysicsScene: SKScene {
     }
 
     override func willMove(from view: SKView) { prepareForSuspension() }
-    func prepareForSuspension() { cancelDrag(); previousTime = 0; joltRest.removeAll(); containedTokens.removeAll(); joltTravel = 0; joltSpeed = 0 }
+    func prepareForSuspension() {
+        cancelDrag()
+        previousTime = 0
+        joltRest.removeAll(); containedTokens.removeAll()
+        joltTravel = 0; joltSpeed = 0; motionShake = 0; containUrgency = 0; appliedLateral = 0
+        // 挂起时把重力收回配方值，回来不会残着上一次的倾斜方向。
+        physicsWorld.gravity = CGVector(dx:recipe.policy.gravity.x, dy:recipe.policy.gravity.y)
+    }
 
     // 只改变渲染；墙、实体、位置、速度、质量、队列和休眠状态均不修改。
     func setInspection(showGeometry: Bool, xRay: Bool) {
@@ -175,6 +200,7 @@ final class VesselPhysicsScene: SKScene {
         cancelDrag()
         for node in nodesByID.values { node.removeFromParent() }
         nodesByID.removeAll(); insertionOrder.removeAll(); queue.clear()
+        containedTokens.removeAll()
         for node in debugTokens.values { node.removeFromParent() }
         debugTokens.removeAll()
         nextSpawnTime = 0; previousTime = 0; simulationTime = 0
@@ -194,6 +220,7 @@ final class VesselPhysicsScene: SKScene {
         _ = queue.remove(id)
         insertionOrder.removeAll { $0 == id }
         debugTokens.removeValue(forKey:id)?.removeFromParent()
+        containedTokens.remove(id)
         guard let node = nodesByID.removeValue(forKey:id) else { return nil }
         node.physicsBody = nil
         node.removeFromParent()
@@ -283,6 +310,7 @@ final class VesselPhysicsScene: SKScene {
         spawnIfClear()
         updateDrag(dt:dt)
         applyJolt(dt:dt)
+        applyDeviceMotion(dt:dt)
         for node in nodesByID.values {
             guard let body = node.physicsBody, !body.isResting else { continue }
             let speed = hypot(body.velocity.dx,body.velocity.dy)
@@ -302,14 +330,18 @@ final class VesselPhysicsScene: SKScene {
         guard ready else { return }
         let margin = recipe.policy.recoveryMargin
         let validArea = CGRect(origin:.zero,size:size).insetBy(dx:-margin,dy:-margin)
-        let lost = nodesByID.compactMap { id,node in
-            GeometryMath.isFinite(node.position) && validArea.contains(node.position) ? nil : id
+        // 逐帧重建数组是白付的分配：复用同一块缓冲，只为真正丢失的实体写一次。
+        lostBuffer.removeAll(keepingCapacity:true)
+        for (id,node) in nodesByID
+        where !(GeometryMath.isFinite(node.position) && validArea.contains(node.position)) {
+            lostBuffer.append(id)
         }
-        for id in lost {
+        for id in lostBuffer {
             if drag?.id == id { cancelDrag() }
             nodesByID.removeValue(forKey:id)?.removeFromParent()
             insertionOrder.removeAll { $0 == id }
             debugTokens.removeValue(forKey:id)?.removeFromParent()
+            containedTokens.remove(id)
             _ = queue.recover(id)
             recoveryCount += 1
             onRecovery?(id)
@@ -321,14 +353,26 @@ final class VesselPhysicsScene: SKScene {
             }
         }
         containJolt()
+        funnelAboveMouth()
         reportStatus()
+    }
+
+    // 瓶口以上只可能是“正在掉进来”的实体（生成点就在瓶口上方）：把它的横向收进瓶口范围，
+    // 保证落回容器里，不会擦着瓶口掉到瓶子外面。正在被手指拖动的那个不动。
+    private func funnelAboveMouth() {
+        for (id, node) in nodesByID where id != drag?.id && node.position.y > mouthLimit {
+            let x = min(max(node.position.x, mouthSpan.lowerBound), mouthSpan.upperBound)
+            if x != node.position.x { node.position.x = x }
+        }
     }
 
     private func reportStatus(force: Bool = false) {
         guard force || simulationTime >= reportNextTime else { return }
         reportNextTime = simulationTime+0.15
+        var resting = 0
+        for node in nodesByID.values where node.physicsBody?.isResting == true { resting += 1 }
         let status = VesselStatus(active:nodesByID.count,
-            resting:nodesByID.values.filter { $0.physicsBody?.isResting == true }.count,
+            resting:resting,
             waiting:queue.waiting.count,recoveries:recoveryCount,
             spawnBlocked:blockedSince.map { simulationTime-$0 >= recipe.policy.spawn.blockedNoticeDelay } ?? false,
             error:errorMessage)
@@ -372,20 +416,97 @@ final class VesselPhysicsScene: SKScene {
         }
     }
 
+    // 手机姿态：横过来时容器里的东西被横向推着走，晃手机时按惯性被推一下。
+    // 全局重力始终竖直向下，横向只作用在已经进容器的实体上：
+    // 瓶口上方正在往下掉的那些不碰，它们才能老实地落进容器里。
+    // 所有手感参数都从 motionSettings 读；关掉时清干净状态，不留上一次的推力。
+    private func applyDeviceMotion(dt: TimeInterval) {
+        let settings = motionSettings
+        guard let motion, settings.isEnabled,
+              settings.effectiveTiltStrength > 0 || settings.effectiveShakeStrength > 0 else {
+            motionShake = 0
+            appliedLateral = 0
+            containUrgency = 0
+            return
+        }
+        let sample = motion.sample()
+        let tilt = sample.gravity
+        // 朝向通道：只取屏幕平面里左右的那一份，手机侧躺时约 ±1。
+        let lateral: CGFloat = settings.effectiveTiltStrength > 0 && abs(tilt.dx) > settings.tiltDeadzone
+            ? tilt.dx * settings.effectiveTiltStrength
+            : 0
+        let lateralAcceleration = settings.tiltAcceleration * lateral
+        // 推力变了要叫醒休眠的刚体（改力不会自己唤醒），之后它们会重新睡下。
+        if abs(lateralAcceleration - appliedLateral) > settings.wakeThreshold {
+            appliedLateral = lateralAcceleration
+            wakeContainedTokens()
+        }
+
+        let shakeX = sample.shake.dx * settings.effectiveShakeStrength
+        let shakeY = sample.shake.dy * settings.effectiveShakeVerticalStrength
+        motionShake = hypot(shakeX, shakeY)
+        // 晃动结束后的余速还能把东西往上带：约束多绷一会儿，等它们落回去再放开。
+        containUrgency = max(motionShake, containUrgency - CGFloat(dt) * settings.containReleaseRate)
+        if motionShake > 0 { wakeContainedTokens() }
+        logMotionDiagnostics(sample, lateralAcceleration)
+
+        let lateralStep = lateralAcceleration * CGFloat(dt)
+        let shakeStep = settings.shakeAcceleration * CGFloat(dt)
+        let spinStep = settings.shakeSpin * CGFloat(dt)
+        for (id, node) in nodesByID where containedTokens.contains(id) {
+            guard let body = node.physicsBody else { continue }
+            if lateralStep != 0 { body.velocity.dx += lateralStep }
+            guard motionShake > 0 else { continue }
+            body.velocity.dx += shakeX * shakeStep
+            body.velocity.dy += shakeY * shakeStep
+            // 横向一推带着滚一下，方向跟着这一下的方向走。
+            body.angularVelocity += -shakeX * motionShake * spinStep
+        }
+    }
+
+    private func wakeContainedTokens() {
+        for (id, node) in nodesByID where containedTokens.contains(id) {
+            node.physicsBody?.isResting = false
+        }
+    }
+
+    // 调试用（Self.motionDiagnostics 打开才有输出）：看推力、上限、
+    // 以及有没有东西停在瓶口以上——waiting 为 0 却 highest 超过 mouth 才是真出容器。
+    private static let motionDiagnostics = false
+    private func logMotionDiagnostics(_ sample: DeviceMotionSource.Sample, _ lateralAcceleration: CGFloat) {
+        guard Self.motionDiagnostics, simulationTime - lastMotionLog >= 1 else { return }
+        lastMotionLog = simulationTime
+        var resting = 0
+        var highest = -CGFloat.greatestFiniteMagnitude
+        for node in nodesByID.values {
+            if node.physicsBody?.isResting == true { resting += 1 }
+            highest = max(highest, node.position.y)
+        }
+        print("[vessel] \(recipe.id) lateral=\(lateralAcceleration) shake=\(motionShake) nodes=\(nodesByID.count) resting=\(resting) contained=\(containedTokens.count) waiting=\(queue.waiting.count) highest=\(highest) mouth=\(mouthLimit) span=\(mouthSpan.lowerBound)...\(mouthSpan.upperBound)")
+    }
+
     // 晃的时候实体锁在内容上限以下：越线的压回容器里并清掉向上的速度。
     // 名单按位置收口，从口外落进来的实体不会被误压。
+    // 名单增量维护：三个场景同时在跑时，每帧重建一个 Set 是持续的无谓分配。
     private func containJolt() {
         let limit = joltCeiling - bodyHalfExtent
-        if joltTravel > 0.01 || joltSpeed > 1 {
-            for (id, node) in nodesByID where containedTokens.contains(id) && node.position.y > limit {
-                node.position.y = limit
-                if let body = node.physicsBody {
-                    body.velocity.dy = min(body.velocity.dy, 0)
-                    body.angularVelocity *= 0.5
-                }
+        let jolting = joltTravel > 0.01 || joltSpeed > 1 || containUrgency > 0.01
+        for (id, node) in nodesByID {
+            guard node.position.y > limit else {
+                containedTokens.insert(id)
+                continue
             }
+            guard jolting, containedTokens.contains(id) else {
+                containedTokens.remove(id)
+                continue
+            }
+            node.position.y = limit
+            if let body = node.physicsBody {
+                body.velocity.dy = min(body.velocity.dy, 0)
+                body.angularVelocity *= 0.5
+            }
+            containedTokens.insert(id)
         }
-        containedTokens = Set(nodesByID.compactMap { $0.value.position.y <= limit ? $0.key : nil })
     }
 
     private func updateDrag(dt: TimeInterval) {

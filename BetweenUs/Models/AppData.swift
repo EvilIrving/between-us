@@ -37,6 +37,8 @@ struct AppData: Codable, Sendable {
     var items: [String: SecretItem] = [:]
     var relationship: RelationshipLocator?
     var sharedSpaceEntitlement: SharedSpaceEntitlement?
+    /// 对方接受邀请、真正加入这个空间的时刻。空间里还没有别人时为空。
+    var partnerJoinedAt: Date?
     var currentUserRecordName: String?
     var privateSyncState: CKSyncEngine.State.Serialization?
     var sharedSyncState: CKSyncEngine.State.Serialization?
@@ -49,6 +51,7 @@ struct AppData: Codable, Sendable {
         case items
         case relationship
         case sharedSpaceEntitlement
+        case partnerJoinedAt
         case currentUserRecordName
         case privateSyncState
         case sharedSyncState
@@ -62,6 +65,7 @@ struct AppData: Codable, Sendable {
         items: [String: SecretItem] = [:],
         relationship: RelationshipLocator? = nil,
         sharedSpaceEntitlement: SharedSpaceEntitlement? = nil,
+        partnerJoinedAt: Date? = nil,
         currentUserRecordName: String? = nil,
         privateSyncState: CKSyncEngine.State.Serialization? = nil,
         sharedSyncState: CKSyncEngine.State.Serialization? = nil,
@@ -73,6 +77,7 @@ struct AppData: Codable, Sendable {
         self.items = items
         self.relationship = relationship
         self.sharedSpaceEntitlement = sharedSpaceEntitlement
+        self.partnerJoinedAt = partnerJoinedAt
         self.currentUserRecordName = currentUserRecordName
         self.privateSyncState = privateSyncState
         self.sharedSyncState = sharedSyncState
@@ -90,6 +95,7 @@ struct AppData: Codable, Sendable {
             SharedSpaceEntitlement.self,
             forKey: .sharedSpaceEntitlement
         )
+        partnerJoinedAt = try container.decodeIfPresent(Date.self, forKey: .partnerJoinedAt)
         currentUserRecordName = try container.decodeIfPresent(String.self, forKey: .currentUserRecordName)
         privateSyncState = try container.decodeIfPresent(
             CKSyncEngine.State.Serialization.self,
@@ -115,6 +121,7 @@ struct AppData: Codable, Sendable {
         items = [:]
         relationship = nil
         sharedSpaceEntitlement = nil
+        partnerJoinedAt = nil
         dirtyRecordNames = []
         lastSuccessfulSyncAt = nil
         hasCompletedInitialSync = false
@@ -160,16 +167,18 @@ enum LocalPreview {
         let now = Date()
 
         for kind in ContainerKind.allCases {
-            let creditShortfall = max(0, target - data.activeCredits(kind: kind))
+            // 打开只看对方留下的还没拆的份数：预览保证每种物件一直有内容可打开。
             let waitingShortfall = max(0, target - data.unopenedCountFromCounterpart(kind: kind))
+            // 自己放进去的内容不参与打开，只让预览里的物件两侧都留有内容。
+            let ownShortfall = max(0, target - data.count(kind: kind, authoredByCurrentUser: true))
 
-            for index in 0..<creditShortfall {
+            for index in 0..<ownShortfall {
                 let item = SecretItem(
                     kind: kind,
                     authorID: currentUserID,
                     text: previewText(for: kind, fromCounterpart: false, index: index),
-                    createdAt: now.addingTimeInterval(-Double(creditShortfall - index + 4) * 900),
-                    updatedAt: now.addingTimeInterval(-Double(creditShortfall - index + 4) * 900)
+                    createdAt: now.addingTimeInterval(-Double(ownShortfall - index + 4) * 900),
+                    updatedAt: now.addingTimeInterval(-Double(ownShortfall - index + 4) * 900)
                 )
                 data.items[item.recordName] = item
                 changed = true
@@ -449,14 +458,6 @@ extension AppData {
         }
     }
 
-    // 房间里点中具体一份内容时的可打开判断，与顺序打开使用同一套条件。
-    func isOpenableByMe(_ item: SecretItem) -> Bool {
-        guard let current = items[item.recordName] else { return false }
-        return current.authorID != currentUserID
-            && current.openedAt == nil
-            && activeCredits(kind: current.kind) > 0
-    }
-
     func unopenedCountFromCounterpart(kind: ContainerKind) -> Int {
         unopenedFromCounterpart(kind: kind).count
     }
@@ -480,14 +481,6 @@ extension AppData {
             .sorted {
                 ($0.openedAt ?? $0.createdAt) > ($1.openedAt ?? $1.createdAt)
             }
-    }
-
-    func activeCredits(kind: ContainerKind) -> Int {
-        let deposited = allItems(kind: kind).filter { $0.authorID == currentUserID }.count
-        let opened = allItems(kind: kind).filter {
-            $0.authorID != currentUserID && $0.openedByID == currentUserID
-        }.count
-        return max(0, deposited - opened)
     }
 
     func ownItemsOpenedByCounterpart(kind: ContainerKind) -> Int {
@@ -525,11 +518,11 @@ enum CloudSyncStatus: Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .idle: return "等待同步".localized
-        case .syncing: return "正在同步".localized
-        case .upToDate: return "已同步".localized
-        case .attention: return "同步需处理".localized
-        case .localPreview: return "本机预览".localized
+        case .idle: return T("等待同步")
+        case .syncing: return T("正在同步")
+        case .upToDate: return T("已同步")
+        case .attention: return T("同步需处理")
+        case .localPreview: return T("本机预览")
         }
     }
 
@@ -564,6 +557,8 @@ struct AppViewModel: Sendable {
     var isPerformingAction = false
     var shareSheet: ShareSheetPayload?
     var notice: AppNotice?
+    /// 正在发生的这一次连接。它会一直留到连接页把这段演完（`completeConnectionCeremony`）。
+    var connectionMoment: ConnectionMoment?
 
     var hasUnlimitedContent: Bool {
         data.isLocalPreview
@@ -573,5 +568,23 @@ struct AppViewModel: Sendable {
 
     var canAddContent: Bool {
         hasUnlimitedContent || data.items.count < CommerceConfiguration.freeItemLimit
+    }
+
+    /// 邀请入口只在「创建者还没等到对方」时存在。两个人都在同一个空间之后，界面不再出现邀请或共享管理；
+    /// 机制本身（`presentInvite` / 系统共享面板 / 停止共享后重新等待）保留在 Store 里。
+    var showsInviteEntry: Bool {
+        guard let relationship = data.relationship, relationship.isOwner else { return false }
+        return data.partnerJoinedAt == nil
+    }
+
+    /// 什么时候落在连接页上。
+    ///
+    /// 还没有空间（第一次打开、或者刚删掉空间）、创建者还没等到对方、或者这一刻正在发生一次连接。
+    /// 参与者在加入的那一刻就已经在空间里了，所以直接进房间；本机预览不走这条路。
+    var showsConnectionPage: Bool {
+        guard !data.isLocalPreview else { return false }
+        if connectionMoment != nil { return true }
+        guard let relationship = data.relationship else { return true }
+        return relationship.isOwner && data.partnerJoinedAt == nil
     }
 }

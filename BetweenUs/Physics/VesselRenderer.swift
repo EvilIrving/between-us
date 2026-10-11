@@ -18,8 +18,13 @@ enum VesselError: LocalizedError {
 
 @MainActor
 final class VesselAssets {
+    // 首页三个物件各有一份场景，各自再解一遍同样的位图、上传同样的纹理纯属重复。
+    // 图片和纹理本身不可变，按素材名共用一份。
+    static let shared = VesselAssets()
+
     private var images: [String: UIImage] = [:]
     private var tokenTextures: [String: SKTexture] = [:]
+    private var layerTextures: [String: SKTexture] = [:]
 
     func image(named name: String) throws -> UIImage {
         if let image = images[name] { return image }
@@ -40,6 +45,14 @@ final class VesselAssets {
         tokenTextures[skin.id] = texture
         return texture
     }
+
+    // 星星瓶三层用同一张瓶体位图：共用一张纹理，不重复上传。
+    func layerTexture(named name: String, image: UIImage) -> SKTexture {
+        if let texture = layerTextures[name] { return texture }
+        let texture = SKTexture(image:image)
+        layerTextures[name] = texture
+        return texture
+    }
 }
 
 // 遮挡前景独立于物理节点；透视开关只改图层透明度，不卸载或停用任何刚体。
@@ -49,7 +62,7 @@ final class VesselRenderer {
         let specification: RenderLayer
         let node: SKNode
         let sceneMask: CGPath?
-        let alphaMap: AlphaMap?
+        var alphaMap: AlphaMap?
     }
     private let container: ContainerProfile
     private var layers: [Layer] = []
@@ -63,7 +76,7 @@ final class VesselRenderer {
             guard let cg = image.cgImage,
                   cg.width == Int(container.mapping.sourceSize.width),
                   cg.height == Int(container.mapping.sourceSize.height) else { throw VesselError.invalidImage(spec.asset) }
-            let sprite = SKSpriteNode(texture:SKTexture(image:image))
+            let sprite = SKSpriteNode(texture:assets.layerTexture(named:spec.asset,image:image))
             sprite.anchorPoint = .zero
             sprite.position = container.mapping.origin
             sprite.size = CGSize(width:container.mapping.sourceSize.width*container.mapping.scale,
@@ -82,8 +95,20 @@ final class VesselRenderer {
             node.zPosition = spec.depth
             node.alpha = spec.opacity * (isXRay ? (spec.isForeground ? 0.12 : 0.35) : 1)
             scene.addChild(node)
-            layers.append(Layer(specification:spec,node:node,sceneMask:sceneMask,
-                                alphaMap:spec.blocksHitTesting ? AlphaMap(cg) : nil))
+            layers.append(Layer(specification:spec,node:node,sceneMask:sceneMask,alphaMap:nil))
+            if spec.blocksHitTesting { loadAlphaMap(at:layers.count-1,from:cg) }
+        }
+    }
+
+    // 命中采样要知道桶壁哪一块是透明留白，代价是把整张 724 位图画进灰度缓冲。
+    // 这份工作不该压在第一帧上：放到后台做完再挂回来，未就绪时按遮罩判定，行为与原先一致。
+    private func loadAlphaMap(at index: Int, from image: CGImage) {
+        Task.detached(priority:.userInitiated) {
+            let map = AlphaMap(image)
+            await MainActor.run { [weak self] in
+                guard let self, self.layers.indices.contains(index) else { return }
+                self.layers[index].alphaMap = map
+            }
         }
     }
 
@@ -108,7 +133,7 @@ final class VesselRenderer {
         }
     }
 
-    private final class AlphaMap {
+    private final class AlphaMap: @unchecked Sendable {
         private let width: Int
         private let height: Int
         private var pixels: [UInt8]

@@ -51,13 +51,9 @@ final class AudioRecorder: NSObject, ObservableObject {
         guard recordingSessionID == sessionID else { return false }
 
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(
-                .playAndRecord,
-                mode: .spokenAudio,
-                options: [.defaultToSpeaker, .allowBluetooth]
-            )
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try await RecordingAudioSession.shared.activate()
+            // 激活期间用户可能已经松手取消，取消路径自己会停用会话，这里不能再建一个没人管的录音器。
+            guard recordingSessionID == sessionID else { return false }
 
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("between-us-\(UUID().uuidString.lowercased()).m4a")
@@ -78,7 +74,7 @@ final class AudioRecorder: NSObject, ObservableObject {
             startTimer()
             return true
         } catch {
-            errorMessage = "这次没有录下来：%@".localized(error.localizedDescription)
+            errorMessage = T("这次没有录下来：%@", error.localizedDescription)
             discard()
             return false
         }
@@ -94,7 +90,7 @@ final class AudioRecorder: NSObject, ObservableObject {
         recordingSessionID = nil
         isRecording = false
         duration = recordedDuration
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        Task { await RecordingAudioSession.shared.deactivate() }
 
         return AttachmentDraft(
             kind: .audio,
@@ -116,7 +112,7 @@ final class AudioRecorder: NSObject, ObservableObject {
             try? FileManager.default.removeItem(at: fileURL)
         }
         fileURL = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        Task { await RecordingAudioSession.shared.deactivate() }
     }
 
     private func startTimer() {
@@ -142,6 +138,27 @@ final class AudioRecorder: NSObject, ObservableObject {
                 continuation.resume(returning: granted)
             }
         }
+    }
+}
+
+/// 会话配置与激活要一直等到系统完成路由协商才返回，放在主线程上正好卡在用户按住说话的那一刻。
+/// 录音器的会话操作统一走这个串行 actor：不占主线程，停用与下一次激活也按发生顺序执行。
+private actor RecordingAudioSession {
+    static let shared = RecordingAudioSession()
+
+    private let session = AVAudioSession.sharedInstance()
+
+    func activate() throws {
+        try session.setCategory(
+            .playAndRecord,
+            mode: .spokenAudio,
+            options: [.defaultToSpeaker, .allowBluetoothHFP]
+        )
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
+    }
+
+    func deactivate() {
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 

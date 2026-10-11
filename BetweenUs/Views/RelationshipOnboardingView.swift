@@ -1,83 +1,81 @@
 import SwiftUI
 import UIKit
 
-struct RelationshipOnboardingView: View {
-    @EnvironmentObject private var store: BetweenUsStore
+// 连接页（ConnectionView）和「无法打开空间」共用的两个零件：
+// QuietPill 是这一族页面里唯一的动作控件，ICloudRequiredView 是 iCloud 不可用时的落点。
+// 首屏原本的瓶子引导已经由 ConnectionView 接手，这个文件里不再有那一屏。
+/// 安静出口：一句话长在胶囊上。
+/// 首屏、连接页和「无法打开空间」共用。tone 只分两级——真实动作和更轻的出口，不给第三种；
+/// ground 只分两种——房间里的浅底，和连接页那片暮色。
+/// 动作按钮只用文字，图标不重复文字已经说清的语义。
+struct QuietPill: View {
+    enum Tone {
+        case action
+        case muted
+    }
+
+    enum Ground {
+        case room
+        case dusk
+    }
+
+    let title: String
+    var tone: Tone = .muted
+    var ground: Ground = .room
+    var accessibilityHint: String?
+    let action: () -> Void
 
     var body: some View {
-        ZStack {
-            AmbientRoomBackground(kind: .star)
+        Button {
+            RitualHaptics.selection()
+            action()
+        } label: {
+            Text(T(key: title))
+                .font(font)
+                .foregroundStyle(foreground)
+                .padding(.horizontal, tone == .action ? 20 : 15)
+                .frame(height: tone == .action ? 44 : 34)
+                .background(fill)
+                .clipShape(Capsule())
+                .overlay { Capsule().stroke(stroke, lineWidth: 1) }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(SoftScaleButtonStyle())
+        .accessibilityHint(accessibilityHint.map { T(key: $0) } ?? "")
+    }
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-                    Spacer(minLength: 24)
+    private var font: Font {
+        tone == .action ? .subheadline.weight(.semibold) : .caption.weight(.semibold)
+    }
 
-                    ZStack {
-                        AppTheme.glow(for: .star)
-                            .frame(width: 300, height: 260)
-                        ContainerVisual(kind: .star, count: 0, style: .compact)
-                            .frame(width: 184, height: 208)
-                    }
-
-                    Text("耳语")
-                        .font(.system(size: 38, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .padding(.horizontal, 28)
-
-                    HoldToOpenControl(
-                        kind: .star,
-                        title: "按住邀请",
-                        inactiveTitle: "正在创建",
-                        duration: 0.92,
-                        isEnabled: !store.viewModel.isPerformingAction,
-                        isWorking: store.viewModel.isPerformingAction,
-                        onComplete: {
-                            Task { await store.createRelationship() }
-                        }
-                    )
-                    .padding(.horizontal, 36)
-
-                    JoinSpaceHint()
-                        .padding(.horizontal, 28)
-
-                    LookAroundEntry {
-                        Task { await store.enterLocalPreview() }
-                    }
-
-                    Spacer(minLength: 28)
-                }
-                .frame(maxWidth: 620)
-                .frame(maxWidth: .infinity)
-            }
+    private var foreground: Color {
+        switch ground {
+        case .room:
+            return tone == .action
+                ? AppTheme.primaryText.opacity(0.86)
+                : AppTheme.secondaryText.opacity(0.68)
+        case .dusk:
+            return Color(red: 1.0, green: 0.95, blue: 0.88)
+                .opacity(tone == .action ? 0.92 : 0.72)
         }
     }
-}
 
-private struct JoinSpaceHint: View {
-    var body: some View {
-        HStack(spacing: 13) {
-            Image(systemName: "envelope.open")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(ContainerKind.capsule.tint.opacity(0.88))
-                .frame(width: 42, height: 42)
-                .background(ContainerKind.capsule.tint.opacity(0.10))
-                .clipShape(Circle())
-
-            Text("打开 iCloud 邀请".localized)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-
-            Spacer(minLength: 0)
+    private var fill: Color {
+        switch ground {
+        case .room:
+            return Color.white.opacity(tone == .action ? 0.34 : 0.26)
+        case .dusk:
+            return Color.white.opacity(tone == .action ? 0.15 : 0.085)
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 12)
-        .background(Color.white.opacity(0.30))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.54), lineWidth: 1)
+    }
+
+    private var stroke: Color {
+        switch ground {
+        case .room:
+            return Color.white.opacity(tone == .action ? 0.52 : 0.46)
+        case .dusk:
+            return Color.white.opacity(tone == .action ? 0.24 : 0.16)
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -113,17 +111,21 @@ struct ICloudRequiredView: View {
                             .lineSpacing(5)
                     }
 
-                    LookAroundEntry {
+                    QuietPill(
+                        title: "本机预览",
+                        tone: .muted,
+                        accessibilityHint: "进入本机预览"
+                    ) {
                         Task { await store.enterLocalPreview() }
                     }
 
-                    HStack(spacing: 22) {
-                        QuietSystemAction(systemName: "gear", title: "系统设置") {
+                    HStack(spacing: 12) {
+                        QuietPill(title: "系统设置", tone: .muted) {
                             guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                             openURL(url)
                         }
 
-                        QuietSystemAction(systemName: "arrow.clockwise", title: "重试") {
+                        QuietPill(title: "重试", tone: .muted) {
                             Task { await store.sceneBecameActive() }
                         }
                     }
@@ -133,58 +135,5 @@ struct ICloudRequiredView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-    }
-}
-
-private struct LookAroundEntry: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            RitualHaptics.selection()
-            action()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "eye")
-                    .font(.caption.weight(.semibold))
-                Text("本机预览")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-            .padding(.horizontal, 13)
-            .frame(height: 34)
-            .background(Color.white.opacity(0.26))
-            .clipShape(Capsule())
-            .overlay { Capsule().stroke(Color.white.opacity(0.46), lineWidth: 1) }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityHint("进入本机预览".localized)
-    }
-}
-
-private struct QuietSystemAction: View {
-    let systemName: String
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            RitualHaptics.selection()
-            action()
-        } label: {
-            VStack(spacing: 8) {
-                Image(systemName: systemName)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(AppTheme.primaryText.opacity(0.72))
-                    .frame(width: 58, height: 58)
-                    .background(Color.white.opacity(0.38))
-                    .clipShape(Circle())
-                Text(title.localized)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-            }
-        }
-        .buttonStyle(SoftScaleButtonStyle())
     }
 }

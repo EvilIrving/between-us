@@ -31,11 +31,11 @@ actor NotificationManager {
     func notifyNewItem(kind: ContainerKind) async {
         guard await authorizationState() == .enabled else { return }
         let content = UNMutableNotificationContent()
-        content.title = "耳语".localized
+        content.title = T("耳语")
         switch kind {
-        case .star: content.body = "星星瓶里多了一颗星星。".localized
-        case .capsule: content.body = "胶囊瓶里多了一颗胶囊。".localized
-        case .paper: content.body = "纸团篓里多了一个纸团。".localized
+        case .star: content.body = T("星星瓶里多了一颗星星。")
+        case .capsule: content.body = T("胶囊瓶里多了一颗胶囊。")
+        case .paper: content.body = T("纸团篓里多了一个纸团。")
         }
         content.sound = .default
         try? await center.add(
@@ -50,11 +50,11 @@ actor NotificationManager {
     func notifyOpened(kind: ContainerKind) async {
         guard await authorizationState() == .enabled else { return }
         let content = UNMutableNotificationContent()
-        content.title = "耳语".localized
+        content.title = T("耳语")
         switch kind {
-        case .star: content.body = "对方打开了你放入的星星。".localized
-        case .capsule: content.body = "对方打开了你放入的胶囊。".localized
-        case .paper: content.body = "对方展开了你放入的纸团。".localized
+        case .star: content.body = T("对方打开了你放入的星星。")
+        case .capsule: content.body = T("对方打开了你放入的胶囊。")
+        case .paper: content.body = T("对方展开了你放入的纸团。")
         }
         content.sound = .default
         try? await center.add(

@@ -22,7 +22,7 @@ struct CloudSharingView: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UICloudSharingControllerDelegate {
         func itemTitle(for csc: UICloudSharingController) -> String? {
-            "耳语".localized
+            T("耳语")
         }
 
         func cloudSharingController(

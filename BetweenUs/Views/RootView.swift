@@ -4,18 +4,24 @@ struct RootView: View {
     @EnvironmentObject private var store: BetweenUsStore
 
     var body: some View {
-        Group {
+        ZStack {
             switch store.viewModel.phase {
             case .loading:
                 LoadingView()
             case .needsICloud(let message):
-                ICloudRequiredView(message: message.localized)
-            case .needsRelationship:
-                RelationshipOnboardingView()
-            case .ready:
-                HomeView()
+                ICloudRequiredView(message: message)
+            case .needsRelationship, .ready:
+                // 还没有空间、创建者还没等到对方、或者这一刻正在连接，都落在连接页上。
+                // 两个人真正都在空间里之后，房间才出现。
+                if store.viewModel.showsConnectionPage {
+                    ConnectionView(mode: .live)
+                } else {
+                    HomeView()
+                }
             }
         }
+        .animation(.easeInOut(duration: 0.5), value: store.viewModel.phase)
+        .animation(.easeInOut(duration: 0.5), value: store.viewModel.showsConnectionPage)
         .task {
             await store.start()
         }

@@ -3,3 +3,10 @@
 APP_BUNDLE_IDENTIFIER = cain.com.between-us
 CLOUDKIT_CONTAINER_ID = iCloud.cain.com.between-us
 DEVELOPMENT_TEAM_ID = QZZ878S3NS
+
+// CloudKit 的运行时环境由签名里的 com.apple.developer.icloud-container-environment 决定，
+// 缺这个键时 CloudKit 按 Production 走——Debug 包会连到还没部署过 schema 的正式环境，
+// 所有写入都会被服务器拒（CKError 15）。所以这里按构建配置给值：
+// 开发调试走 Development（schema 可以自动生成），Release / TestFlight 走 Production。
+ICLOUD_CONTAINER_ENVIRONMENT = Development
+ICLOUD_CONTAINER_ENVIRONMENT[config=Release] = Production

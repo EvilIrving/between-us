@@ -30,7 +30,7 @@ struct ContainerDetailShell<Content: View>: View {
 
                         Spacer()
 
-                        Text(title.localized)
+                        Text(T(key: title))
                             .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.primaryText)
 
@@ -70,12 +70,6 @@ struct ContainerRitualScene: View {
                     containerStage
                         .frame(height: 272)
 
-                    ExchangeBalanceView(
-                        kind: kind,
-                        credits: credits,
-                        waiting: unopenedCount
-                    )
-
                     RitualActionToken(kind: kind, title: kind.homeActionTitle) {
                         showCompose = true
                     }
@@ -109,32 +103,25 @@ struct ContainerRitualScene: View {
                 .padding(.vertical, kind == .star ? 0 : 8)
 
             if kind != .star || !hasOpenableItem {
-                Text(stageTitle.localized)
+                Text(T(key: stageTitle))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
                     .frame(height: 20)
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            if kind == .star { openNext() }
-        }
-        .onLongPressGesture(minimumDuration: AppMotion.holdDuration(for: kind)) {
-            if kind != .star { openNext() }
-        }
+        .onTapGesture { openNext() }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("%@，里面积累了 %d 件内容。%@".localized(kind.title, sharedCount, stageTitle.localized))
+        .accessibilityLabel(T("%@，里面积累了 %d 件内容。%@", kind.title, sharedCount, T(key: stageTitle)))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { openNext() }
     }
 
     private var data: AppData { store.viewModel.data }
-    private var credits: Int { data.activeCredits(kind: kind) }
     private var unopenedCount: Int { data.unopenedCountFromCounterpart(kind: kind) }
     private var sharedCount: Int { data.count(kind: kind) }
-    private var hasOpenableItem: Bool { credits > 0 && unopenedCount > 0 }
+    private var hasOpenableItem: Bool { unopenedCount > 0 }
     private var stageTitle: String {
-        if credits == 0 { return kind.creditRequirementTitle }
         if unopenedCount == 0 { return kind.emptyWaitingTitle }
         return kind.openActionTitle
     }
@@ -157,48 +144,6 @@ struct ContainerRitualScene: View {
     }
 }
 
-struct ExchangeBalanceView: View {
-    let kind: ContainerKind
-    let credits: Int
-    let waiting: Int
-
-    var body: some View {
-        HStack(spacing: 0) {
-            BalanceValue(value: credits, label: "可打开", tint: kind.tint)
-            Rectangle()
-                .fill(AppTheme.border)
-                .frame(width: 1, height: 34)
-            BalanceValue(value: waiting, label: "待打开", tint: kind.tint)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 15)
-        .padding(.vertical, 12)
-        .background(Color.white.opacity(0.24))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("可打开 %d 次，还有 %d 件内容等你打开".localized(credits, waiting))
-    }
-}
-
-private struct BalanceValue: View {
-    let value: Int
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        VStack(spacing: 3) {
-            Text("\(value)")
-                .font(.headline.bold().monospacedDigit())
-                .foregroundStyle(value > 0 ? tint : AppTheme.secondaryText.opacity(0.48))
-            Text(label.localized)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(AppTheme.secondaryText.opacity(0.68))
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityLabel("%@ %d 件".localized(label.localized, value))
-    }
-}
-
 struct RitualDivider: View {
     let text: String
 
@@ -207,7 +152,7 @@ struct RitualDivider: View {
             Rectangle()
                 .fill(AppTheme.border)
                 .frame(height: 1)
-            Text(text.localized)
+            Text(T(key: text))
                 .font(.caption2)
                 .foregroundStyle(AppTheme.secondaryText.opacity(0.46))
             Rectangle()

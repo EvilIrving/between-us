@@ -15,7 +15,9 @@ struct ComposeSheet: View {
     @State private var selectedMediaItems: [PhotosPickerItem] = []
     @State private var mediaDrafts: [AttachmentDraft] = []
     @State private var attachmentDraft: AttachmentDraft?
-    @State private var isLoadingAttachment = false
+    @StateObject private var mediaProgress = MediaImportProgress()
+    @State private var isFetchingMedia = false
+    @State private var mediaImportTask: Task<Void, Never>?
     @State private var isSaving = false
     @State private var localNotice: LocalNotice?
     @State private var didRestoreDraft = false
@@ -23,9 +25,10 @@ struct ComposeSheet: View {
     @State private var isShowingLifetimeUnlock = false
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var selectedDetent: PresentationDetent = .fraction(0.44)
+    /// 这次写下的纸：创作时自由选，写入时冻结进卡片（§10.3）。
+    @State private var paperID: PaperID = PaperRegistry.defaultPaperID
     @FocusState private var isFocused: Bool
 
-    private let maxLength = 4_000
     private let draftRepository = ComposeDraftRepository()
     private let compactDetent: PresentationDetent = .fraction(0.44)
     private let mediumDetent: PresentationDetent = .fraction(0.58)
@@ -42,7 +45,7 @@ struct ComposeSheet: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
 
-                        content
+                        content(paperWidth: proxy.size.width * PaperSheetView.widthRatio)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal, 20)
                             .padding(.top, 14)
@@ -71,6 +74,13 @@ struct ComposeSheet: View {
                     )
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
+                    .task(id: localNotice.id) {
+                        guard localNotice.autoDismiss else { return }
+                        try? await Task.sleep(for: AppMotion.noticeAutoDismissDelay(message: localNotice.message))
+                        if self.localNotice?.id == localNotice.id {
+                            self.localNotice = nil
+                        }
+                    }
                     Spacer()
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -86,16 +96,12 @@ struct ComposeSheet: View {
         .presentationCornerRadius(30)
         .onChange(of: selectedMediaItems) { _, newValue in
             guard !newValue.isEmpty else { return }
-            Task { await importPickerItems(newValue) }
+            mediaImportTask = Task { await importPickerItems(newValue) }
         }
         .onChange(of: mediaDrafts.count) { _, _ in
             selectedDetent = restingDetent
         }
         .onChange(of: text) { _, newValue in
-            if newValue.count > maxLength {
-                text = String(newValue.prefix(maxLength))
-                return
-            }
             guard didRestoreDraft else { return }
             scheduleDraftSave(newValue)
         }
@@ -114,6 +120,8 @@ struct ComposeSheet: View {
         }
         .onDisappear {
             draftSaveTask?.cancel()
+            mediaImportTask?.cancel()
+            mediaImportTask = nil
             if !didSave {
                 draftRepository.saveText(text, spaceID: draftSpaceID, kind: kind)
             }
@@ -150,46 +158,99 @@ struct ComposeSheet: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(paperWidth: CGFloat) -> some View {
         MediaRitualEditor(
             kind: kind,
             selectedMediaItems: $selectedMediaItems,
             drafts: mediaDrafts,
-            isLoading: isLoadingAttachment,
+            preparing: mediaProgress.values,
+            isLoading: isFetchingMedia && mediaDrafts.isEmpty,
             allowsMedia: true,
             remove: removeMedia
         ) {
-            if let draft = attachmentDraft, draft.kind == .audio {
-                VoiceDraftPreviewPlayer(
-                    url: draft.url,
-                    expectedDuration: draft.duration,
-                    tint: kind.tint,
-                    discard: removeAttachment,
-                    commit: save
-                )
-            } else {
-                VoiceHoldRecorderView(
-                    kind: kind,
-                    recorder: recorder,
-                    text: $text,
-                    isFocused: $isFocused,
-                    hasText: hasText,
-                    isDisabled: isSaving || isLoadingAttachment,
-                    onCommit: save,
-                    onRecorded: voiceRecorded,
-                    onPreviewed: voicePreviewed,
-                    onCancelled: {
-                        localNotice = LocalNotice(title: "录音已取消", message: "")
-                    },
-                    onTooShort: {
-                        localNotice = LocalNotice(title: "录音太短", message: "")
-                    },
-                    onError: { message in
-                        localNotice = LocalNotice(title: "无法录音", message: message)
-                    }
+            VStack(spacing: 10) {
+                paperPicker
+
+                if let draft = attachmentDraft, draft.kind == .audio {
+                    VoiceDraftPreviewPlayer(
+                        url: draft.url,
+                        expectedDuration: draft.duration,
+                        tint: kind.tint,
+                        discard: removeAttachment,
+                        commit: save
+                    )
+                } else {
+                    VoiceHoldRecorderView(
+                        kind: kind,
+                        recorder: recorder,
+                        text: $text,
+                        isFocused: $isFocused,
+                        paperWidth: paperWidth,
+                        hasText: hasText,
+                        isDisabled: isSaving || isPreparingMedia,
+                        onCommit: save,
+                        onRecorded: voiceRecorded,
+                        onPreviewed: voicePreviewed,
+                        onCancelled: {
+                            localNotice = LocalNotice(title: "录音已取消", message: "")
+                        },
+                        onTooShort: {
+                            localNotice = LocalNotice(title: "录音太短", message: "")
+                        },
+                        onError: { message in
+                            localNotice = LocalNotice(title: "无法录音", message: message, autoDismiss: false)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    /// 创作时选纸：两张纸各一个胶囊（左边是这张纸的缩略，右边是纸名）。
+    /// 物件不参与——同一个物件想用哪张纸就用哪张（§10.3）。
+    private var paperPicker: some View {
+        HStack(spacing: 8) {
+            ForEach(PaperRegistry.all) { spec in
+                paperChip(spec)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .disabled(isSaving || isVoiceInteractionLocked)
+        .opacity(isSaving || isVoiceInteractionLocked ? 0.5 : 1)
+    }
+
+    private func paperChip(_ spec: PaperSheetSpec) -> some View {
+        let isSelected = spec.id == paperID
+
+        return Button {
+            guard !isSelected else { return }
+            paperID = spec.id
+            RitualHaptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                PaperThumbnail(spec: spec)
+
+                Text(T(key: spec.nameKey))
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText)
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 12)
+            .padding(.vertical, 6)
+            .background {
+                Capsule().fill(Color.white.opacity(isSelected ? 0.92 : 0.42))
+            }
+            .overlay {
+                Capsule().strokeBorder(
+                    isSelected ? kind.tint.opacity(0.55) : AppTheme.border,
+                    lineWidth: 1
                 )
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(T(key: spec.nameKey))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var draftSpaceID: String {
@@ -198,6 +259,11 @@ struct ComposeSheet: View {
 
     private var isVoiceInteractionLocked: Bool {
         recorder.isRecording || recorder.isPreparing
+    }
+
+    /// 取文件和归一化都算「正在准备」：这段时间不能保存，也不能再挑新的。
+    private var isPreparingMedia: Bool {
+        isFetchingMedia || !mediaProgress.values.isEmpty
     }
 
     private var hasText: Bool {
@@ -216,7 +282,7 @@ struct ComposeSheet: View {
     }
 
     private var canSave: Bool {
-        guard !isSaving, !isLoadingAttachment, !recorder.isRecording, !recorder.isPreparing else {
+        guard !isSaving, !isPreparingMedia, !recorder.isRecording, !recorder.isPreparing else {
             return false
         }
         return hasText || !mediaDrafts.isEmpty || attachmentDraft?.kind == .audio
@@ -284,7 +350,7 @@ struct ComposeSheet: View {
         mediaDrafts = []
 
         Task {
-            let result = await store.add(kind: kind, text: text, attachments: drafts)
+            let result = await store.add(kind: kind, text: text, attachments: drafts, paperID: paperID)
             await MainActor.run {
                 switch result {
                 case .success:
@@ -311,7 +377,8 @@ struct ComposeSheet: View {
                     RitualHaptics.warning()
                     localNotice = LocalNotice(
                         title: "保存失败",
-                        message: "草稿已保留，请重试。"
+                        message: "草稿已保留，请重试。",
+                        autoDismiss: false
                     )
                 }
             }
@@ -320,46 +387,82 @@ struct ComposeSheet: View {
 
     private func importPickerItems(_ items: [PhotosPickerItem]) async {
         isFocused = false
-        isLoadingAttachment = true
-        defer {
-            isLoadingAttachment = false
-            selectedMediaItems = []
-        }
+        defer { selectedMediaItems = [] }
 
         let availableSlots = max(0, 9 - mediaDrafts.count)
         guard availableSlots > 0 else { return }
-        var imported: [AttachmentDraft] = []
+
+        var didImport = false
+        var failures: [Error] = []
+
+        for item in items.prefix(availableSlots) {
+            if Task.isCancelled { break }
+            do {
+                try await importPickerItem(item)
+                didImport = true
+            } catch is CancellationError {
+                break
+            } catch {
+                failures.append(error)
+            }
+        }
+
+        if didImport { RitualHaptics.selection() }
+        if let failure = failures.first { showMediaImportFailure(failure) }
+    }
+
+    /// 一条媒体从取文件到归一化完成：先把格子占上，进度就长在这条草稿自己身上。
+    /// 失败只丢这一条，不影响同批其他内容。
+    private func importPickerItem(_ item: PhotosPickerItem) async throws {
+        isFetchingMedia = true
+        let file: MediaPickerFile?
+        do {
+            file = try await item.loadTransferable(type: MediaPickerFile.self)
+        } catch {
+            isFetchingMedia = false
+            throw error
+        }
+        isFetchingMedia = false
+        guard let file else { throw MediaNormalizerError.mediaUnreadable }
+
+        let draft = AttachmentDraft(
+            kind: file.kind,
+            url: file.url,
+            originalFilename: file.originalFilename,
+            duration: nil
+        )
+        mediaDrafts.append(draft)
+        mediaProgress.begin(draft.id)
+        defer { mediaProgress.end(draft.id) }
 
         do {
-            for item in items.prefix(availableSlots) {
-                guard let type = item.supportedContentTypes.first(where: {
-                    $0.conforms(to: .image) || $0.conforms(to: .movie)
-                }),
-                      let data = try await item.loadTransferable(type: Data.self) else {
-                    throw MediaImportError.unavailable
-                }
-                guard Int64(data.count) <= MediaFileStore.maximumAttachmentBytes else {
-                    throw MediaFileError.fileTooLarge
-                }
-
-                let attachmentKind: AttachmentKind = type.conforms(to: .movie) ? .video : .image
-                let fileExtension = type.preferredFilenameExtension
-                    ?? (attachmentKind == .video ? "mov" : "jpg")
-                let url = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("between-us-\(UUID().uuidString.lowercased()).\(fileExtension)")
-                try data.write(to: url, options: .atomic)
-                imported.append(AttachmentDraft(
-                    kind: attachmentKind,
-                    url: url,
-                    originalFilename: "\(attachmentKind == .video ? "视频" : "照片").\(fileExtension)"
-                ))
+            let progress = mediaProgress
+            let normalized = try await MediaNormalizer.shared.normalize(draft) { value in
+                Task { @MainActor in progress.update(draft.id, value) }
             }
-            mediaDrafts.append(contentsOf: imported)
-            RitualHaptics.selection()
+            guard MediaFileStore.fileSize(at: normalized.url) <= MediaFileStore.maximumAttachmentBytes else {
+                throw MediaFileError.fileTooLarge
+            }
+            guard let index = mediaDrafts.firstIndex(where: { $0.id == draft.id }) else {
+                cleanupTemporaryDraft(normalized)
+                return
+            }
+            mediaDrafts[index] = normalized
+            if normalized.url != draft.url { cleanupTemporaryDraft(draft) }
         } catch {
-            for draft in imported { cleanupTemporaryDraft(draft) }
-            localNotice = LocalNotice(title: "无法读取媒体", message: error.localizedDescription)
+            mediaDrafts.removeAll { $0.id == draft.id }
+            cleanupTemporaryDraft(draft)
+            throw error
         }
+    }
+
+    private func showMediaImportFailure(_ error: Error) {
+        RitualHaptics.warning()
+        if let normalizerError = error as? MediaNormalizerError, case .videoTooLong = normalizerError {
+            localNotice = LocalNotice(title: T("视频最长 1 分钟"), message: "")
+            return
+        }
+        localNotice = LocalNotice(title: T("无法准备媒体"), message: error.localizedDescription, autoDismiss: false)
     }
 
     @discardableResult
@@ -378,7 +481,8 @@ struct ComposeSheet: View {
             cleanupTemporaryDraft(draft)
             localNotice = LocalNotice(
                 title: "无法保存草稿",
-                message: "请重新选择或录制。"
+                message: "请重新选择或录制。",
+                autoDismiss: false
             )
             return false
         }
@@ -411,70 +515,12 @@ struct ComposeSheet: View {
     }
 }
 
-private struct WhisperPaperEditor: View {
-    let kind: ContainerKind
-    @Binding var text: String
-    var isFocused: FocusState<Bool>.Binding
-    let maxLength: Int
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: kind == .paper ? 19 : 28, style: .continuous)
-                .fill(AppTheme.paper.opacity(0.92))
-                .overlay {
-                    RoundedRectangle(cornerRadius: kind == .paper ? 19 : 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.82), lineWidth: 1)
-                }
-                .shadow(color: Color.black.opacity(0.06), radius: 22, y: 12)
-                .rotationEffect(.degrees(kind == .paper ? -0.7 : 0))
-
-            VStack(spacing: 0) {
-                TextEditor(text: $text)
-                    .focused(isFocused)
-                    .scrollContentBackground(.hidden)
-                    .font(.system(size: 19, weight: .regular, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineSpacing(6)
-                    .padding(.horizontal, 15)
-                    .padding(.top, 14)
-                    .padding(.bottom, 8)
-
-                if text.count > maxLength - 400 {
-                    Text("剩余 %d 字".localized(maxLength - text.count))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 12)
-                }
-            }
-
-            if text.isEmpty {
-                Text(kind.placeholder)
-                    .font(.system(size: 18, design: .rounded))
-                    .foregroundStyle(AppTheme.secondaryText.opacity(0.40))
-                    .lineSpacing(6)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 25)
-                    .allowsHitTesting(false)
-            }
-
-            if kind == .paper {
-                PaperCreaseShape(seed: 7)
-                    .stroke(AppTheme.secondaryText.opacity(0.07), lineWidth: 1)
-                    .padding(12)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(minHeight: 270, maxHeight: 410)
-        .padding(.vertical, 6)
-    }
-}
-
-private struct MediaRitualEditor<Composer: View>: View {
+struct MediaRitualEditor<Composer: View>: View {
     let kind: ContainerKind
     @Binding var selectedMediaItems: [PhotosPickerItem]
     let drafts: [AttachmentDraft]
+    /// 归一化进度（草稿 id → 0…1）；出现在这里就代表这条还在准备，不在就是好了。
+    let preparing: [UUID: Double]
     let isLoading: Bool
     let allowsMedia: Bool
     let remove: (Int) -> Void
@@ -484,6 +530,7 @@ private struct MediaRitualEditor<Composer: View>: View {
         kind: ContainerKind,
         selectedMediaItems: Binding<[PhotosPickerItem]>,
         drafts: [AttachmentDraft],
+        preparing: [UUID: Double],
         isLoading: Bool,
         allowsMedia: Bool,
         remove: @escaping (Int) -> Void,
@@ -492,6 +539,7 @@ private struct MediaRitualEditor<Composer: View>: View {
         self.kind = kind
         _selectedMediaItems = selectedMediaItems
         self.drafts = drafts
+        self.preparing = preparing
         self.isLoading = isLoading
         self.allowsMedia = allowsMedia
         self.remove = remove
@@ -528,6 +576,7 @@ private struct MediaRitualEditor<Composer: View>: View {
                 MediaDraftTile(
                     draft: draft,
                     index: index,
+                    preparingProgress: preparing[draft.id],
                     remove: remove
                 )
             }
@@ -544,7 +593,7 @@ private struct MediaRitualEditor<Composer: View>: View {
                     .aspectRatio(1, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .contentShape(Rectangle())
-                    .accessibilityLabel("添加图片或视频，最多 9 个".localized)
+                    .accessibilityLabel(T("添加图片或视频，最多 9 个"))
                 }
             }
         }
@@ -565,49 +614,80 @@ private struct MediaRitualEditor<Composer: View>: View {
             photoLibrary: .shared()
         ) { label() }
         .buttonStyle(SoftScaleButtonStyle())
-        .disabled(isLoading || drafts.count >= 9)
+        .disabled(isLoading || isPreparing || drafts.count >= 9)
+        .accessibilityHint(T("视频最长 1 分钟"))
+    }
+
+    private var isPreparing: Bool {
+        !preparing.isEmpty
     }
 }
 
 private struct MediaDraftTile: View {
     let draft: AttachmentDraft
     let index: Int
+    /// 归一化进度 0…1；nil 表示这条已经准备好。
+    let preparingProgress: Double?
     let remove: (Int) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isPreparing: Bool {
+        preparingProgress != nil
+    }
+
+    /// 准备中的内容从半透明里慢慢显出来：进度长在这条草稿自己身上，不另起进度控件。
+    private var contentOpacity: Double {
+        guard let preparingProgress else { return 1 }
+        return 0.38 + 0.62 * min(max(preparingProgress, 0), 1)
+    }
+
+    private var draftPlaceholder: some View {
+        ZStack {
+            Color.black.opacity(0.08)
+            Image(systemName: "play.fill")
+                .font(.title2)
+                .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
+        }
+    }
 
     var body: some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if draft.kind == .image,
-                   let image = UIImage(contentsOfFile: draft.url.path) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
+                if draft.kind == .image {
+                    AttachmentImage(url: draft.url, maxPixel: 640) { draftPlaceholder }
                 } else {
-                    ZStack {
-                        Color.black.opacity(0.08)
-                        Image(systemName: "play.fill")
-                            .font(.title2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.56))
-                    }
+                    draftPlaceholder
                 }
             }
+            .opacity(contentOpacity)
+            .animation(reduceMotion ? nil : .linear(duration: 0.2), value: contentOpacity)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(alignment: .topTrailing) {
-                Button {
-                    RitualHaptics.selection()
-                    remove(index)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 18, height: 18)
-                        .background(Color.black.opacity(0.34))
-                        .clipShape(Circle())
+                if !isPreparing {
+                    Button {
+                        RitualHaptics.selection()
+                        remove(index)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(Color.black.opacity(0.34))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(SoftScaleButtonStyle())
+                    .padding(5)
+                    .accessibilityLabel(T("移除第 %d 个媒体", index + 1))
                 }
-                .buttonStyle(SoftScaleButtonStyle())
-                .padding(5)
-                .accessibilityLabel("移除第 %d 个媒体".localized(index + 1))
+            }
+            .overlay {
+                if isPreparing {
+                    Color.clear
+                        .accessibilityElement()
+                        .accessibilityLabel(T("正在准备媒体"))
+                }
             }
     }
 }
@@ -638,10 +718,26 @@ private struct LocalNotice: Identifiable {
     let id = UUID()
     let title: String
     let message: String
+    /// 失败类通知常驻到点按关闭，短暂状态默认自动收起。
+    var autoDismiss = true
 }
 
-private enum MediaImportError: LocalizedError {
-    case unavailable
+/// 媒体归一化的进度账本：写在字典里就代表这条草稿还在准备，去掉就是准备好了。
+/// 归一化在别的执行器上跑，进度通过这个 @MainActor 对象回到界面。
+@MainActor
+private final class MediaImportProgress: ObservableObject {
+    @Published private(set) var values: [UUID: Double] = [:]
 
-    var errorDescription: String? { "系统没有返回可读取的图片或视频。" }
+    func begin(_ id: UUID) {
+        values[id] = 0
+    }
+
+    func update(_ id: UUID, _ value: Double) {
+        guard values[id] != nil else { return }
+        values[id] = value
+    }
+
+    func end(_ id: UUID) {
+        values[id] = nil
+    }
 }

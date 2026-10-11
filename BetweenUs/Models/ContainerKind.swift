@@ -9,65 +9,57 @@ enum ContainerKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .star: return "星星瓶".localized
-        case .capsule: return "胶囊瓶".localized
-        case .paper: return "纸团篓".localized
+        case .star: return T("星星瓶")
+        case .capsule: return T("胶囊瓶")
+        case .paper: return T("纸团篓")
         }
     }
 
     var composeTitle: String {
         switch self {
-        case .star: return "折一颗星星".localized
-        case .capsule: return "装一颗胶囊".localized
-        case .paper: return "揉一个纸团".localized
+        case .star: return T("折一颗星星")
+        case .capsule: return T("装一颗胶囊")
+        case .paper: return T("揉一个纸团")
         }
     }
 
     var homeActionTitle: String {
         switch self {
-        case .star: return "表达喜欢".localized
-        case .capsule: return "认真沟通".localized
-        case .paper: return "说出烦恼".localized
+        case .star: return T("表达喜欢")
+        case .capsule: return T("认真沟通")
+        case .paper: return T("说出烦恼")
         }
     }
 
     var openActionTitle: String {
         switch self {
-        case .star: return "点一下取出星星".localized
-        case .capsule: return "按住打开胶囊".localized
-        case .paper: return "按住展开纸团".localized
+        case .star: return T("点一下取出星星")
+        case .capsule: return T("点一下打开胶囊")
+        case .paper: return T("点一下展开纸团")
         }
     }
 
     var emptyWaitingTitle: String {
         switch self {
-        case .star: return "暂无新的星星".localized
-        case .capsule: return "暂无新的胶囊".localized
-        case .paper: return "暂无新的纸团".localized
-        }
-    }
-
-    var creditRequirementTitle: String {
-        switch self {
-        case .star: return "先放入一颗星星".localized
-        case .capsule: return "先放入一颗胶囊".localized
-        case .paper: return "先放入一个纸团".localized
+        case .star: return T("暂无新的星星")
+        case .capsule: return T("暂无新的胶囊")
+        case .paper: return T("暂无新的纸团")
         }
     }
 
     var placeholder: String {
         switch self {
-        case .star: return "写下喜欢、感谢或想分享的事".localized
-        case .capsule: return "写下建议、鼓励或需要认真说的事".localized
-        case .paper: return "写下让你委屈、生气或不开心的事".localized
+        case .star: return T("写下喜欢、感谢或想分享的事")
+        case .capsule: return T("写下建议、鼓励或需要认真说的事")
+        case .paper: return T("写下让你委屈、生气或不开心的事")
         }
     }
 
     var depositButtonTitle: String {
         switch self {
-        case .star: return "折好，放进瓶子".localized
-        case .capsule: return "封好，放进瓶子".localized
-        case .paper: return "揉好，放进纸篓".localized
+        case .star: return T("折好，放进瓶子")
+        case .capsule: return T("封好，放进瓶子")
+        case .paper: return T("揉好，放进纸篓")
         }
     }
 

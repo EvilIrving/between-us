@@ -6,6 +6,9 @@ struct MyDepositsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedKind: ContainerKind?
     @State private var section: DrawerSection = .leftByMe
+    // 抽屉里点开的就是首页那一张纸：纸浮在抽屉上，关掉回到抽屉。
+    @State private var openedItem: SecretItem?
+    @State private var composeKind: ContainerKind?
 
     var body: some View {
         ZStack {
@@ -25,8 +28,8 @@ struct MyDepositsView: View {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 13) {
                             ForEach(items) { item in
-                                NavigationLink {
-                                    DrawerItemDetailView(item: item, section: section)
+                                Button {
+                                    openPaper(item)
                                 } label: {
                                     DrawerItemCard(item: item, section: section)
                                 }
@@ -42,8 +45,37 @@ struct MyDepositsView: View {
             .padding(.top, 9)
             .frame(maxWidth: 640, maxHeight: .infinity, alignment: .top)
             .frame(maxWidth: .infinity)
+            .disabled(openedItem != nil)
+            .accessibilityHidden(openedItem != nil)
+
+            if let openedItem {
+                ContainerRevealOverlay(
+                    item: openedItem,
+                    onDismiss: { self.openedItem = nil },
+                    onRespond: {
+                        let kind = openedItem.kind
+                        self.openedItem = nil
+                        composeKind = kind
+                    },
+                    screenLayerHeight: DrawerPaperScreenLayer.barHeight
+                ) {
+                    DrawerPaperScreenLayer(
+                        item: openedItem,
+                        section: section,
+                        onDeleted: { self.openedItem = nil }
+                    )
+                }
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $composeKind) { kind in
+            ComposeSheet(kind: kind)
+        }
+    }
+
+    private func openPaper(_ item: SecretItem) {
+        RitualHaptics.selection()
+        openedItem = item
     }
 
     // 与设置页共用一套页头：返回控件在左，标题紧跟其右。
@@ -121,8 +153,8 @@ private enum DrawerSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .leftByMe: return "我放入的".localized
-        case .openedFromOther: return "我打开的".localized
+        case .leftByMe: return T("我放入的")
+        case .openedFromOther: return T("我打开的")
         }
     }
 
@@ -189,7 +221,7 @@ private struct DrawerFilterToken: View {
             }
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel(accessibilityTitle.localized)
+        .accessibilityLabel(T(key: accessibilityTitle))
     }
 }
 
@@ -337,13 +369,13 @@ private struct DrawerItemCard: View {
         if let audio, let duration = audio.duration, duration > 0 {
             parts.append(duration.formattedDuration)
         } else if audio != nil {
-            parts.append("语音".localized)
+            parts.append(T("语音"))
         }
         if !images.isEmpty {
-            parts.append(images.count == 1 ? "一张照片".localized : "%d 张照片".localized(images.count))
+            parts.append(images.count == 1 ? T("一张照片") : T("%d 张照片", images.count))
         }
         if !videos.isEmpty {
-            parts.append(videos.count == 1 ? "一段视频".localized : "%d 个视频".localized(videos.count))
+            parts.append(videos.count == 1 ? T("一段视频") : T("%d 个视频", videos.count))
         }
         return parts.joined(separator: "、")
     }
@@ -357,13 +389,16 @@ private struct DrawerItemCard: View {
     // 仅供 VoiceOver 使用，界面不再显示文案。
     private var statusText: String {
         switch section {
-        case .leftByMe: return item.openedAt == nil ? "未打开".localized : "已打开".localized
-        case .openedFromOther: return "已打开".localized
+        case .leftByMe: return item.openedAt == nil ? T("未打开") : T("已打开")
+        case .openedFromOther: return T("已打开")
         }
     }
 
+    /// 纸条的自然倾斜：从 UUID 字节稳定派生。
+    /// 不用 `uuidString.hashValue`：String 哈希每进程重播种，倾斜每次启动都会变（§10.4）。
     private var rotation: Double {
-        Double(abs(item.id.uuidString.hashValue % 5) - 2) * 0.22
+        let bytes = withUnsafeBytes(of: item.id.uuid) { Array($0) }
+        return Double(Int(bytes[0] % 5) - 2) * 0.22
     }
 
     private struct AttachmentBadge: Identifiable {
@@ -376,81 +411,37 @@ private struct DrawerItemCard: View {
     }
 }
 
-private struct DrawerItemDetailView: View {
+private struct DrawerPaperScreenLayer: View {
     let item: SecretItem
     let section: DrawerSection
+    let onDeleted: () -> Void
+
+    /// 这一层占的高度，纸的舞台按这个值让位，两边用的是同一个数。
+    static let barHeight: CGFloat = 62
+    /// 删除用的红：屏幕层是半透明白底，系统红压在上面对比度不够。
+    private static let deleteInk = Color(red: 0.70, green: 0.14, blue: 0.12)
+
     @EnvironmentObject private var store: BetweenUsStore
-    @Environment(\.dismiss) private var dismiss
     @State private var isDeleting = false
 
     var body: some View {
-        ZStack {
-            AmbientRoomBackground(kind: item.kind)
+        HStack(spacing: 10) {
+            // 和关闭按钮同一套屏幕层成色：半透明白底 + 深墨字。
+            Text(statusText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText.opacity(0.72))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(Color.white.opacity(0.55), in: Capsule())
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    HStack {
-                        SceneCloseControl(label: "返回抽屉") { dismiss() }
-                        Spacer()
-                        Text(detailStatus)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(section == .openedFromOther || item.openedAt != nil ? item.kind.tint : AppTheme.secondaryText)
-                    }
+            Spacer(minLength: 8)
 
-                    RevealObjectAnimationForDeposit(kind: item.kind, id: item.id)
-                        .frame(height: 116)
-
-                    VStack(spacing: 17) {
-                        if !item.text.isEmpty {
-                            Text(item.text)
-                                .font(.system(size: 20, weight: .medium, design: .rounded))
-                                .foregroundStyle(AppTheme.primaryText)
-                                .multilineTextAlignment(.leading)
-                                .lineSpacing(7)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        if !item.allAttachments.isEmpty {
-                            AttachmentCollectionView(attachments: item.allAttachments, tint: item.kind.tint)
-                        }
-
-                        Text(item.createdAt.formatted(date: .long, time: .shortened))
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.54))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 24)
-                    .frame(maxWidth: .infinity)
-                    .background(AppTheme.paper.opacity(0.88))
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.68), lineWidth: 1)
-                    }
-                    .shadow(color: Color.black.opacity(0.06), radius: 24, y: 12)
-
-                    deleteControl
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 9)
-                .padding(.bottom, 34)
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity)
-            }
+            deleteControl
         }
-        .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var detailStatus: String {
-        switch section {
-        case .leftByMe:
-            return item.openedAt == nil ? "等待对方打开".localized : "对方已打开".localized
-        case .openedFromOther:
-            guard let openedAt = item.openedAt else { return "已打开".localized }
-            return "打开于 %@".localized(openedAt.formatted(date: .abbreviated, time: .shortened))
-        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .frame(height: Self.barHeight, alignment: .top)
     }
 
     private var deleteControl: some View {
@@ -462,39 +453,44 @@ private struct DrawerItemDetailView: View {
         ) { progress, _ in
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.red.opacity(0.045))
+                    Capsule()
+                        .fill(Color.white.opacity(0.55))
 
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.red.opacity(0.13))
+                    Capsule()
+                        .fill(Self.deleteInk.opacity(0.18))
                         .frame(width: proxy.size.width * progress)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         if isDeleting {
                             ProgressView()
                                 .controlSize(.small)
-                                .tint(.red)
+                                .tint(Self.deleteInk)
                         }
-                        Text(isDeleting ? "正在删除".localized : "按住删除".localized)
+                        Text(isDeleting ? T("正在删除") : T("按住删除"))
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(Color.red.opacity(0.78))
+                    .foregroundStyle(Self.deleteInk)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.red.opacity(0.12), lineWidth: 1)
                 }
             }
         }
-        .frame(height: 50)
-        .accessibilityLabel("按住删除".localized)
-        .accessibilityHint("持续按住完成，松开取消".localized)
+        .frame(width: 132, height: 44)
+        .accessibilityLabel(T("按住删除"))
+        .accessibilityHint(T("持续按住完成，松开取消"))
         .accessibilityAction {
             guard !isDeleting else { return }
             startDeletion()
         }
-        .padding(.top, 8)
+    }
+
+    private var statusText: String {
+        switch section {
+        case .leftByMe:
+            return item.openedAt == nil ? T("等待对方打开") : T("对方已打开")
+        case .openedFromOther:
+            guard let openedAt = item.openedAt else { return T("已打开") }
+            return T("打开于 %@", openedAt.formatted(date: .abbreviated, time: .shortened))
+        }
     }
 
     private func startDeletion() {
@@ -504,21 +500,11 @@ private struct DrawerItemDetailView: View {
             isDeleting = false
             if deleted {
                 RitualHaptics.success()
-                dismiss()
+                onDeleted()
             } else {
                 RitualHaptics.warning()
             }
         }
-    }
-}
-
-private struct RevealObjectAnimationForDeposit: View {
-    let kind: ContainerKind
-    let id: UUID
-
-    var body: some View {
-        RitualObjectGlyph(kind: kind, filled: true, tokenID: id)
-            .accessibilityHidden(true)
     }
 }
 

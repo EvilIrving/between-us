@@ -2,24 +2,43 @@ import SwiftUI
 import UIKit
 
 enum RitualHaptics {
+    // 每次现建生成器拿不到引擎预热，第一次震动的延迟正好落在手指按下的那一刻；
+    // 复用同一批生成器，并在界面出现时预热一次。
+    private static let softGenerator = UIImpactFeedbackGenerator(style: .soft)
+    private static let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
+    private static let notificationGenerator = UINotificationFeedbackGenerator()
+
+    static func prepare() {
+        softGenerator.prepare()
+        mediumGenerator.prepare()
+        selectionGenerator.prepare()
+        notificationGenerator.prepare()
+    }
+
     static func soft() {
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        softGenerator.impactOccurred()
+        softGenerator.prepare()
     }
 
     static func medium() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        mediumGenerator.impactOccurred()
+        mediumGenerator.prepare()
     }
 
     static func selection() {
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionGenerator.selectionChanged()
+        selectionGenerator.prepare()
     }
 
     static func success() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        notificationGenerator.notificationOccurred(.success)
+        notificationGenerator.prepare()
     }
 
     static func warning() {
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        notificationGenerator.notificationOccurred(.warning)
+        notificationGenerator.prepare()
     }
 }
 
@@ -86,7 +105,7 @@ struct SceneCloseControl: View {
             }
         }
         .buttonStyle(SoftScaleButtonStyle())
-        .accessibilityLabel(label.localized)
+        .accessibilityLabel(T(key: label))
     }
 }
 
@@ -166,7 +185,7 @@ struct RitualActionToken: View {
                 RitualObjectGlyph(kind: kind, filled: false)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title.localized)
+                    Text(T(key: title))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                 }
@@ -205,11 +224,11 @@ struct WhisperNoticeBanner: View {
                     .foregroundStyle(AppTheme.warmLight)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title.localized)
+                    Text(T(key: title))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                     if !message.isEmpty {
-                        Text(message.localized)
+                        Text(T(key: message))
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText)
                             .lineLimit(3)
@@ -235,8 +254,8 @@ struct WhisperNoticeBanner: View {
         .buttonStyle(SoftScaleButtonStyle())
         .accessibilityLabel(
             message.isEmpty
-                ? title.localized
-                : "通知：%@，%@。轻点关闭".localized(title.localized, message.localized)
+                ? T(key: title)
+                : T("通知：%@，%@。轻点关闭", T(key: title), T(key: message))
         )
     }
 }
@@ -263,7 +282,7 @@ struct RitualModeToken: View {
                         .foregroundStyle(isSelected ? tint : AppTheme.secondaryText.opacity(0.72))
                 }
 
-                Text(title.localized)
+                Text(T(key: title))
                     .font(.caption2.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.72))
             }
@@ -305,7 +324,7 @@ struct HoldToCompleteSurface<Content: View>: View {
             .contentShape(Rectangle())
             .highPriorityGesture(pressGesture, including: isEnabled && !isWorking ? .all : .none)
             .onDisappear { cancelPress() }
-            .onChange(of: isWorking) { working in
+            .onChange(of: isWorking) { _, working in
                 if working {
                     activationTask?.cancel()
                     activationTask = nil
@@ -314,7 +333,7 @@ struct HoldToCompleteSurface<Content: View>: View {
                     resetProgress()
                 }
             }
-            .onChange(of: isEnabled) { enabled in
+            .onChange(of: isEnabled) { _, enabled in
                 if !enabled, !isWorking, !didComplete {
                     cancelPress()
                 }
@@ -383,62 +402,39 @@ struct HoldToCompleteSurface<Content: View>: View {
     }
 }
 
-struct HoldToOpenControl: View {
-    let kind: ContainerKind
-    let title: String
-    let inactiveTitle: String
-    let duration: TimeInterval
-    let isEnabled: Bool
-    let isWorking: Bool
-    let onComplete: () -> Void
+/// 按住时从瓶底升起来的一点暖光。
+///
+/// 两个界面共用这一套——首屏的「按住创建空间」和配对页的「按住允许 / 按住加入」。
+/// 位置按瓶子的画面尺寸算：瓶子在整张图里高约 0.57 个画布，所以瓶底落在中心下方约 0.29 处，
+/// 按满时光升到瓶身中段。画面尺寸换了位置跟着换，不写死点数。
+struct BottleHoldLight: View {
+    /// 瓶子的画面尺寸，和传给 `ContainerVisual` 的那条边长一致。
+    let side: CGFloat
+    /// 按住进度 0…1。
+    let progress: CGFloat
 
     var body: some View {
-        HoldToCompleteSurface(
-            duration: duration,
-            isEnabled: isEnabled,
-            isWorking: isWorking,
-            onComplete: onComplete
-        ) { progress, isPressing in
-            HStack(spacing: 14) {
-                RitualObjectGlyph(kind: kind, filled: true)
-                    .scaleEffect(isPressing ? 0.94 : 1)
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [AppTheme.warmLight, AppTheme.warmLight.opacity(0)],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: side * 0.094
+                )
+            )
+            .frame(width: side * 0.19, height: side * 0.19)
+            .blur(radius: 2)
+            .scaleEffect(0.5 + 0.5 * progress)
+            .offset(y: offset)
+            .opacity(0.92 * Double(max(0, min(1, progress))))
+            .allowsHitTesting(false)
+    }
 
-                Text((isEnabled ? title : inactiveTitle).localized)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.52))
-
-                Spacer(minLength: 8)
-
-                if isWorking {
-                    ProgressView()
-                        .tint(kind.tint)
-                } else {
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(kind.tint.opacity(0.13))
-                        Capsule()
-                            .fill(kind.tint)
-                            .scaleEffect(x: progress, anchor: .leading)
-                    }
-                    .frame(width: 44, height: 5)
-                }
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(Color.white.opacity(isPressing ? 0.52 : 0.34))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(kind.tint.opacity(isPressing ? 0.34 : 0.16), lineWidth: 1)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("持续按住完成".localized)
-        .accessibilityAction {
-            guard isEnabled, !isWorking else { return }
-            onComplete()
-        }
+    private var offset: CGFloat {
+        let bottom = side * 0.29
+        let rest = -side * 0.09
+        return bottom + (rest - bottom) * progress
     }
 }
 

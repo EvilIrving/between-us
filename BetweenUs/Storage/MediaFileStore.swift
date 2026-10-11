@@ -43,7 +43,7 @@ struct MediaFileStore: Sendable {
     }
 
     func importDraft(_ draft: AttachmentDraft, itemID: UUID, slot: Int = 0) throws -> AttachmentMetadata {
-        let byteCount = fileSize(at: draft.url)
+        let byteCount = Self.fileSize(at: draft.url)
         guard byteCount > 0 else { throw MediaFileError.unavailable }
         guard byteCount <= Self.maximumAttachmentBytes else { throw MediaFileError.fileTooLarge }
 
@@ -58,7 +58,7 @@ struct MediaFileStore: Sendable {
             localFilename: filename,
             originalFilename: draft.originalFilename,
             duration: draft.duration,
-            byteCount: fileSize(at: destination)
+            byteCount: Self.fileSize(at: destination)
         )
     }
 
@@ -81,7 +81,7 @@ struct MediaFileStore: Sendable {
         let filename = metadata.localFilename
         let destination = directoryURL.appendingPathComponent(filename)
 
-        let existingSize = fileSize(at: destination)
+        let existingSize = Self.fileSize(at: destination)
         if !FileManager.default.fileExists(atPath: destination.path)
             || ((expectedByteCount ?? 0) > 0 && existingSize != expectedByteCount) {
             try replace(destination: destination, source: sourceURL)
@@ -93,7 +93,7 @@ struct MediaFileStore: Sendable {
             localFilename: filename,
             originalFilename: originalFilename,
             duration: duration,
-            byteCount: fileSize(at: destination)
+            byteCount: Self.fileSize(at: destination)
         )
     }
 
@@ -170,7 +170,7 @@ struct MediaFileStore: Sendable {
         ) else { return nil }
 
         let destination = directoryURL.appendingPathComponent(spec.name)
-        if fileSize(at: destination) != fileSize(at: source) {
+        if Self.fileSize(at: destination) != Self.fileSize(at: source) {
             try replace(destination: destination, source: source)
             protect(destination)
         }
@@ -180,7 +180,7 @@ struct MediaFileStore: Sendable {
             localFilename: spec.name,
             originalFilename: spec.name,
             duration: spec.duration,
-            byteCount: fileSize(at: destination)
+            byteCount: Self.fileSize(at: destination)
         )
     }
 
@@ -192,7 +192,8 @@ struct MediaFileStore: Sendable {
         try FileManager.default.copyItem(at: source, to: destination)
     }
 
-    private func fileSize(at url: URL) -> Int64 {
+    /// 媒体文件的落盘大小。归一化入口和媒体库共用这一份口径，不要在调用点各写一遍。
+    static func fileSize(at url: URL) -> Int64 {
         let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
         return Int64(size ?? 0)
     }

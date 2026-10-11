@@ -35,9 +35,10 @@ struct ContainerPhysicsStage: View {
     let kind: ContainerKind
     let items: [SecretItem]
     var jolt: RoomJolt?
+    var motion: DeviceMotionSource?
+    var motionSettings = DeviceMotionSettings()
     var isPaused = false
-    var onOpenItem: (SecretItem) -> Void
-    var onEmptyTap: () -> Void
+    var onTap: () -> Void
 
     @StateObject private var model: ContainerPhysicsModel
 
@@ -45,16 +46,18 @@ struct ContainerPhysicsStage: View {
         kind: ContainerKind,
         items: [SecretItem],
         jolt: RoomJolt? = nil,
+        motion: DeviceMotionSource? = nil,
+        motionSettings: DeviceMotionSettings = DeviceMotionSettings(),
         isPaused: Bool = false,
-        onOpenItem: @escaping (SecretItem) -> Void,
-        onEmptyTap: @escaping () -> Void
+        onTap: @escaping () -> Void
     ) {
         self.kind = kind
         self.items = items
         self.jolt = jolt
+        self.motion = motion
+        self.motionSettings = motionSettings
         self.isPaused = isPaused
-        self.onOpenItem = onOpenItem
-        self.onEmptyTap = onEmptyTap
+        self.onTap = onTap
         _model = StateObject(wrappedValue: ContainerPhysicsModel(kind: kind))
     }
 
@@ -63,21 +66,21 @@ struct ContainerPhysicsStage: View {
             .aspectRatio(model.recipe.container.mapping.sceneSize, contentMode: .fit)
             .onAppear { wire() }
             .onChange(of: items) { _, _ in wire() }
+            .onChange(of: motionSettings) { _, _ in wire() }
             .accessibilityElement()
             .accessibilityLabel(kind.title)
-            .accessibilityHint(kind.openActionTitle)
+            .accessibilityHint(T("点一下打开下一份"))
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction { onEmptyTap() }
+            .accessibilityAction { onTap() }
     }
 
     private func wire() {
         model.scene.jolt = jolt
+        model.scene.motion = motion
+        model.scene.motionSettings = motionSettings
         model.sync(items)
-        let snapshot = items
-        model.scene.onTokenTapped = { id in
-            guard let item = snapshot.first(where: { $0.id == id }) else { return }
-            onOpenItem(item)
-        }
-        model.scene.onEmptyTapped = { onEmptyTap() }
+        // 点击打在整只物件上：点中里面积累的内容和点瓶身、篓身、盒身一样，都打开下一份。
+        model.scene.onTokenTapped = { _ in onTap() }
+        model.scene.onEmptyTapped = { onTap() }
     }
 }

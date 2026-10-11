@@ -52,11 +52,8 @@ enum AppMotion {
     static let resetDuration: TimeInterval = 0.14
     static let settle = Animation.spring(response: 0.34, dampingFraction: 0.80)
 
-    static func holdDuration(for kind: ContainerKind) -> TimeInterval {
-        switch kind {
-        case .star: return 0.72
-        case .capsule: return 0.78
-        case .paper: return 1.55
-        }
+    /// 顶部通知条自动收起时长：纯状态短一些，带说明的多留一会儿，保证一眼能读完。
+    static func noticeAutoDismissDelay(message: String) -> Duration {
+        message.isEmpty ? .seconds(2.8) : .seconds(6)
     }
 }

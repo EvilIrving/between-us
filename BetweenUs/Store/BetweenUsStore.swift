@@ -71,6 +71,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         if appData.relationship != nil {
             await refresh()
         }
+        await refreshProximityMode()
     }
 
     func sceneBecameActive() async {
@@ -86,6 +87,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         guard await refreshAccountState() else { return }
         initializeSyncEnginesIfNeeded()
         queuePersistedDirtyRecords()
+        await resumeProximity()
         guard appData.relationship != nil else { return }
         await refresh()
     }
@@ -121,6 +123,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await publishData()
         await setSyncStatus(.idle)
         _ = await refreshAccountState()
+        await refreshProximityMode()
     }
 
     func replenishLocalPreview() async {
@@ -147,6 +150,11 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         }
         guard let relationship = appData.relationship,
               let engine = syncEngine(for: relationship.scope.databaseScope) else { return }
+
+        // 对方可能已经进来了。顺手确认一次，顺便把递链接时打开的门关上。
+        if relationship.isOwner, appData.partnerJoinedAt == nil {
+            _ = await partnerHasJoined()
+        }
 
         await setSyncStatus(.syncing)
         do {
@@ -183,7 +191,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
     private func performCreateRelationship() async {
         guard appData.relationship == nil else { return }
         guard !appData.currentUserID.isEmpty else {
-            await showNotice(title: "无法创建", message: "请先在系统设置中登录 iCloud。")
+            await showNotice(title: "无法创建", message: "请先在系统设置中登录 iCloud。", autoDismiss: false)
             return
         }
 
@@ -208,7 +216,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             relationshipRecord.encryptedValues["ownerID"] = appData.currentUserID as CKRecordValue
 
             let share = CKShare(recordZoneID: zone.zoneID)
-            share[CKShare.SystemFieldKey.title] = "耳语".localized as CKRecordValue
+            share[CKShare.SystemFieldKey.title] = T("耳语") as CKRecordValue
             share.publicPermission = .none
 
             _ = try await database.modifyRecords(
@@ -225,6 +233,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             )
             appData.items = [:]
             appData.sharedSpaceEntitlement = nil
+            appData.partnerJoinedAt = nil
             appData.dirtyRecordNames = []
             appData.privateSyncState = nil
             privateSyncEngine = nil
@@ -233,13 +242,13 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await publishData()
             await setPhase(.ready)
             await setSyncStatus(.upToDate(Date()))
+            await refreshProximityMode()
             if let ownedLifetimeTransaction {
                 _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)
             }
-            await presentShareSheet(share)
         } catch {
             if let createdZoneID {
-                try? await Self.container.privateCloudDatabase.deleteRecordZone(withID: createdZoneID)
+                _ = try? await Self.container.privateCloudDatabase.deleteRecordZone(withID: createdZoneID)
             }
             appData = originalData
             privateSyncEngine = nil
@@ -247,8 +256,9 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             _ = await persistOrReport(context: "恢复创建空间前的本机状态")
             await publishData()
             await setPhase(.needsRelationship)
-            logger.error("Failed to create relationship: \(error.localizedDescription, privacy: .public)")
-            await showNotice(title: "创建失败", message: cloudFriendlyMessage(for: error))
+            let diagnostic = cloudDiagnostic(for: error)
+            logger.error("Failed to create relationship: \(diagnostic, privacy: .public)")
+            await showNotice(title: "创建失败", message: cloudFriendlyMessage(for: error), autoDismiss: false)
         }
     }
 
@@ -281,7 +291,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         } catch let error as CKError where error.code == .unknownItem && relationship.isOwner {
             do {
                 let share = CKShare(recordZoneID: relationship.zoneID)
-                share[CKShare.SystemFieldKey.title] = "耳语".localized as CKRecordValue
+                share[CKShare.SystemFieldKey.title] = T("耳语") as CKRecordValue
                 share.publicPermission = .none
                 _ = try await database.modifyRecords(saving: [share], deleting: [])
                 appData.relationship?.shareRecordName = share.recordID.recordName
@@ -289,16 +299,315 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 await publishData()
                 await presentShareSheet(share)
             } catch {
-                await showNotice(title: "无法打开共享", message: cloudFriendlyMessage(for: error))
+                await showNotice(title: "无法打开共享", message: cloudFriendlyMessage(for: error), autoDismiss: false)
             }
         } catch {
-            await showNotice(title: "无法打开共享", message: cloudFriendlyMessage(for: error))
+            await showNotice(title: "无法打开共享", message: cloudFriendlyMessage(for: error), autoDismiss: false)
         }
     }
 
     func dismissShareSheet() async {
         await MainActor.run {
             self.viewModel.shareSheet = nil
+        }
+    }
+
+    // MARK: - 靠近相认
+
+    /// 「邀请对方」：把邀请链接交到对方手上。靠近相认不需要这个入口，它自己会发生，
+    /// 这里只保留两个人不在一起时的那条路。
+    func presentInvite() async {
+        await prepareShareSheet()
+    }
+
+    /// 靠近相认什么时候开机、什么时候停，只在这一个地方决定。
+    /// 有空间、对方还没进来 → 广播等着；没有空间 → 去找对方的空间。本机预览不参与。
+    func refreshProximityMode() async {
+        await MainActor.run {
+            let proximity = ProximityLinkService.shared
+            proximity.onLink = { [weak self] url in
+                guard let self else { return }
+                Task { await self.joinSpace(shareURL: url) }
+            }
+            proximity.linkProvider = { [weak self] in
+                await self?.pairingInviteURL()
+            }
+            proximity.onLinkServed = { [weak self] in
+                guard let self else { return }
+                Task { await self.notePartnerArriving() }
+            }
+        }
+
+        guard !appData.isLocalPreview else {
+            await MainActor.run { ProximityLinkService.shared.stop() }
+            return
+        }
+
+        if let relationship = appData.relationship {
+            if relationship.isOwner, appData.partnerJoinedAt == nil {
+                await MainActor.run { ProximityLinkService.shared.startWaiting() }
+            } else {
+                await MainActor.run { ProximityLinkService.shared.stop() }
+            }
+        } else {
+            await MainActor.run { ProximityLinkService.shared.startSeeking() }
+        }
+    }
+
+    /// 回到前台时把广播和扫描补回来：退到后台时系统会把它们停掉。
+    func resumeProximity() async {
+        await MainActor.run { ProximityLinkService.shared.resume() }
+    }
+
+    /// 配对时交给对方的邀请链接。
+    ///
+    /// 面对面这条路上，链接是直接递过去的，CloudKit 必须允许「拿着链接的人」加入：
+    /// 共享默认是私享（`publicPermission = .none`），那种共享只认系统面板里单独邀请的联系人，
+    /// 收到原始链接的人会被当成不存在的共享（`CKErrorUnknownItem`）。
+    /// 所以递链接之前先把门打开，对方进来之后在 `partnerHasJoined` 里关上。
+    /// 开着的那几分钟里谁拿到链接谁能进来——这正是面对面递链接的意义。
+    func pairingInviteURL() async -> URL? {
+        guard let relationship = appData.relationship else { return nil }
+        guard let share = await shareRecord(for: relationship) else {
+            // 停过共享之后，链接要重新建一个；等着的设备自己修好，不要求人再点一次。
+            return await recreateInviteShare(for: relationship)
+        }
+        guard share.publicPermission != .readWrite else { return share.url }
+
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+        share.publicPermission = .readWrite
+        do {
+            _ = try await database.modifyRecords(saving: [share], deleting: [])
+        } catch {
+            logger.error("Failed to open the invite link: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        return share.url
+    }
+
+    private func recreateInviteShare(for relationship: RelationshipLocator) async -> URL? {
+        guard relationship.isOwner else { return nil }
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+        let share = CKShare(recordZoneID: relationship.zoneID)
+        share[CKShare.SystemFieldKey.title] = T("耳语") as CKRecordValue
+        share.publicPermission = .readWrite
+        do {
+            _ = try await database.modifyRecords(saving: [share], deleting: [])
+            appData.relationship?.shareRecordName = share.recordID.recordName
+            try persist()
+            await publishData()
+            return share.url
+        } catch {
+            logger.error("Failed to recreate the invite link: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// 用面对面配对拿到的链接加入空间，不经过系统链接跳转。
+    func joinSpace(shareURL: URL) async {
+        guard relationshipOperation == nil else {
+            await showNotice(title: "另一项空间操作还在进行中。", message: "")
+            return
+        }
+        relationshipOperation = .accepting
+        await setPerformingAction(true)
+
+        do {
+            let metadata = try await fetchShareMetadata(for: shareURL)
+            await performAcceptShare(metadata)
+        } catch {
+            logger.error(
+                "Failed to join through pairing: \(error.localizedDescription, privacy: .public)"
+            )
+            await showNotice(title: "无法加入", message: cloudFriendlyMessage(for: error), autoDismiss: false)
+            await MainActor.run { ProximityLinkService.shared.noteAttemptFailed() }
+        }
+
+        await setPhase(appData.relationship == nil ? .needsRelationship : .ready)
+        await setPerformingAction(false)
+        relationshipOperation = nil
+        await refreshProximityMode()
+    }
+
+    private func shareRecord(for relationship: RelationshipLocator) async -> CKShare? {
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+        let shareID = CKRecord.ID(
+            recordName: relationship.shareRecordName.isEmpty
+                ? CKRecordNameZoneWideShare
+                : relationship.shareRecordName,
+            zoneID: relationship.zoneID
+        )
+        return try? await database.record(for: shareID) as? CKShare
+    }
+
+    private func partnerHasJoined(announce: Bool = true) async -> Bool {
+        guard let relationship = appData.relationship, relationship.isOwner else { return false }
+        // 本机已经知道就直接用，不再问网络。
+        if appData.partnerJoinedAt != nil { return true }
+
+        guard let share = await shareRecord(for: relationship) else { return false }
+        // 只发了链接、还没接受的人会以 pending 出现，不能算进来。
+        let accepted = share.participants.contains {
+            $0.role != .owner && $0.acceptanceStatus == .accepted
+        }
+        guard accepted else { return false }
+
+        appData.partnerJoinedAt = Date()
+        _ = await persistOrReport(context: "保存对方已加入的时刻")
+        await publishData()
+        await MainActor.run { ProximityLinkService.shared.noteConnected() }
+        await refreshProximityMode()
+
+        // 连接页正在演这一段的时候，由光来说这件事，不再另外弹一条。
+        let isCeremonyRunning = await MainActor.run { self.viewModel.connectionMoment != nil }
+        if announce, !isCeremonyRunning {
+            await showNotice(title: "对方已经进来了", message: "")
+        }
+        return true
+    }
+
+    // MARK: - 连接页
+
+    private var partnerWatchTask: Task<Void, Never>?
+
+    /// 连接页出现时开始盯着对方有没有进来。
+    /// 两个人都在看手机的那一刻要能同时发生，所以这里短轮询；不引入推送，也不要求谁保持前台。
+    func beginWatchingPartner() async {
+        guard partnerWatchTask == nil else { return }
+        guard !appData.isLocalPreview,
+              let relationship = appData.relationship,
+              relationship.isOwner,
+              appData.partnerJoinedAt == nil else { return }
+
+        partnerWatchTask = Task { [weak self] in
+            var elapsed: TimeInterval = 0
+            while !Task.isCancelled {
+                // 刚打开时盯得紧一点：两个人正对着手机的那几秒要能同时发生。
+                // 等久了就放慢，别让人一直开着的页面每小时问上千次。
+                let interval: TimeInterval = elapsed < 120 ? 1.6 : 9
+                try? await Task.sleep(for: .seconds(interval))
+                elapsed += interval
+                guard let self, !Task.isCancelled else { return }
+                let stillWaiting = await self.pollPartnerArrival()
+                if !stillWaiting { return }
+            }
+        }
+    }
+
+    func endWatchingPartner() async {
+        partnerWatchTask?.cancel()
+        partnerWatchTask = nil
+    }
+
+    /// 返回是否还要继续盯。
+    private func pollPartnerArrival() async -> Bool {
+        guard appData.partnerJoinedAt == nil else { return false }
+        guard await partnerHasJoined(announce: false) else { return true }
+        // 对方进来了：如果这一刻没有别的东西在讲这件事，就让光来讲。
+        await ensureConnectionMoment(isCreator: true, isSettled: true)
+        return false
+    }
+
+    /// 创建者这一侧：链接刚递出去，有人正在进来。同步的是这一刻，不是谁先按下了什么。
+    func notePartnerArriving() async {
+        guard !appData.isLocalPreview,
+              appData.relationship?.isOwner == true,
+              appData.partnerJoinedAt == nil else { return }
+        await ensureConnectionMoment(isCreator: true, isSettled: false)
+    }
+
+    /// 连接页演完了这一段：把这一刻收掉，落回房间。
+    func completeConnectionCeremony() async {
+        await MainActor.run { self.viewModel.connectionMoment = nil }
+        await setPhase(appData.relationship == nil ? .needsRelationship : .ready)
+        await publishData()
+    }
+
+    private func ensureConnectionMoment(isCreator: Bool, isSettled: Bool) async {
+        await MainActor.run {
+            guard var moment = self.viewModel.connectionMoment else {
+                self.viewModel.connectionMoment = ConnectionMoment(
+                    isCreator: isCreator,
+                    isSettled: isSettled
+                )
+                return
+            }
+            moment.isSettled = moment.isSettled || isSettled
+            self.viewModel.connectionMoment = moment
+        }
+    }
+
+    private func settleConnectionMoment() async {
+        await MainActor.run {
+            guard var moment = self.viewModel.connectionMoment else { return }
+            moment.isSettled = true
+            self.viewModel.connectionMoment = moment
+        }
+    }
+
+    private func clearConnectionMoment() async {
+        await MainActor.run { self.viewModel.connectionMoment = nil }
+    }
+
+    /// 加入方在真正加入的那一刻把时间戳写进关系记录，创建方靠同步就能知道对方进来了。
+    /// 只写一次；写不进去也不影响加入，创建方那边会退回问一次 CloudKit。
+    private func publishPartnerJoinedAt() async {
+        guard let relationship = appData.relationship, !relationship.isOwner else { return }
+        let recordID = CKRecord.ID(recordName: "relationship", zoneID: relationship.zoneID)
+        let database = Self.container.database(with: relationship.scope.databaseScope)
+
+        do {
+            var record = try await database.record(for: recordID)
+            if let existing = record[RelationshipRecordField.partnerJoinedAt] as? Date {
+                await adoptPartnerJoinedAt(existing)
+                return
+            }
+
+            for attempt in 0..<2 {
+                record[RelationshipRecordField.partnerJoinedAt] = Date() as CKRecordValue
+                do {
+                    let saved = try await database.save(record)
+                    await adoptPartnerJoinedAt(
+                        saved[RelationshipRecordField.partnerJoinedAt] as? Date ?? Date()
+                    )
+                    return
+                } catch let error as CKError
+                    where error.code == .serverRecordChanged && attempt == 0 {
+                    guard let serverRecord = error.serverRecord else { throw error }
+                    if let existing = serverRecord[RelationshipRecordField.partnerJoinedAt] as? Date {
+                        await adoptPartnerJoinedAt(existing)
+                        return
+                    }
+                    record = serverRecord
+                }
+            }
+        } catch {
+            logger.info("Partner joined timestamp deferred: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func adoptPartnerJoinedAt(_ joinedAt: Date) async {
+        guard appData.partnerJoinedAt != joinedAt else { return }
+        appData.partnerJoinedAt = joinedAt
+        _ = await persistOrReport(context: "保存对方已加入的时刻")
+        await publishData()
+    }
+
+    private func fetchShareMetadata(for url: URL) async throws -> CKShare.Metadata {
+        let operation = CKFetchShareMetadataOperation(shareURLs: [url])
+        operation.shouldFetchRootRecord = false
+        operation.qualityOfService = .userInitiated
+        return try await withCheckedThrowingContinuation { continuation in
+            let resume = ShareMetadataContinuation(continuation)
+            operation.perShareMetadataResultBlock = { _, result in
+                resume.finish(with: result)
+            }
+            operation.fetchShareMetadataResultBlock = { result in
+                if case .failure(let error) = result {
+                    resume.finish(throwing: error)
+                }
+            }
+            Self.container.add(operation)
         }
     }
 
@@ -323,18 +632,21 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             }
             await showNotice(
                 title: "已有空间",
-                message: "一次只能加入一个空间。请先在设置中退出或删除当前空间。"
+                message: "一次只能加入一个空间。请先在设置中退出或删除当前空间。",
+                autoDismiss: false
             )
             return
         }
 
         if let expectedIdentifier = Self.container.containerIdentifier,
            metadata.containerIdentifier != expectedIdentifier {
-            await showNotice(title: "邀请无效", message: "此邀请无法用于当前应用。")
+            await showNotice(title: "邀请无效", message: "此邀请无法用于当前应用。", autoDismiss: false)
             return
         }
 
         var didAcceptShare = false
+        // 从这一刻起，连接页开始演这一段的「正在加入」。
+        await ensureConnectionMoment(isCreator: false, isSettled: false)
 
         do {
             guard await accountStatus() == .available else {
@@ -352,6 +664,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             )
             appData.items = [:]
             appData.sharedSpaceEntitlement = nil
+            appData.partnerJoinedAt = nil
             appData.dirtyRecordNames = []
             appData.sharedSyncState = nil
             sharedSyncEngine = nil
@@ -380,28 +693,41 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             if let ownedLifetimeTransaction {
                 _ = await syncLifetimeEntitlementToCurrentSpace(using: ownedLifetimeTransaction)
             }
+            await publishPartnerJoinedAt()
+            await MainActor.run { ProximityLinkService.shared.noteConnected() }
+            await settleConnectionMoment()
         } catch {
             logger.error("Failed to accept share: \(error.localizedDescription, privacy: .public)")
             if didAcceptShare, appData.relationship != nil {
                 await publishData()
                 await setPhase(.ready)
+                await settleConnectionMoment()
                 await showNotice(
                     title: "已加入空间",
                     message: "本机状态尚未完整保存。重新打开应用后会继续从 iCloud 同步。"
                 )
             } else {
-                await showNotice(title: "加入失败", message: cloudFriendlyMessage(for: error))
+                await clearConnectionMoment()
+                await showNotice(title: "加入失败", message: cloudFriendlyMessage(for: error), autoDismiss: false)
             }
         }
+
+        // 加入方从此有了空间，不再需要找对方的空间。
+        await refreshProximityMode()
     }
+
+    /// 正文的数据完整性上限（不是产品容量上限）：纸不会拒绝你写，但一条 CloudKit 记录里
+    /// 非资源字段总量不能超过 1MB，所以给正文留一半余量。产品侧容量由纸高决定（§3.2、§4.2）。
+    private static let maximumTextBytes = 512 * 1024
 
     func add(
         kind: ContainerKind,
         text: String,
-        attachments drafts: [AttachmentDraft] = []
+        attachments drafts: [AttachmentDraft] = [],
+        paperID: PaperID = PaperRegistry.defaultPaperID
     ) async -> AddItemResult {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count <= 4_000,
+        guard trimmed.utf8.count < Self.maximumTextBytes,
               (!trimmed.isEmpty || !drafts.isEmpty),
               drafts.count <= 9,
               let relationship = appData.relationship,
@@ -419,13 +745,14 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                 try mediaStore.importDraft(draft, itemID: itemID, slot: index)
             }
         } catch {
-            await showNotice(title: "附件添加失败", message: error.localizedDescription)
+            await showNotice(title: "附件添加失败", message: error.localizedDescription, autoDismiss: false)
             return .failed
         }
 
         let item = SecretItem(
             id: itemID,
             kind: kind,
+            storedPaperID: paperID,
             authorID: appData.currentUserID,
             text: trimmed,
             attachment: attachments.first,
@@ -450,7 +777,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             for attachment in attachments {
                 try? mediaStore.remove(attachment)
             }
-            await showNotice(title: "保存失败", message: "无法写入本机存储，请稍后重试。")
+            await showNotice(title: "保存失败", message: "无法写入本机存储，请稍后重试。", autoDismiss: false)
             return .failed
         }
     }
@@ -471,7 +798,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         } catch {
             appData.items[recordName] = item
             if wasDirty { appData.dirtyRecordNames.insert(recordName) }
-            await showNotice(title: "删除失败", message: "无法写入本机存储，请稍后重试。")
+            await showNotice(title: "删除失败", message: "无法写入本机存储，请稍后重试。", autoDismiss: false)
             return false
         }
 
@@ -524,7 +851,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             return
         }
         guard SKPaymentQueue.canMakePayments() else {
-            await showNotice(title: "无法购买", message: "这台设备目前不允许 App 内购买。")
+            await showNotice(title: "无法购买", message: "这台设备目前不允许 App 内购买。", autoDismiss: false)
             return
         }
 
@@ -532,7 +859,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await loadLifetimeProduct()
         }
         guard let lifetimeProduct else {
-            await showNotice(title: "暂时无法连接 App Store", message: "请检查网络后再试。")
+            await showNotice(title: "暂时无法连接 App Store", message: "请检查网络后再试。", autoDismiss: false)
             return
         }
 
@@ -550,7 +877,8 @@ final actor BetweenUsStore: Sendable, ObservableObject {
                     await publishPurchaseState()
                     await showNotice(
                         title: "无法确认购买",
-                        message: "App Store 无法验证这次交易，未收取或恢复权益。"
+                        message: "App Store 无法验证这次交易，未收取或恢复权益。",
+                        autoDismiss: false
                     )
                 }
 
@@ -574,7 +902,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             purchaseActivity = .idle
             await publishPurchaseState()
             logger.info("StoreKit purchase failed: \(error.localizedDescription, privacy: .public)")
-            await showNotice(title: "购买未完成", message: "请稍后再试。")
+            await showNotice(title: "购买未完成", message: "请稍后再试。", autoDismiss: false)
         }
     }
 
@@ -592,13 +920,13 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             if ownedLifetimeTransaction != nil {
                 await showNotice(title: "购买已恢复", message: "")
             } else {
-                await showNotice(title: "没有可恢复的购买", message: "请确认使用了购买时的 Apple Account。")
+                await showNotice(title: "没有可恢复的购买", message: "请确认使用了购买时的 Apple Account。", autoDismiss: false)
             }
         } catch {
             purchaseActivity = .idle
             await publishPurchaseState()
             logger.info("StoreKit restore failed: \(error.localizedDescription, privacy: .public)")
-            await showNotice(title: "恢复未完成", message: "请稍后再试。")
+            await showNotice(title: "恢复未完成", message: "请稍后再试。", autoDismiss: false)
         }
     }
 
@@ -613,10 +941,6 @@ final actor BetweenUsStore: Sendable, ObservableObject {
     func openNext(kind: ContainerKind) async -> SecretItem? {
         guard let candidate = nextOpenable(kind: kind) else { return nil }
         return await open(candidate)
-    }
-
-    func commitOpen(_ candidate: SecretItem) async -> SecretItem? {
-        await open(candidate)
     }
 
     func requestNotificationAuthorization() async -> Bool {
@@ -671,7 +995,7 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         } catch {
             appData.items = originalItems
             appData.dirtyRecordNames = originalDirtyRecordNames
-            await showNotice(title: "清空失败", message: "无法写入本机存储，请稍后重试。")
+            await showNotice(title: "清空失败", message: "无法写入本机存储，请稍后重试。", autoDismiss: false)
             return
         }
 
@@ -735,8 +1059,9 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             await publishData()
             await setPhase(.needsRelationship)
             await setSyncStatus(.idle)
+            await refreshProximityMode()
         } catch {
-            await showNotice(title: "操作失败", message: cloudFriendlyMessage(for: error))
+            await showNotice(title: "操作失败", message: cloudFriendlyMessage(for: error), autoDismiss: false)
         }
     }
 
@@ -750,13 +1075,19 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await dismissShareSheet()
         await showNotice(
             title: "共享失败",
-            message: cloudFriendlyMessage(for: error)
+            message: cloudFriendlyMessage(for: error),
+            autoDismiss: false
         )
     }
 
     func sharingDidStop() async {
         await dismissShareSheet()
         if appData.relationship?.isOwner == true {
+            // 共享停了，对方也不再是成员：空间回到「等对方靠近」，邀请随时可以再发。
+            appData.partnerJoinedAt = nil
+            _ = await persistOrReport(context: "保存停止共享后的空间状态")
+            await publishData()
+            await refreshProximityMode()
             await showNotice(
                 title: "已停止共享",
                 message: "内容仍保存在 iCloud，可再次邀请对方。"
@@ -774,10 +1105,10 @@ final actor BetweenUsStore: Sendable, ObservableObject {
         await publishData()
         await setPhase(.needsRelationship)
         await setSyncStatus(.idle)
+        await refreshProximityMode()
     }
 
     private func nextOpenable(kind: ContainerKind) -> SecretItem? {
-        guard appData.activeCredits(kind: kind) > 0 else { return nil }
         let waiting = appData.unopenedFromCounterpart(kind: kind)
         if kind == .star {
             return waiting.randomElement()
@@ -812,8 +1143,29 @@ final actor BetweenUsStore: Sendable, ObservableObject {
             appData.items[original.recordName] = original
             appData.dirtyRecordNames.remove(original.recordName)
             await publishData()
-            await showNotice(title: "状态保存失败", message: "无法写入本机存储，请稍后重试。")
+            await showNotice(title: "状态保存失败", message: "无法写入本机存储，请稍后重试。", autoDismiss: false)
             return nil
+        }
+    }
+
+    /// 顶部通知条：只报告短暂状态，不伪装成页面跳转；默认到时自动收起，新通知会顶掉旧计时。
+    /// 需要用户读完并采取行动的失败通知传 `autoDismiss: false`，常驻到点按关闭。
+    func showNotice(title: String, message: String, autoDismiss: Bool = true) async {
+        let notice = AppNotice(title: T(key: title), message: T(key: message))
+        await MainActor.run {
+            self.viewModel.notice = notice
+        }
+        guard autoDismiss else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: AppMotion.noticeAutoDismissDelay(message: notice.message))
+            await self?.dismissNotice(id: notice.id)
+        }
+    }
+
+    private func dismissNotice(id: AppNotice.ID) async {
+        await MainActor.run {
+            guard self.viewModel.notice?.id == id else { return }
+            self.viewModel.notice = nil
         }
     }
 }
@@ -956,6 +1308,11 @@ private extension BetweenUsStore {
                     appData.sharedSpaceEntitlement = entitlement
                     changed = true
                 }
+                let joinedAt = record[RelationshipRecordField.partnerJoinedAt] as? Date
+                if let joinedAt, joinedAt != appData.partnerJoinedAt {
+                    appData.partnerJoinedAt = joinedAt
+                    changed = true
+                }
                 continue
             }
 
@@ -1085,7 +1442,8 @@ private extension BetweenUsStore {
                 } else {
                     await showNotice(
                         title: "空间不可用",
-                        message: "空间已被删除，或当前账号没有写入权限。"
+                        message: "空间已被删除，或当前账号没有写入权限。",
+                        autoDismiss: false
                     )
                 }
 
@@ -1100,13 +1458,15 @@ private extension BetweenUsStore {
             case .assetFileNotFound:
                 await showNotice(
                     title: "附件暂时不可用",
-                    message: "原始媒体文件已不在本机，请重新选择后再放入。"
+                    message: "原始媒体文件已不在本机，请重新选择后再放入。",
+                    autoDismiss: false
                 )
 
             case .permissionFailure:
                 await showNotice(
                     title: "没有写入权限",
-                    message: "请让空间的创建者把权限设为“可更改”。"
+                    message: "请让空间的创建者把权限设为“可更改”。",
+                    autoDismiss: false
                 )
 
             case .networkFailure, .networkUnavailable, .zoneBusy,
@@ -1132,7 +1492,8 @@ private extension BetweenUsStore {
             case .permissionFailure:
                 await showNotice(
                     title: "没有删除权限",
-                    message: "请让共同空间的创建者把权限设为“可更改”。"
+                    message: "请让共同空间的创建者把权限设为“可更改”。",
+                    autoDismiss: false
                 )
 
             default:
@@ -1170,7 +1531,7 @@ private extension BetweenUsStore {
             try? mediaStore.removeAll()
             composeDraftRepository.clearAll()
             await publishData()
-            await setPhase(.needsICloud(message: "iCloud 账号已更改。请确认账号后重新打开应用。"))
+            await setPhase(.needsICloud(message: T("iCloud 账号已更改。请确认账号后重新打开应用。")))
             await setSyncStatus(.idle)
         @unknown default:
             break
@@ -1184,6 +1545,12 @@ private extension BetweenUsStore {
     enum EntitlementRecordField {
         static let productID = "lifetimeProductID"
         static let unlockedAt = "lifetimeUnlockedAt"
+    }
+
+    /// 关系记录上除了权益以外的字段。它们跟着 CloudKit 同步走，
+    /// 两台设备不用各自再去问一次「对方进来了没有」。
+    enum RelationshipRecordField {
+        static let partnerJoinedAt = "partnerJoinedAt"
     }
 
     var hasUnlimitedContent: Bool {
@@ -1391,6 +1758,7 @@ private extension BetweenUsStore {
             self.viewModel.purchase = state
         }
     }
+
 }
 
 // MARK: - Setup and helpers
@@ -1418,6 +1786,7 @@ private extension BetweenUsStore {
         await publishData()
         await setPhase(.ready)
         await setSyncStatus(.localPreview)
+        await refreshProximityMode()
     }
 
     private func prepareLocalPreviewContent() -> Bool {
@@ -1442,13 +1811,13 @@ private extension BetweenUsStore {
             let message: String
             switch status {
             case .noAccount:
-                message = "请在系统设置中登录 iCloud 后重试。"
+                message = T("请在系统设置中登录 iCloud 后重试。")
             case .restricted:
                 message = "这台设备限制了 iCloud，请检查屏幕使用时间或设备管理设置。"
             case .temporarilyUnavailable:
                 message = "iCloud 暂时不可用，请稍后重新打开应用。"
             default:
-                message = "暂时无法确认 iCloud 状态，请检查网络和系统设置。"
+                message = T("暂时无法确认 iCloud 状态，请检查网络和系统设置。")
             }
             await setPhase(.needsICloud(message: message))
             return false
@@ -1487,19 +1856,21 @@ private extension BetweenUsStore {
 
     func discoverExistingRelationship() async {
         do {
-            if let privateRelationship = try await discoverRelationship(in: .private) {
-                appData.relationship = privateRelationship
+            if let found = try await discoverRelationship(in: .private) {
+                appData.relationship = found.locator
                 appData.items = [:]
                 appData.sharedSpaceEntitlement = nil
+                appData.partnerJoinedAt = found.partnerJoinedAt
                 appData.dirtyRecordNames = []
                 appData.privateSyncState = nil
                 privateSyncEngine = nil
                 return
             }
-            if let sharedRelationship = try await discoverRelationship(in: .shared) {
-                appData.relationship = sharedRelationship
+            if let found = try await discoverRelationship(in: .shared) {
+                appData.relationship = found.locator
                 appData.items = [:]
                 appData.sharedSpaceEntitlement = nil
+                appData.partnerJoinedAt = found.partnerJoinedAt
                 appData.dirtyRecordNames = []
                 appData.sharedSyncState = nil
                 sharedSyncEngine = nil
@@ -1509,12 +1880,18 @@ private extension BetweenUsStore {
         }
     }
 
-    func discoverRelationship(in scope: CKDatabase.Scope) async throws -> RelationshipLocator? {
+    /// 从 iCloud 找回本账号已经存在的空间，连同「对方是否已经加入」一起带回来。
+    struct DiscoveredRelationship {
+        var locator: RelationshipLocator
+        var partnerJoinedAt: Date?
+    }
+
+    func discoverRelationship(in scope: CKDatabase.Scope) async throws -> DiscoveredRelationship? {
         let database = Self.container.database(with: scope)
         let zones = try await database.allRecordZones().filter {
             $0.zoneID != CKRecordZone.default().zoneID
         }
-        var candidates: [RelationshipLocator] = []
+        var candidates: [DiscoveredRelationship] = []
 
         for zone in zones {
             if scope == .private && !zone.zoneID.zoneName.hasPrefix("BetweenUsRelationship-") {
@@ -1526,19 +1903,22 @@ private extension BetweenUsStore {
                 guard record.recordType == "BetweenUsRelationship" else { continue }
                 let createdAt = record["createdAt"] as? Date ?? record.creationDate ?? .distantPast
                 candidates.append(
-                    RelationshipLocator(
-                        zoneName: zone.zoneID.zoneName,
-                        ownerName: zone.zoneID.ownerName,
-                        shareRecordName: CKRecordNameZoneWideShare,
-                        scope: scope == .private ? .privateOwner : .sharedParticipant,
-                        createdAt: createdAt
+                    DiscoveredRelationship(
+                        locator: RelationshipLocator(
+                            zoneName: zone.zoneID.zoneName,
+                            ownerName: zone.zoneID.ownerName,
+                            shareRecordName: CKRecordNameZoneWideShare,
+                            scope: scope == .private ? .privateOwner : .sharedParticipant,
+                            createdAt: createdAt
+                        ),
+                        partnerJoinedAt: record[RelationshipRecordField.partnerJoinedAt] as? Date
                     )
                 )
             } catch let error as CKError where error.code == .unknownItem {
                 continue
             }
         }
-        return candidates.max { $0.createdAt < $1.createdAt }
+        return candidates.max { $0.locator.createdAt < $1.locator.createdAt }
     }
 
     func accountStatus() async -> CKAccountStatus {
@@ -1613,7 +1993,7 @@ private extension BetweenUsStore {
                 await setSyncStatus(.attention("本机同步状态未保存，请稍后重试"))
             }
             if let noticeMessage {
-                await showNotice(title: "本机存储失败", message: noticeMessage)
+                await showNotice(title: "本机存储失败", message: noticeMessage, autoDismiss: false)
             }
             return false
         }
@@ -1646,7 +2026,8 @@ private extension BetweenUsStore {
             logger.fault("\(context, privacy: .public) failed completely: \(error.localizedDescription, privacy: .public)")
             await showNotice(
                 title: "本机清理未完成",
-                message: "空间已结束，但本机数据未能清除。请重新打开应用。"
+                message: "空间已结束，但本机数据未能清除。请重新打开应用。",
+                autoDismiss: false
             )
             return false
         }
@@ -1791,29 +2172,72 @@ private extension BetweenUsStore {
         }
     }
 
-    func showNotice(title: String, message: String) async {
-        await MainActor.run {
-            self.viewModel.notice = AppNotice(title: title.localized, message: message.localized)
-        }
-    }
-
     func cloudFriendlyMessage(for error: Error) -> String {
         guard let cloudError = error as? CKError else {
             return error.localizedDescription
         }
         switch cloudError.code {
         case .notAuthenticated:
-            return "请在系统设置中登录 iCloud。".localized
+            return T("请在系统设置中登录 iCloud。")
         case .networkUnavailable, .networkFailure:
-            return "当前网络不可用。本机内容不会丢失，联网后会自动重试。".localized
+            return T("当前网络不可用。本机内容不会丢失，联网后会自动重试。")
         case .serviceUnavailable, .zoneBusy, .requestRateLimited:
-            return "iCloud 正忙，请稍后再试。".localized
+            return T("iCloud 正忙，请稍后再试。")
         case .permissionFailure:
-            return "当前账号没有访问这个空间的权限。".localized
+            return T("当前账号没有访问这个空间的权限。")
         case .quotaExceeded:
-            return "iCloud 储存空间不足。".localized
+            return T("iCloud 储存空间不足。")
         default:
-            return cloudError.localizedDescription
+            return cloudDiagnostic(for: error)
         }
+    }
+
+    /// CloudKit 拒绝请求时，真正的原因藏在 userInfo 和批次里的单条错误上，
+    /// 界面上只剩一句「错误 15」。把服务器自己说的话带出来，才查得下去。
+    func cloudDiagnostic(for error: Error) -> String {
+        guard let cloudError = error as? CKError else { return error.localizedDescription }
+
+        var parts: [String] = ["CKError \(cloudError.code.rawValue)"]
+        let userInfo = (error as NSError).userInfo
+        for key in [
+            NSLocalizedFailureReasonErrorKey,
+            NSDebugDescriptionErrorKey,
+            "CKErrorServerDescription",
+            NSLocalizedDescriptionKey
+        ] {
+            guard let text = userInfo[key] as? String, !text.isEmpty, !parts.contains(text) else { continue }
+            parts.append(text)
+        }
+        for (item, itemError) in cloudError.partialErrorsByItemID ?? [:] {
+            let name = (item as? CKRecord.ID)?.recordName ?? String(describing: item)
+            parts.append("\(name): \(itemError.localizedDescription)")
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// CloudKit 取分享元数据时会分别回调单条结果和整体结果，用一次性的壳保证只 resume 一次。
+private final class ShareMetadataContinuation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<CKShare.Metadata, Error>?
+
+    init(_ continuation: CheckedContinuation<CKShare.Metadata, Error>) {
+        self.continuation = continuation
+    }
+
+    func finish(with result: Result<CKShare.Metadata, Error>) {
+        take()?.resume(with: result)
+    }
+
+    func finish(throwing error: Error) {
+        take()?.resume(throwing: error)
+    }
+
+    private func take() -> CheckedContinuation<CKShare.Metadata, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        let value = continuation
+        continuation = nil
+        return value
     }
 }

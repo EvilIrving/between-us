@@ -6,6 +6,8 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
 
     var id: UUID
     var kind: ContainerKind
+    /// 写入时冻结的纸张身份，只增不改；查看时永不因语言、字体、系统版本换纸（§10.1、§10.3）。
+    var storedPaperID: PaperID?
     var authorID: String
     var text: String
     var createdAt: Date
@@ -19,6 +21,7 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
     init(
         id: UUID = UUID(),
         kind: ContainerKind,
+        storedPaperID: PaperID? = nil,
         authorID: String,
         text: String,
         createdAt: Date = Date(),
@@ -31,6 +34,7 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
     ) {
         self.id = id
         self.kind = kind
+        self.storedPaperID = storedPaperID
         self.authorID = authorID
         self.text = text
         self.createdAt = createdAt
@@ -51,12 +55,16 @@ struct SecretItem: Identifiable, Codable, Hashable, Sendable {
     var allAttachments: [AttachmentMetadata] {
         (attachment.map { [$0] } ?? []) + (additionalAttachments ?? [])
     }
+
+    /// 读取入口只有这一处：老内容按冻结公式派生，新内容用写入时冻结的值。
+    var paperID: PaperID { storedPaperID ?? PaperRegistry.legacyPaperID(for: id) }
 }
 
 extension SecretItem {
     enum Field {
         static let schemaVersion = "schemaVersion"
         static let kind = "kind"
+        static let paperID = "paperID"
         static let text = "text"
         static let authorID = "authorID"
         static let createdAt = "createdAt"
@@ -114,6 +122,7 @@ extension SecretItem {
         self.init(
             id: id,
             kind: kind,
+            storedPaperID: (record[Field.paperID] as? String).flatMap { PaperID(rawValue: $0) },
             authorID: authorID,
             text: text,
             createdAt: createdAt,
@@ -126,8 +135,13 @@ extension SecretItem {
     }
 
     func populate(_ record: CKRecord, mediaStore: MediaFileStore) {
-        record[Field.schemaVersion] = 1 as CKRecordValue
+        record[Field.schemaVersion] = 2 as CKRecordValue
         record[Field.kind] = kind.rawValue as CKRecordValue
+        if let storedPaperID {
+            record[Field.paperID] = storedPaperID.rawValue as CKRecordValue
+        } else {
+            record[Field.paperID] = nil
+        }
         record[Field.createdAt] = createdAt as CKRecordValue
         record[Field.updatedAt] = updatedAt as CKRecordValue
         record.encryptedValues[Field.text] = text as CKRecordValue
@@ -170,6 +184,11 @@ extension SecretItem {
     mutating func mergeFromServerRecord(_ record: CKRecord, mediaStore: MediaFileStore) -> Bool {
         guard var remote = SecretItem(record: record, mediaStore: mediaStore) else { return false }
         remote.additionalAttachments = additionalAttachments
+
+        // 纸张冻结：远端没带 paperID（老设备/老记录）而本地有值时保留本地，不把纸退回派生结果。
+        if remote.storedPaperID == nil, let localPaperID = storedPaperID {
+            remote.storedPaperID = localPaperID
+        }
 
         // Opening an item only changes its open metadata. If a transient CKAsset download
         // fails during that merge, keep the valid local copy instead of accidentally

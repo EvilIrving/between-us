@@ -1,7 +1,119 @@
 import AVFoundation
 import AVKit
+import ImageIO
 import SwiftUI
 import UIKit
+
+/// 附件图片的解码入口。
+/// 手机拍的照片常见 4000×3000，原图直接解成位图是几十 MB：卡在视图求值里会拖掉整屏帧，
+/// 连着解几张就能把内存顶到警告线。这里统一按显示尺寸下采样，结果进内存缓存，同一张图并发只解一次。
+@MainActor
+final class AttachmentImageStore {
+    static let shared = AttachmentImageStore()
+
+    private let images = NSCache<NSString, UIImage>()
+    private var loading: [String: Task<UIImage?, Never>] = [:]
+    private var pixelSizes: [String: CGSize] = [:]
+
+    private init() {
+        images.totalCostLimit = 64 * 1024 * 1024
+    }
+
+    /// 已经下采样好的图；命中时视图直接显示，不必再等一次加载。
+    func cached(for url: URL, maxPixel: CGFloat) -> UIImage? {
+        images.object(forKey: key(url, maxPixel) as NSString)
+    }
+
+    func image(for url: URL, maxPixel: CGFloat) async -> UIImage? {
+        let key = key(url, maxPixel)
+        if let image = images.object(forKey: key as NSString) { return image }
+        if let pending = loading[key] { return await pending.value }
+        let task = Task.detached(priority: .userInitiated) {
+            AttachmentImageStore.downsampled(url: url, maxPixel: maxPixel)
+        }
+        loading[key] = task
+        let image = await task.value
+        loading[key] = nil
+        if let image {
+            images.setObject(image, forKey: key as NSString, cost: image.bitmapCost)
+        }
+        return image
+    }
+
+    /// 只读文件头拿像素尺寸，不解码像素：用来在图片到达之前先把版位占住。
+    func pixelSize(for url: URL) -> CGSize? {
+        if let size = pixelSizes[url.path] { return size }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Double,
+              let height = properties[kCGImagePropertyPixelHeight] as? Double,
+              width > 0, height > 0 else { return nil }
+        let size = CGSize(width: width, height: height)
+        pixelSizes[url.path] = size
+        return size
+    }
+
+    private func key(_ url: URL, _ maxPixel: CGFloat) -> String {
+        "\(url.path)|\(Int(maxPixel))"
+    }
+
+    private nonisolated static func downsampled(url: URL, maxPixel: CGFloat) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+}
+
+private extension UIImage {
+    /// 下采样之后的位图占用，用来给缓存记成本。
+    var bitmapCost: Int {
+        guard let cgImage else { return 0 }
+        return cgImage.bytesPerRow * cgImage.height
+    }
+}
+
+/// 附件里的图片：缓存命中立即出图，未命中在后台按显示尺寸解码。
+/// 视图求值里不再出现同步解原图的路径。
+struct AttachmentImage<Placeholder: View>: View {
+    let url: URL
+    let maxPixel: CGFloat
+    let placeholder: () -> Placeholder
+
+    @State private var image: UIImage?
+
+    init(
+        url: URL,
+        maxPixel: CGFloat,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.url = url
+        self.maxPixel = maxPixel
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        Group {
+            if let image = image ?? AttachmentImageStore.shared.cached(for: url, maxPixel: maxPixel) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: url) {
+            guard image == nil else { return }
+            image = await AttachmentImageStore.shared.image(for: url, maxPixel: maxPixel)
+        }
+    }
+}
 
 struct AttachmentDraftPreview: View {
     let draft: AttachmentDraft
@@ -47,32 +159,33 @@ struct AttachmentDraftPreview: View {
             }
             .buttonStyle(SoftScaleButtonStyle())
             .padding(10)
-            .accessibilityLabel("移除附件".localized)
+            .accessibilityLabel(T("移除附件"))
         }
     }
 
     @ViewBuilder
     private var preview: some View {
-        if draft.kind == .image,
-           let image = UIImage(contentsOfFile: draft.url.path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
+        if draft.kind == .image {
+            AttachmentImage(url: draft.url, maxPixel: 720) { kindIconPlaceholder }
         } else {
-            ZStack {
-                Color.white.opacity(0.44)
-                Image(systemName: draft.kind.systemImage)
-                    .font(.title2)
-                    .foregroundStyle(AppTheme.secondaryText)
-            }
+            kindIconPlaceholder
+        }
+    }
+
+    private var kindIconPlaceholder: some View {
+        ZStack {
+            Color.white.opacity(0.44)
+            Image(systemName: draft.kind.systemImage)
+                .font(.title2)
+                .foregroundStyle(AppTheme.secondaryText)
         }
     }
 
     private var metadataText: String {
         if let duration = draft.duration {
-            return "录音时长 %@".localized(duration.formattedDuration)
+            return T("录音时长 %@", duration.formattedDuration)
         }
-        return draft.originalFilename ?? "已准备".localized
+        return draft.originalFilename ?? T("已准备")
     }
 }
 
@@ -122,6 +235,9 @@ struct AttachmentContentView: View {
 struct AttachmentCollectionView: View {
     let attachments: [AttachmentMetadata]
     var tint: Color = ContainerKind.capsule.tint
+    /// 纸面用（§5）：显式几何。传入后录音行与单张图的高度由度量给出，
+    /// 保证「排版算出的纸高」与「实际渲染」用同一组数字。
+    var paperMetrics: PaperMediaMetrics? = nil
 
     private let mediaStore = MediaFileStore()
     @State private var mediaViewerRequest: MediaViewerRequest?
@@ -133,6 +249,7 @@ struct AttachmentCollectionView: View {
             // 录音排在最上面：它是这条内容的主表达，照片和视频跟在它后面。
             ForEach(Array(audioAttachments.enumerated()), id: \.offset) { _, attachment in
                 AttachmentContentView(attachment: attachment, tint: tint, openMedia: nil)
+                    .frame(height: paperMetrics?.audioRowHeight)
             }
 
             if visualMedia.count > 1 {
@@ -157,6 +274,7 @@ struct AttachmentCollectionView: View {
                     tint: tint,
                     openMedia: { openMedia(at: 0) }
                 )
+                .frame(height: paperMetrics?.singleVisualHeight(for: attachment))
             }
         }
         .fullScreenCover(item: $mediaViewerRequest) { request in
@@ -197,14 +315,12 @@ private struct SavedMediaTile: View {
                             .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
                     } else if attachment.kind == .video {
                         VideoPosterView(url: url)
-                    } else if let image = UIImage(contentsOfFile: url.path) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
                     } else {
-                        Image(systemName: "photo")
-                            .font(.title2)
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+                        AttachmentImage(url: url, maxPixel: 640) {
+                            Image(systemName: "photo")
+                                .font(.title2)
+                                .foregroundStyle(AppTheme.secondaryText.opacity(0.42))
+                        }
                     }
                 }
                 .overlay {
@@ -235,8 +351,8 @@ private struct SavedMediaTile: View {
         .disabled(!isAvailable)
         .accessibilityLabel(
             attachment.kind == .video
-                ? "播放视频".localized
-                : "查看第 %d 张照片".localized(index + 1)
+                ? T("播放视频")
+                : T("查看第 %d 张照片", index + 1)
         )
     }
 }
@@ -245,44 +361,73 @@ private struct ImageAttachmentView: View {
     let url: URL
     let openImage: (() -> Void)?
 
-    @ViewBuilder
+    private static let maxPixel: CGFloat = 1_500
+    private static let maximumHeight: CGFloat = 430
+
+    @State private var image: UIImage?
+    @State private var failed = false
+
     var body: some View {
-        if let image = UIImage(contentsOfFile: url.path) {
-            if let openImage {
-                Button(action: openImage) {
+        Group {
+            if let image = image ?? AttachmentImageStore.shared.cached(for: url, maxPixel: Self.maxPixel) {
+                if let openImage {
+                    Button(action: openImage) {
+                        displayedImage(image)
+                            .overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.black.opacity(0.34))
+                                    .clipShape(Circle())
+                                    .padding(10)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(T("放大查看照片"))
+                } else {
                     displayedImage(image)
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 32, height: 32)
-                                .background(Color.black.opacity(0.34))
-                                .clipShape(Circle())
-                                .padding(10)
-                        }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("放大查看照片".localized)
+            } else if failed {
+                unavailable
             } else {
-                displayedImage(image)
+                // 尺寸先由文件头定下来，图到达时版面不会跳。
+                Color.clear
+                    .aspectRatio(reservedAspect, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: Self.maximumHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-        } else {
-            VStack(spacing: 10) {
-                Image(systemName: "photo")
-                    .font(.title2)
-                Text("照片暂时无法显示")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(AppTheme.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 170)
         }
+        .task(id: url) {
+            guard image == nil else { return }
+            image = await AttachmentImageStore.shared.image(for: url, maxPixel: Self.maxPixel)
+            failed = image == nil
+        }
+    }
+
+    private var reservedAspect: CGFloat {
+        guard let size = AttachmentImageStore.shared.pixelSize(for: url), size.height > 0 else {
+            return 3.0 / 4.0
+        }
+        return size.width / size.height
+    }
+
+    private var unavailable: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "photo")
+                .font(.title2)
+            Text("照片暂时无法显示")
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(AppTheme.secondaryText)
+        .frame(maxWidth: .infinity, minHeight: 170)
     }
 
     private func displayedImage(_ image: UIImage) -> some View {
         Image(uiImage: image)
             .resizable()
             .scaledToFit()
-            .frame(maxWidth: .infinity, maxHeight: 430)
+            .frame(maxWidth: .infinity, maxHeight: Self.maximumHeight)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
@@ -296,6 +441,46 @@ private struct MediaViewerItem: Identifiable {
     let id: Int
     let kind: AttachmentKind
     let url: URL
+}
+
+private struct ViewerImagePage: View {
+    let url: URL
+    let onSingleTap: () -> Void
+    let onZoomChanged: (Bool) -> Void
+
+    // 全屏可以放大到五倍，留够裁切余量；仍然按显示尺寸解码，不把原图整张读进来。
+    private static let maxPixel: CGFloat = 2_560
+
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image = image ?? AttachmentImageStore.shared.cached(for: url, maxPixel: Self.maxPixel) {
+                ZoomableImageView(
+                    image: image,
+                    onSingleTap: onSingleTap,
+                    onZoomChanged: onZoomChanged
+                )
+            } else if failed {
+                VStack(spacing: 12) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 30, weight: .light))
+                    Text(T("照片暂时无法显示"))
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white.opacity(0.72))
+            } else {
+                ProgressView()
+                    .tint(.white.opacity(0.72))
+            }
+        }
+        .task(id: url) {
+            guard image == nil else { return }
+            image = await AttachmentImageStore.shared.image(for: url, maxPixel: Self.maxPixel)
+            failed = image == nil
+        }
+    }
 }
 
 private struct FullScreenMediaViewer: View {
@@ -345,7 +530,7 @@ private struct FullScreenMediaViewer: View {
                             .clipShape(Circle())
                     }
                     .buttonStyle(SoftScaleButtonStyle())
-                    .accessibilityLabel("关闭".localized)
+                    .accessibilityLabel(T("关闭"))
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
@@ -369,7 +554,7 @@ private struct FullScreenMediaViewer: View {
         .statusBarHidden(true)
         .presentationBackground(.clear)
         .simultaneousGesture(dismissGesture)
-        .onDisappear { PlaybackAudioSession.deactivate() }
+        .onDisappear { Task { await PlaybackAudioSession.shared.deactivate() } }
         .onChange(of: selectedIndex) { _, _ in
             isCurrentImageZoomed = false
             withAnimation(.easeOut(duration: 0.16)) {
@@ -382,16 +567,12 @@ private struct FullScreenMediaViewer: View {
     private func mediaPage(item: MediaViewerItem, isActive: Bool) -> some View {
         switch item.kind {
         case .image:
-            if let image = UIImage(contentsOfFile: item.url.path) {
-                ZoomableImageView(
-                    image: image,
-                    onSingleTap: toggleControls,
-                    onZoomChanged: { isCurrentImageZoomed = $0 }
-                )
-                .ignoresSafeArea()
-            } else {
-                unavailablePhoto
-            }
+            ViewerImagePage(
+                url: item.url,
+                onSingleTap: toggleControls,
+                onZoomChanged: { isCurrentImageZoomed = $0 }
+            )
+            .ignoresSafeArea()
         case .video:
             FullScreenVideoPage(url: item.url, isActive: isActive)
                 .ignoresSafeArea()
@@ -403,16 +584,6 @@ private struct FullScreenMediaViewer: View {
     /// 系统播放器自带底部控制条，视频页不再叠加页码。
     private var currentItemIsVideo: Bool {
         items.indices.contains(selectedIndex) && items[selectedIndex].kind == .video
-    }
-
-    private var unavailablePhoto: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "photo")
-                .font(.system(size: 30, weight: .light))
-            Text("照片暂时无法显示".localized)
-                .font(.subheadline.weight(.semibold))
-        }
-        .foregroundStyle(.white.opacity(0.72))
     }
 
     private func toggleControls() {
@@ -602,7 +773,7 @@ private struct VideoAttachmentView: View {
         }
         .buttonStyle(.plain)
         .disabled(openVideo == nil)
-        .accessibilityLabel("播放视频".localized)
+        .accessibilityLabel(T("播放视频"))
     }
 }
 
@@ -684,20 +855,26 @@ private struct SystemVideoPlayer: UIViewControllerRepresentable {
 }
 
 /// 播放期间使用 playback 会话，退到后台或锁屏后声音继续。
-private enum PlaybackAudioSession {
-    static func activate() {
-        let session = AVAudioSession.sharedInstance()
+/// 会话配置与激活要等到系统完成路由协商才返回，放在主线程上会顶住全屏视频的出现动画，
+/// 所以播放会话的操作统一走这个串行 actor：不占主线程，停用与下次激活也按发生顺序执行。
+private actor PlaybackAudioSession {
+    static let shared = PlaybackAudioSession()
+
+    private let session = AVAudioSession.sharedInstance()
+
+    func activate() {
         try? session.setCategory(.playback, mode: .moviePlayback)
         try? session.setActive(true)
     }
 
-    static func deactivate() {
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    func deactivate() {
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 
 private struct FullScreenVideoPage: View {
     @StateObject private var session: VideoPlaybackSession
+    @State private var activation: Task<Void, Never>?
     let isActive: Bool
 
     init(url: URL, isActive: Bool) {
@@ -709,18 +886,35 @@ private struct FullScreenVideoPage: View {
         SystemVideoPlayer(player: session.player)
             .onAppear {
                 guard isActive else { return }
-                PlaybackAudioSession.activate()
-                session.play()
+                startPlayback()
             }
             .onChange(of: isActive) { _, active in
                 if active {
-                    PlaybackAudioSession.activate()
-                    session.play()
+                    startPlayback()
                 } else {
+                    cancelPendingPlayback()
                     session.pause()
                 }
             }
-            .onDisappear { session.pause() }
+            .onDisappear {
+                cancelPendingPlayback()
+                session.pause()
+            }
+    }
+
+    // 会话先就位再起播，避免用上一次的会话类别出声；激活期间用户划走或切页时不再起播。
+    private func startPlayback() {
+        cancelPendingPlayback()
+        activation = Task { @MainActor in
+            await PlaybackAudioSession.shared.activate()
+            guard !Task.isCancelled else { return }
+            session.play()
+        }
+    }
+
+    private func cancelPendingPlayback() {
+        activation?.cancel()
+        activation = nil
     }
 }
 
@@ -851,7 +1045,7 @@ private struct AudioAttachmentView: View {
                 }
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
+            .accessibilityLabel(controller.isPlaying ? T("暂停语音") : T("播放语音"))
 
             VStack(spacing: 5) {
                 AudioWaveformScrubber(
@@ -932,7 +1126,7 @@ struct VoiceDraftPreviewPlayer: View {
                     }
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("删除录音并重录".localized)
+            .accessibilityLabel(T("删除录音并重录"))
 
             HStack(spacing: 8) {
                 Button(action: controller.toggle) {
@@ -951,7 +1145,7 @@ struct VoiceDraftPreviewPlayer: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(SoftScaleButtonStyle())
-                .accessibilityLabel(controller.isPlaying ? "暂停语音".localized : "播放语音".localized)
+                .accessibilityLabel(controller.isPlaying ? T("暂停语音") : T("播放语音"))
 
                 AudioWaveformScrubber(
                     url: url,
@@ -983,7 +1177,7 @@ struct VoiceDraftPreviewPlayer: View {
                     .clipShape(Circle())
             }
             .buttonStyle(SoftScaleButtonStyle())
-            .accessibilityLabel("保存并放进去".localized)
+            .accessibilityLabel(T("保存并放进去"))
         }
         .frame(maxWidth: 360)
         .onDisappear { controller.stop() }
@@ -1057,8 +1251,8 @@ private struct AudioWaveformScrubber: View {
             loudness = await AudioWaveformStore.shared.loudness(for: url)
         }
         .accessibilityElement()
-        .accessibilityLabel("语音播放进度".localized)
-        .accessibilityValue("百分之 %d".localized(Int(progress * 100)))
+        .accessibilityLabel(T("语音播放进度"))
+        .accessibilityValue(T("百分之 %d", Int(progress * 100)))
     }
 }
 

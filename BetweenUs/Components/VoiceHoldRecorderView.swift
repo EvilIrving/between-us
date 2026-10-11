@@ -6,6 +6,8 @@ struct VoiceHoldRecorderView: View {
     @ObservedObject var recorder: AudioRecorder
     @Binding var text: String
     var isFocused: FocusState<Bool>.Binding
+    /// 纸宽（点）：与查看态同一口径（`PaperSheetView.widthRatio × 屏宽`）。
+    let paperWidth: CGFloat
     let hasText: Bool
     let isDisabled: Bool
     let onCommit: () -> Void
@@ -31,15 +33,25 @@ struct VoiceHoldRecorderView: View {
 
     private var recordingStage: some View {
         ZStack(alignment: .bottomTrailing) {
-            HStack(alignment: .bottom, spacing: 8) {
-                recordingInfo
-                voicePad
+            if isIdleWriting {
+                // 空闲态：纸就是书写面，录音键浮在纸下方；纸居中，与查看态同一位置关系。
+                VStack(spacing: 12) {
+                    recordingInfo
+                    voicePad.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                HStack(alignment: .bottom, spacing: 8) {
+                    recordingInfo
+                    voicePad
+                }
+                .frame(maxWidth: 360, alignment: .bottom)
             }
 
             lockGuide
                 .offset(x: -3, y: -54)
         }
-        .frame(maxWidth: 360, minHeight: 47, alignment: .bottom)
+        .frame(maxWidth: .infinity, minHeight: 47, alignment: .bottom)
         .contentShape(Rectangle())
         .accessibilityAction(named: Text("开始录音")) {
             guard !isDisabled, !hasText, captureState == .idle, !recorder.isRecording else { return }
@@ -67,15 +79,15 @@ struct VoiceHoldRecorderView: View {
     private var isLocked: Bool { captureState.isLocked }
 
     private var accessibilityValue: String {
-        if recorder.isPreparing { return "正在准备录音".localized }
-        if captureState == .producingDraft { return "正在生成语音草稿".localized }
+        if recorder.isPreparing { return T("正在准备录音") }
+        if captureState == .producingDraft { return T("正在生成语音草稿") }
         if isLocked {
-            return "录音已锁定，时长 %@".localized(recorder.duration.formattedRecordingDuration)
+            return T("录音已锁定，时长 %@", recorder.duration.formattedRecordingDuration)
         }
         if recorder.isRecording {
-            return "正在录音，时长 %@".localized(recorder.duration.formattedRecordingDuration)
+            return T("正在录音，时长 %@", recorder.duration.formattedRecordingDuration)
         }
-        return "尚未开始录音".localized
+        return T("尚未开始录音")
     }
 
     private var recordingStatus: some View {
@@ -115,27 +127,33 @@ struct VoiceHoldRecorderView: View {
                 .padding(.leading, 14)
                 .padding(.trailing, 16)
             } else {
-                TextField(kind.placeholder, text: $text, axis: .vertical)
-                    .focused(isFocused)
-                    .lineLimit(5...8)
-                    .font(.system(size: 17, weight: .regular, design: .rounded))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .tint(kind.tint)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 12)
-                    .frame(minHeight: 132, alignment: .topLeading)
+                PaperEditorView(
+                    kind: kind,
+                    text: $text,
+                    isFocused: isFocused,
+                    paperWidth: paperWidth
+                )
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 132)
+        .frame(minHeight: isIdleWriting ? 0 : 132)
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.38))
+            if !isIdleWriting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.white.opacity(0.38))
+            }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.66), lineWidth: 1)
+            if !isIdleWriting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.66), lineWidth: 1)
+            }
         }
+    }
+
+    /// 空闲态用纸面书写：录音中与准备中沿用状态条。
+    private var isIdleWriting: Bool {
+        captureState == .idle && !recorder.isRecording && !recorder.isPreparing
     }
 
     @ViewBuilder
@@ -154,7 +172,7 @@ struct VoiceHoldRecorderView: View {
             HStack(spacing: 6) {
                 Image(systemName: cancelProgress >= 1 ? "xmark" : "chevron.left")
                     .font(.system(size: 11, weight: .bold))
-                Text(cancelProgress >= 1 ? "松开取消".localized : "左滑取消".localized)
+                Text(cancelProgress >= 1 ? T("松开取消") : T("左滑取消"))
                     .font(.system(size: 14, weight: .regular))
             }
             .foregroundStyle(AppTheme.secondaryText.opacity(cancelProgress >= 1 ? 0.82 : 0.52))
@@ -195,7 +213,7 @@ struct VoiceHoldRecorderView: View {
             }
             .buttonStyle(SoftScaleButtonStyle())
             .disabled(isDisabled || !recorder.isRecording)
-            .accessibilityLabel("停止录音并进入预览".localized)
+            .accessibilityLabel(T("停止录音并进入预览"))
         } else if hasText && captureState == .idle {
             commitButton
         } else {
@@ -211,14 +229,14 @@ struct VoiceHoldRecorderView: View {
         }
         .buttonStyle(SoftScaleButtonStyle())
         .disabled(isDisabled)
-        .accessibilityLabel("保存到%@".localized(kind.title))
+        .accessibilityLabel(T("保存到%@", kind.title))
     }
 
     private var interactiveVoicePad: some View {
         voicePadSurface
             .highPriorityGesture(recordingGesture, including: isDisabled || hasText ? .none : .all)
-            .accessibilityLabel("按住录音".localized)
-            .accessibilityHint("左滑取消，上滑锁定".localized)
+            .accessibilityLabel(T("按住录音"))
+            .accessibilityHint(T("左滑取消，上滑锁定"))
     }
 
     private var commitPadSurface: some View {
