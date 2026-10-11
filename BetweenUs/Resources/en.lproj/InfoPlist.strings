@@ -1,2 +1,3 @@
 "CFBundleDisplayName" = "Between us";
+"NSBluetoothAlwaysUsageDescription" = "Used to connect your space when two phones are brought close together.";
 "NSMicrophoneUsageDescription" = "Record something you want to say and leave it as a star, capsule, or paper note for your partner.";

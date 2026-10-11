@@ -1,2 +1,3 @@
 "CFBundleDisplayName" = "耳语";
+"NSBluetoothAlwaysUsageDescription" = "用于让两台手机靠近时把空间连起来。";
 "NSMicrophoneUsageDescription" = "用于录下想说的话，放进星星、胶囊或纸团里。";

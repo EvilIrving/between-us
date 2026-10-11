@@ -1,2 +1,3 @@
-"CFBundleDisplayName" = "ささやき";
+"CFBundleDisplayName" = "Between us";
+"NSBluetoothAlwaysUsageDescription" = "2台のスマートフォンを近づけてスペースをつなぐときに使います。";
 "NSMicrophoneUsageDescription" = "伝えたいことを録音し、星・カプセル・紙のメモとして相手に残すために使います。";
