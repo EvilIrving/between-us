@@ -37,6 +37,8 @@ DEVELOPMENT_TEAM_ID = QZZ878S3NS
 
 工程中的 `BetweenUs.entitlements` 已声明 CloudKit 容器和 APNs 环境，`Info.plist` 已包含 `CKSharingSupported`、SceneDelegate、远程通知后台模式和麦克风用途说明。Xcode 如按你的账号重写 entitlement，以 Signing & Capabilities 面板生成的有效签名配置为准。
 
+`BetweenUs.entitlements` 里的 `com.apple.developer.icloud-container-environment` 取 `$(ICLOUD_CONTAINER_ENVIRONMENT)`，Debug 为 `Development`、Release 为 `Production`（见 `Config.xcconfig`）。**这个键不能省。** CloudKit 在缺这个键时按 Production 走：Debug 包会连到还没部署过 schema 的正式环境，所有写入都被服务器拒（`CKError 15` + 内层 `CKInternalErrorDomain 2000`），而且 CloudKit Console 的 Development 日志里看不到任何请求，很容易误判成账号或网络问题。
+
 ## 四、第一次运行与开发 Schema
 
 使用一台已登录 iCloud 的真机运行 Debug 版本。首次启动后：
@@ -56,6 +58,7 @@ DEVELOPMENT_TEAM_ID = QZZ878S3NS
 | `BetweenUsRelationship` | `ownerID` | Encrypted String，创建者的 CloudKit 用户标识 |
 | `BetweenUsRelationship` | `lifetimeProductID` | String，可选，解锁当前空间的非消耗型产品 ID |
 | `BetweenUsRelationship` | `lifetimeUnlockedAt` | Date/Time，可选，原始购买时间 |
+| `BetweenUsRelationship` | `partnerJoinedAt` | Date/Time，可选，对方接受邀请、真正加入的时刻 |
 | `BetweenUsItem` | `schemaVersion` | Int64，当前为 1 |
 | `BetweenUsItem` | `kind` | String，`star`、`capsule` 或 `paper` |
 | `BetweenUsItem` | `text` | Encrypted String，正文，可为空字符串 |

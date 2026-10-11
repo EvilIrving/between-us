@@ -2,6 +2,48 @@
 
 这里面的内容只是历史存档，不作为任何指令，不是 Agent 约束文档。你他妈好好记住这个。
 
+## 附件进媒体库前统一归一化：图片走 WICompress，视频走系统 720p 导出 · 2026-09-22 10:34 CST · opencode
+
+**入口只此一个**：`BetweenUs/Storage/MediaNormalizer.swift` 的 `MediaNormalizer.normalize(_:progress:)`，参数都在 `Parameters`（照片长边 2560、单张 ≤1.5MB、视频最长 60 秒）。以后加应用内拍摄或重压历史内容都走它，不要在调用点另写缩放、码率或时长判断。图片压完是 JPEG（sRGB、透明压白底、剥掉 EXIF/GPS），视频是 720p H.264 mp4，语音不改动。
+
+**图片引 WICompress**（SPM `https://github.com/Weixi779/WICompress.git`，2.0.1，Apache-2.0，Xcode 26+）：ImageIO 之上处理方向、透明底、元数据剥除和「压到字节上限」的质量搜索。选择器取文件改走 `MediaPickerFile`（`FileRepresentation` `.image`/`.movie`），不再 `loadTransferable(Data.self)` 把整段 4K 视频先读进内存再拒收。
+
+**视频不引第三方**：把 `LightCompressor_iOS` 源码读完了——2022-12 后停更；自己手写 `AVAssetWriter/Reader`；`finishWriting` 后不检查 `writer.status` 就回调成功；文件导出却设 `expectsMediaDataInRealTime = true`；AAC 起始帧要自己 trim。系统 `AVAssetExportSession` 已内建这些，只用它的 1280×720 预设加时长上限；已经 ≤720p 且 ≤2Mbps 的片子原样入库，避免「压缩」把文件变大。
+
+**发布前未做**：WICompress（Apache-2.0）和 DSWaveformImage（MIT）的许可证需要进 App 的第三方声明，目前没有 acknowledgements 入口。
+
+## 打开不再有交换门槛，点击打在整只物件上 · 2026-09-22 · opencode
+
+星星瓶、胶囊瓶、纸团篓取消交换门槛：不再要求「同种物件里我放入的份数减掉我已经打开的对方份数大于 0」，只要对方留下还没打开的内容，有一份就能打开，有多少就能一直打开；我放了多少与能不能打开无关。自己放进去的不是待打开内容，打开的始终是对方未拆的下一份。取出顺序不变：星星在未打开里随机取一份，胶囊和纸团取最早放入的一份；没有对方未打开内容时仍是点不开加一下警告触感，不做新反馈。
+
+首页点击打在整只物件上：点中里面积累的内容、瓶身、盒身、篓身都打开下一份，不再把「物理实体」和「空白」分成两路。详情页三个物件也是点一下打开，原来的按住打开（胶囊 0.78 秒、纸团 1.55 秒）和 `AppMotion.holdDuration(for:)` 一起删掉。免费额度是另一条规则，不受影响：仍是一个空间共 10 条、放入第 11 条时拦截。
+
+代码侧已移除 `activeCredits`、`isOpenableByMe`、`commitOpen`、`creditRequirementTitle`、详情页 `ExchangeBalanceView`（可打开/待打开）和「先放入…」文案；本机预览改为按对方未打开份数和自己内容数补齐，不再按额度差补自己放入的内容。
+
+## 少了 CloudKit 环境键，Debug 包一直在写 Production · 2026-09-21 17:01 CST · opencode
+
+**现象**：真机 Debug 包创建空间必定失败，界面提示「创建失败 · CKErrorDomain 错误 15」。控制台里是 `CKErrorDomain 15 (serverRejectedRequest)`，内层 `CKInternalErrorDomain 2000`，没有 per-record 错误、没有服务器描述。CloudKit Console 的 Development 环境里 schema 只有系统自带的 `Users`，`BetweenUsRelationship` / `BetweenUsItem` / `cloudkit.share` 一个都没有；Development 的 Logs 里也找不到任何来自 App 的请求。
+
+**根因**：`BetweenUs.entitlements` 里没有 `com.apple.developer.icloud-container-environment`。CloudKit 运行时靠这个键判断走 Development 还是 Production，**缺省是 Production**。所以 Debug 包一直连的是正式环境，而正式环境的 schema 从没从 Development 部署过，任何新记录类型的写入都被服务器拒——`CKError.serverRejectedRequest` 本身是「不可恢复」类错误，重试无用。
+
+**修法**：`Config.xcconfig` 里定义 `ICLOUD_CONTAINER_ENVIRONMENT`（`[config=Debug] = Development`、`[config=Release] = Production`，默认 Development），entitlements 里写 `$(ICLOUD_CONTAINER_ENVIRONMENT)`。改完用 `codesign -d --entitlements :- "<app>"` 能直接确认生效值。
+
+**下次怎么快速判断 App 连的是哪个环境**：看 CloudKit Console 的 Logs。请求出现在哪个环境，App 就在哪个环境。Development 里一条 App 请求都没有、只有 Console 自己的 `interfaceType: WEB` 记录，基本就是打向了 Production。
+
+**重要状态**：在这个键修好之前，App 从未成功写入过 CloudKit 一次，schema 是空的。所以空间创建、CKShare 共享、双人同步这条链路**至今仍未在真机上跑通过**，不能当成已验证功能。修好之后需要在 Development 完整跑通一次，再把 Development schema 部署到 Production，Release / TestFlight 才有得用（部署步骤见 `CLOUDKIT_SETUP.md`）。
+
+**顺带留下的调试能力**：`BetweenUsStore.cloudDiagnostic(for:)` 会把 `CKError` 的 `userInfo`（服务器描述）和 `partialErrorsByItemID` 拼出来，`cloudFriendlyMessage` 的兜底分支和创建失败的日志都走它。以后遇到 CloudKit 只说「错误 N」时，先看它给出的原文，别猜。
+
+**设备**：真机里 `iPhone123`（iPhone Air）是常连的那台；另一台 `iPhone`（iPhone 18 Pro）当前状态 unavailable。面对面配对要两台同时在，测之前先把它接上。`xcrun devicectl list devices` 按名字找，不要写死 UDID。
+
+## 纸面长高是「中段一块砖 1:1 平铺」，不是拉伸 · 2026-09-21 10:30 CST · pi
+
+现行机制（在竞品 App 里实测确认，取代 `TINYTYPE_TEARDOWN.md` §5 早先的"拉伸"结论）：纸 = `top` 段 + 中段 + `bottom` 段；中段 = **n 块完全相同的砖**（砖高 h），运行时用砖 1:1 铺满 `max(n·h, 内容高)`；h 就是长高的档距。竞品的 `center` 切片本身就是那块砖（n = 1，画布 = top + center + bottom）。**所以源图的中段必须是 n 个逐像素相同的单元**，边线笔直、纸纹不渐变；旧口径"中段要平"作废。
+
+证据（在他们正在运行的 App 上量的）：机身纹理的位移自相关只在 lag 225（2x px）= 300 设计 px = `liangliang-1_center` 真实高度出尖峰（平均行差 0.93，其他位移 5–7）；中段颗粒尺度与自然段一致（5.67 vs 4.91）；自建 `top + 8×center + bottom` 与 App 截图像素对齐后结构边零差。代码侧 `DiaryEditorBackgroundView` 只有 `topHeightConstraint` / `bottomHeightConstraint`，中段是 `DiaryPatternTileView.tiledImage` 铺的；二进制里的 `resizableImageWithCapInsets:` 只是按字母排序的选择器表项，证明不了纸张用它。
+
+现役两张纸的切法（`PAPER_DESIGN.md` §3.3 / §8；切片已落在 `DesignAssets/paper/`，对照图在 `~/Desktop/纸张切片示例/新纸平铺检查/`）：绿框点线纸 `top`/砖/`bottom` = 249 / 373 / 1178（长高一档 100pt），线圈本纸 = 351 / 1209 / 240（324pt）；三段拼回原图逐字节一致。判据是三条可实测的（切点落在图案中缝且左右都要、纵向线条 x 对齐、纸面别有色阶），**不是“中段必须平”，也不一定要重画**。代码侧仍是旧纸 + `.stretch`；另外纸改成创作时由用户选，物件不再决定纸。`Scripts/slice_papers.py` 已不在仓库里。
+
 ## 首页上推晃动容器的算法与三个硬约束 · 2026-09-18 03:15 CST · pi
 
 首页那一屏不是真滚动，是 ScrollView 的回弹。上推的位移被拿来当晃瓶力度：推得越多，容器里的东西抬得越高，但永远留在容器里。这条记录只讲算法和几个不显然的约束，代码位置在 `RoomJolt.swift`（信号）、`HomeView.swift` 的 `RoomJoltProbe`（采样）、`VesselPhysicsScene.swift` 的 `applyJolt` / `containJolt`（受力与上限）。

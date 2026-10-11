@@ -147,7 +147,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 名前
 
-ささやき
+Between us
 
 ### サブタイトル
 
@@ -159,7 +159,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 説明
 
-ささやきは、ふたりのための静かな共有空間です。
+Between us は、ふたりのための静かな共有空間です。
 
 チャットのタイムラインではありません。ことばや写真、声を3つの入れものに残し、相手が受け取れるときに、手で開きます。
 
@@ -189,7 +189,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 이름
 
-속삭임
+Between us
 
 ### 부제
 
@@ -201,7 +201,7 @@ couples,relationship,private,journal,voice,photos,two,iCloud,shared
 
 ### 설명
 
-속삭임은 두 사람을 위한 조용하고 사적인 공간입니다.
+Between us는 두 사람을 위한 조용하고 사적인 공간입니다.
 
 채팅 타임라인이 아닙니다. 글과 사진, 음성을 세 개의 보관함에 남기고, 상대가 준비되었을 때 직접 열어 봅니다.
 
