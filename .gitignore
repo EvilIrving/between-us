@@ -63,8 +63,17 @@ secrets.xcconfig
 *.cer
 *.certSigningRequest
 
+# Agent skills, reference docs and tooling (local only)
+.agents/
+.pi/
+
 # IDE / editor
 .idea/
 .vscode/
 *.swp
 *~
+
+# Local env / beian materials
+.env
+.env.local
+*.pem
